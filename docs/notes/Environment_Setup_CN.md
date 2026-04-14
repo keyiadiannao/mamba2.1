@@ -248,6 +248,47 @@ python -m unittest discover -s tests -p "test_*.py"
 python scripts/run_nav/run_phase_a_pipeline.py --config configs/experiment/server_mamba_ssm_qwen.json
 ```
 
+### 6.1 如果依然报 `12.4 != 13.0`（你当前就是这个情况）
+
+这通常不是你主环境的问题，而是 `pip` 的 build isolation 临时环境又拉了不匹配的 `torch`（常见是 `cu130`）。
+
+也就是说：
+
+- 你的主环境里可能已经是 `torch 2.6.0+cu124`
+- 但编译 `mamba-ssm` 时，隔离环境里用了另一个 `torch`
+- 最终触发 `CUDA mismatch`
+
+针对这个问题，直接执行下面这组命令：
+
+```bash
+source "$(conda info --base)/etc/profile.d/conda.sh"
+conda activate ssgs
+
+python -c "import torch; print(torch.__version__)"
+python -c "import torch; print(torch.version.cuda)"
+python -c "import torch; print(torch.cuda.is_available())"
+
+python -m pip uninstall -y mamba-ssm causal-conv1d
+python -m pip install -U pip setuptools wheel ninja packaging
+
+export CUDA_HOME=/usr/local/cuda-12.4
+export TORCH_CUDA_ARCH_LIST="8.6"
+export MAX_JOBS=8
+
+python -m pip install --no-build-isolation causal-conv1d
+python -m pip install --no-build-isolation mamba-ssm
+
+python -c "import mamba_ssm; print('mamba_ssm ok')"
+python -c "import causal_conv1d; print('causal_conv1d ok')"
+```
+
+如果你的服务器不是 CUDA 12.4，请把 `CUDA_HOME` 改成对应目录。
+
+### 6.2 为什么 `--no-build-isolation` 有效
+
+`--no-build-isolation` 会强制构建过程使用你当前 conda 环境中的依赖，而不是临时创建一个新环境去拉新版本包。  
+对于你这个“主环境 cu124，但临时环境拉了 cu130”的问题，这通常是最关键的一步。
+
 ---
 
 ## 7. 什么时候正式切到真实 Mamba2
