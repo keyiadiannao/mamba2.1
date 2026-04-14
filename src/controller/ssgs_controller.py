@@ -53,14 +53,17 @@ class SSGSController:
         trace.visited_node_ids.append(node.node_id)
 
         if node.is_leaf:
-            visit_index = len(trace.visited_leaf_visits_ordered or [])
+            leaf_index = node.metadata.get("leaf_index")
+            if not isinstance(leaf_index, int):
+                leaf_index = len(trace.visited_leaf_visits_ordered or [])
+
             cast_visits = trace.visited_leaf_visits_ordered or []
-            cast_visits.append(visit_index)
+            cast_visits.append(leaf_index)
             trace.visited_leaf_visits_ordered = cast_visits
 
             cast_deduped = trace.visited_leaf_indices_deduped or []
-            if visit_index not in cast_deduped:
-                cast_deduped.append(visit_index)
+            if leaf_index not in cast_deduped:
+                cast_deduped.append(leaf_index)
             trace.visited_leaf_indices_deduped = cast_deduped
 
             if next_state.relevance_score >= self.config.min_relevance_score:

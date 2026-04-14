@@ -1,0 +1,46 @@
+{
+  "question": "What did Einstein propose in relativity?",
+  "reference_answer": "Einstein proposed relativity, including special relativity and general relativity.",
+  "root": {
+    "node_id": "root",
+    "text": "physics knowledge index",
+    "metadata": {
+      "title": "Physics"
+    },
+    "children": [
+      {
+        "node_id": "branch_newton",
+        "text": "classical mechanics and Newton laws",
+        "metadata": {
+          "title": "Newton branch"
+        },
+        "children": [
+          {
+            "node_id": "leaf_newton_1",
+            "text": "Newtonian mechanics explains force, motion, and gravity.",
+            "leaf_index": 0
+          }
+        ]
+      },
+      {
+        "node_id": "branch_relativity",
+        "text": "Einstein relativity branch",
+        "metadata": {
+          "title": "Relativity branch"
+        },
+        "children": [
+          {
+            "node_id": "leaf_relativity_1",
+            "text": "Einstein proposed relativity, including special relativity and general relativity.",
+            "leaf_index": 1
+          },
+          {
+            "node_id": "leaf_relativity_2",
+            "text": "Relativity changed modern physics and explains spacetime and gravity.",
+            "leaf_index": 2
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -13,6 +13,7 @@
 详细研究说明见：
 
 - `docs/research/SSGS_Research_Framework_CN.md`
+- `docs/notes/Environment_Setup_CN.md`
 
 ## 推荐目录结构
 
@@ -59,3 +60,52 @@ mamba2.1/
 - 忽略：大数据、模型权重、缓存、运行日志、临时输出
 
 这样后续无论本地开发、服务器迁移，还是上传 GitHub，都会更清晰。
+
+## Phase A 快速运行
+
+运行配置驱动的 Phase A 示例：
+
+```powershell
+py "scripts\run_nav\run_phase_a_pipeline.py"
+```
+
+运行最小演示脚本：
+
+```powershell
+py "scripts\run_nav\run_minimal_pipeline.py"
+```
+
+运行测试：
+
+```powershell
+py -m unittest discover -s tests -p "test_*.py"
+```
+
+默认示例会读取：
+
+- `configs/experiment/phase_a_demo.json`
+- `data/processed/demo_tree_payload.json`
+
+当前默认导航器为：
+
+- `navigator_type = mock`
+
+这意味着系统现在已经具备正式的 `mamba2` 接入口，但默认仍用 mock 导航器先稳定跑通 pipeline。等到本地或服务器环境中的 `mamba_ssm` 依赖、模型加载和状态接口确认后，只需把配置切换为 `navigator_type = mamba2`，再补完真实前向逻辑即可进入真实 Mamba2 集成阶段。
+
+运行结果会落盘到：
+
+- `outputs/runs/<run_id>/run_payload.json`
+- `outputs/runs/<run_id>/registry_row.json`
+- `outputs/reports/run_registry.jsonl`
+
+## 双环境建议
+
+建议将导航器和生成器按环境拆分：
+
+- 本地：`mamba2_native + qwen`
+- 服务器：`mamba_ssm + qwen`
+
+对应配置文件：
+
+- `configs/experiment/local_native_qwen.json`
+- `configs/experiment/server_mamba_ssm_qwen.json`

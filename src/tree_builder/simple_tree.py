@@ -9,7 +9,7 @@ class TreeNode:
     node_id: str
     text: str
     children: list["TreeNode"] = field(default_factory=list)
-    metadata: dict[str, str] = field(default_factory=dict)
+    metadata: dict[str, object] = field(default_factory=dict)
 
     @property
     def is_leaf(self) -> bool:

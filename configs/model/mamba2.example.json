@@ -1,0 +1,9 @@
+{
+  "navigator_type": "mamba2",
+  "navigator_model_name": "mamba2",
+  "navigator_device": "cuda",
+  "navigator_dtype": "float16",
+  "navigator_max_tokens_per_node": 512,
+  "navigator_dependency_module": "mamba_ssm",
+  "notes": "Template for late Phase A / Phase B real Mamba2 navigator integration."
+}

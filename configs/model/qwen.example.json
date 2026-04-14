@@ -1,0 +1,7 @@
+{
+  "generator_type": "qwen",
+  "generator_model_name": "qwen",
+  "generator_device": "cuda",
+  "generator_dtype": "float16",
+  "notes": "Generator stays fixed as Qwen while navigator backends vary."
+}
