@@ -248,50 +248,75 @@ python -m unittest discover -s tests -p "test_*.py"
 python scripts/run_nav/run_phase_a_pipeline.py --config configs/experiment/server_mamba_ssm_qwen.json
 ```
 
-### 6.1 如果依然报 `12.4 != 13.0`（你当前就是这个情况）
+---
 
-这通常不是你主环境的问题，而是 `pip` 的 build isolation 临时环境又拉了不匹配的 `torch`（常见是 `cu130`）。
+## 7. 如果 `mamba-ssm` 下载 wheel 超时
 
-也就是说：
+如果你看到类似下面的报错：
 
-- 你的主环境里可能已经是 `torch 2.6.0+cu124`
-- 但编译 `mamba-ssm` 时，隔离环境里用了另一个 `torch`
-- 最终触发 `CUDA mismatch`
+- `Guessing wheel URL: ...`
+- `error: <urlopen error [Errno 110] Connection timed out>`
 
-针对这个问题，直接执行下面这组命令：
+这通常说明：
+
+- `torch` 和 CUDA 版本已经基本对上了
+- `causal_conv1d` 也已经装好了
+- 现在真正失败的是 `mamba-ssm` 预编译 wheel 下载超时
+
+这时候不要优先走源码编译，先直接尝试手工下载或直装 wheel。
+
+### 7.1 直接用 wheel URL 安装
+
+对你这次环境，日志里已经给出了 wheel 地址：
 
 ```bash
-source "$(conda info --base)/etc/profile.d/conda.sh"
-conda activate ssgs
-
-python -c "import torch; print(torch.__version__)"
-python -c "import torch; print(torch.version.cuda)"
-python -c "import torch; print(torch.cuda.is_available())"
-
-python -m pip uninstall -y mamba-ssm causal-conv1d
-python -m pip install -U pip setuptools wheel ninja packaging
-
-export CUDA_HOME=/usr/local/cuda-12.4
-export TORCH_CUDA_ARCH_LIST="8.6"
-export MAX_JOBS=8
-
-python -m pip install --no-build-isolation causal-conv1d
-python -m pip install --no-build-isolation mamba-ssm
-
-python -c "import mamba_ssm; print('mamba_ssm ok')"
-python -c "import causal_conv1d; print('causal_conv1d ok')"
+pip install --default-timeout=1000 --no-cache-dir "https://github.com/state-spaces/mamba/releases/download/v2.3.1/mamba_ssm-2.3.1+cu12torch2.6cxx11abiFALSE-cp311-cp311-linux_x86_64.whl"
 ```
 
-如果你的服务器不是 CUDA 12.4，请把 `CUDA_HOME` 改成对应目录。
+安装后验证：
 
-### 6.2 为什么 `--no-build-isolation` 有效
+```bash
+python -c "import mamba_ssm; print('mamba_ssm ok')"
+```
 
-`--no-build-isolation` 会强制构建过程使用你当前 conda 环境中的依赖，而不是临时创建一个新环境去拉新版本包。  
-对于你这个“主环境 cu124，但临时环境拉了 cu130”的问题，这通常是最关键的一步。
+### 7.2 如果直接 `pip install URL` 还超时
+
+先手动下载，再本地安装：
+
+```bash
+mkdir -p /root/autodl-tmp/wheels
+cd /root/autodl-tmp/wheels
+wget -c --tries=10 --timeout=60 "https://github.com/state-spaces/mamba/releases/download/v2.3.1/mamba_ssm-2.3.1+cu12torch2.6cxx11abiFALSE-cp311-cp311-linux_x86_64.whl"
+pip install ./mamba_ssm-2.3.1+cu12torch2.6cxx11abiFALSE-cp311-cp311-linux_x86_64.whl
+```
+
+然后验证：
+
+```bash
+python -c "import mamba_ssm; print('mamba_ssm ok')"
+```
+
+### 7.3 如果 GitHub 下载还是慢
+
+可以先只做网络连通性检查：
+
+```bash
+curl -I "https://github.com/state-spaces/mamba/releases/download/v2.3.1/mamba_ssm-2.3.1+cu12torch2.6cxx11abiFALSE-cp311-cp311-linux_x86_64.whl"
+```
+
+如果这里长期卡住或超时，问题更偏网络，而不是 Python 环境。
+
+### 7.4 安装成功后继续执行
+
+```bash
+cd /root/autodl-tmp/mamba2.1
+python -m unittest discover -s tests -p "test_*.py"
+python scripts/run_nav/run_phase_a_pipeline.py --config configs/experiment/server_mamba_ssm_qwen.json
+```
 
 ---
 
-## 7. 什么时候正式切到真实 Mamba2
+## 8. 什么时候正式切到真实 Mamba2
 
 建议分两步：
 
@@ -309,7 +334,7 @@ python -c "import causal_conv1d; print('causal_conv1d ok')"
 
 ---
 
-## 8. 当前与你相关的最短操作路径
+## 9. 当前与你相关的最短操作路径
 
 如果你现在就要开始，建议按这个顺序做：
 
