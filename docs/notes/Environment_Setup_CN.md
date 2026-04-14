@@ -105,7 +105,7 @@ python -c "import transformers; print(transformers.__version__)"
 python -c "import mamba_ssm; print('mamba_ssm ok')"
 python -c "import causal_conv1d; print('causal_conv1d ok')"
 
-git clone <你的仓库地址>
+git clone https://github.com/keyiadiannao/mamba2.1.git
 cd mamba2.1
 
 python -m unittest discover -s tests -p 'test_*.py'
@@ -170,7 +170,7 @@ python -c "import causal_conv1d; print('causal_conv1d ok')"
 如果你已经上传到 Git 远程仓库：
 
 ```bash
-git clone <你的仓库地址>
+git clone https://github.com/keyiadiannao/mamba2.1.git
 cd mamba2.1
 ```
 
@@ -231,6 +231,8 @@ python scripts/run_nav/run_phase_a_pipeline.py --config configs/experiment/serve
 4. 拉代码并运行：
 
 ```bash
+git clone https://github.com/keyiadiannao/mamba2.1.git
+cd mamba2.1
 python -m unittest discover -s tests -p "test_*.py"
 python scripts/run_nav/run_phase_a_pipeline.py --config configs/experiment/server_mamba_ssm_qwen.json
 ```
