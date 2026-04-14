@@ -9,6 +9,7 @@ def build_navigation_summary(payload: dict[str, Any]) -> dict[str, Any]:
 
     return {
         "run_id": payload.get("run_id"),
+        "sample_id": payload.get("sample_id"),
         "question": payload.get("question"),
         "navigator_type": config.get("navigator_type", "mock"),
         "routing_mode": trace.get("routing_mode", config.get("routing_mode")),

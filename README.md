@@ -75,6 +75,12 @@ py "scripts\run_nav\run_phase_a_pipeline.py"
 py "scripts\run_nav\run_navigation_batch.py"
 ```
 
+比较导航汇总结果：
+
+```powershell
+py "scripts\run_nav\compare_navigation_reports.py"
+```
+
 运行最小演示脚本：
 
 ```powershell
@@ -96,6 +102,7 @@ py -m unittest discover -s tests -p "test_*.py"
 
 - `configs/experiment/navigation_batch_demo.json`
 - `configs/experiment/navigation_batch_server_mamba_ssm_qwen.json`
+- `configs/experiment/navigation_batch_server_mamba_ssm_qwen_cosine_probe.json`
 - `data/processed/demo_navigation_batch.json`
 
 当前默认导航器为：

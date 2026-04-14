@@ -12,6 +12,7 @@ def build_registry_row(payload: dict[str, Any]) -> dict[str, Any]:
 
     return {
         "run_id": payload.get("run_id"),
+        "sample_id": payload.get("sample_id"),
         "question": payload.get("question"),
         "tree_path": payload.get("tree_path"),
         "navigator_type": config.get("navigator_type", "mock"),
