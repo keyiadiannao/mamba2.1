@@ -21,6 +21,7 @@ class NavigatorFactoryTest(unittest.TestCase):
     def test_build_navigator_returns_mamba_ssm_adapter(self) -> None:
         navigator = build_navigator({"navigator_type": "mamba_ssm"})
         self.assertIsInstance(navigator, Mamba2Navigator)
+        self.assertEqual(navigator.config.backend, "mamba_ssm")
 
     def test_build_navigator_rejects_unknown_type(self) -> None:
         with self.assertRaises(ValueError):

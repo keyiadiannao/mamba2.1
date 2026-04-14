@@ -79,7 +79,10 @@ class Mamba2Navigator(BaseNavigator):
             self._dtype = self._resolve_dtype(self.config.dtype)
 
         if self._embedding is None:
-            self._embedding = self._torch.nn.Embedding(256, self.config.d_model).to(self._device)
+            self._embedding = self._torch.nn.Embedding(256, self.config.d_model).to(
+                device=self._device,
+                dtype=self._dtype,
+            )
 
         if self._model is None:
             mamba_cls = getattr(dependency, "Mamba2", None)
@@ -92,7 +95,7 @@ class Mamba2Navigator(BaseNavigator):
                 d_state=self.config.d_state,
                 d_conv=self.config.d_conv,
                 expand=self.config.expand,
-            ).to(self._device)
+            ).to(device=self._device, dtype=self._dtype)
             self._model.eval()
 
         return self._torch
@@ -129,6 +132,8 @@ class Mamba2Navigator(BaseNavigator):
 
     def _resolve_dtype(self, dtype_name: str) -> Any:
         torch = self._torch
+        if self._device is not None and self._device.type == "cpu":
+            return torch.float32
         lowered = dtype_name.lower()
         if lowered in {"float16", "fp16", "half"}:
             return torch.float16
