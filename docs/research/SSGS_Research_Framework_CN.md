@@ -339,6 +339,31 @@ Navigator-Generator 解耦后，是否可以形成完整、可复现、可审计
 - Generator 固定为 Qwen，不跟着一起变化
 - 先比较导航，再比较模型大小
 
+### 11.2 Learned Head 的接入时机
+
+可学习头应该进入主线，但不应早于第一个正式预训练导航器。
+
+建议顺序如下：
+
+1. `smoke 后端`
+- 先保证 pipeline、trace、batch、rollback 全通
+
+2. `固定路由基线`
+- 先完成 `rule` 与 `cosine_probe` 的导航对比
+
+3. `370M 预训练导航器`
+- 先验证正式预训练表示是否带来更稳定的导航收益
+
+4. `learned head`
+- 把可学习头挂在 Router/Scoring 模块
+- 输入为 query 表示、当前状态摘要、候选子节点表示等
+- 输出为候选 child score 或 relevance score
+
+5. `1.4B`
+- 最后再做规模放大
+
+因此，可学习头是主线的一部分，但不是下一步最先要做的内容。
+
 ---
 
 ## 12. 当前建议的论文叙事

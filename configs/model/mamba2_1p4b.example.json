@@ -1,7 +1,10 @@
 {
   "navigator_type": "mamba_ssm",
-  "navigator_model_name": "<replace-with-actual-1.4b-checkpoint>",
+  "navigator_model_name": "state-spaces/mamba-1.4b-hf",
+  "navigator_load_strategy": "hf_pretrained",
+  "navigator_pretrained_checkpoint": "state-spaces/mamba-1.4b-hf",
+  "navigator_tokenizer_name": "state-spaces/mamba-1.4b-hf",
   "navigator_device": "cuda",
   "navigator_dtype": "float16",
-  "notes": "Use 1.4B only after 370M routing and trace behavior are stable. Keep generator fixed while scaling navigator."
+  "notes": "Use only after 370M is stable. Keep generator fixed and compare against the 370M routing behavior first."
 }

@@ -1,7 +1,10 @@
 {
   "navigator_type": "mamba_ssm",
-  "navigator_model_name": "<replace-with-actual-370m-checkpoint>",
+  "navigator_model_name": "state-spaces/mamba-370m-hf",
+  "navigator_load_strategy": "hf_pretrained",
+  "navigator_pretrained_checkpoint": "state-spaces/mamba-370m-hf",
+  "navigator_tokenizer_name": "state-spaces/mamba-370m-hf",
   "navigator_device": "cuda",
   "navigator_dtype": "float16",
-  "notes": "Use 370M first after batch navigation smoke runs are stable. This is the recommended first formal-size model."
+  "notes": "Recommended first formal-size navigator checkpoint. Use after smoke and routing comparisons are stable."
 }

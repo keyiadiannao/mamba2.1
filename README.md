@@ -146,3 +146,9 @@ py -m unittest discover -s tests -p "test_*.py"
 - trace 和 routing 行为稳定
 
 之后再切 `370M`；只有当 `370M` 的结果稳定、资源成本可控时，再切 `1.4B`。
+
+当前推荐的正式模型入口：
+
+- `configs\experiment\navigation_batch_server_mamba_370m_qwen_rule.json`
+- `configs\model\mamba2_370m.example.json`
+- `configs\model\mamba2_1p4b.example.json`

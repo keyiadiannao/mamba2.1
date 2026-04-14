@@ -13,6 +13,9 @@ from .base import BaseNavigator, NavigatorState
 class Mamba2RuntimeConfig:
     backend: str = "mamba_ssm"
     model_name: str = "mamba2"
+    load_strategy: str = "smoke_block"
+    pretrained_checkpoint: str | None = None
+    tokenizer_name: str | None = None
     device: str = "cuda"
     dtype: str = "float16"
     max_tokens_per_node: int = 512
@@ -32,15 +35,21 @@ class Mamba2Navigator(BaseNavigator):
         self._torch = None
         self._device = None
         self._dtype = None
+        self._summary_dim = self.config.d_model
         self._embedding = None
         self._model = None
+        self._tokenizer = None
         self._query_cache: dict[str, list[float]] = {}
 
     def init_state(self) -> NavigatorState:
         self._ensure_runtime_ready()
         return NavigatorState(
-            hidden_summary=[0.0] * self.config.d_model,
-            backend_metadata={"backend": self.config.backend, "model_name": self.config.model_name},
+            hidden_summary=[0.0] * self._summary_dim,
+            backend_metadata={
+                "backend": self.config.backend,
+                "model_name": self.config.model_name,
+                "load_strategy": self.config.load_strategy,
+            },
         )
 
     def step(self, question: str, node: TreeNode, state: NavigatorState) -> NavigatorState:
@@ -59,6 +68,7 @@ class Mamba2Navigator(BaseNavigator):
         next_state.backend_metadata = {
             "backend": self.config.backend,
             "model_name": self.config.model_name,
+            "load_strategy": self.config.load_strategy,
             "device": str(self._device),
             "dtype": str(self._dtype).replace("torch.", ""),
             "semantic_bonus": float(semantic_bonus),
@@ -79,6 +89,9 @@ class Mamba2Navigator(BaseNavigator):
             self._dtype = self._resolve_dtype(self.config.dtype)
 
         if self._embedding is None:
+            if self.config.load_strategy == "hf_pretrained":
+                self._load_hf_pretrained_runtime()
+                return self._torch
             self._embedding = self._torch.nn.Embedding(256, self.config.d_model).to(
                 device=self._device,
                 dtype=self._dtype,
@@ -100,6 +113,29 @@ class Mamba2Navigator(BaseNavigator):
 
         return self._torch
 
+    def _load_hf_pretrained_runtime(self) -> None:
+        transformers = importlib.import_module("transformers")
+        checkpoint = self.config.pretrained_checkpoint or self.config.model_name
+        tokenizer_name = self.config.tokenizer_name or checkpoint
+
+        if self._tokenizer is None:
+            self._tokenizer = transformers.AutoTokenizer.from_pretrained(tokenizer_name)
+
+        if self._model is None:
+            model_kwargs: dict[str, Any] = {}
+            if self._device.type != "cpu":
+                model_kwargs["torch_dtype"] = self._dtype
+            try:
+                self._model = transformers.AutoModel.from_pretrained(checkpoint, **model_kwargs)
+            except Exception:
+                self._model = transformers.AutoModelForCausalLM.from_pretrained(checkpoint, **model_kwargs)
+                if hasattr(self._model, "backbone"):
+                    self._model = self._model.backbone
+
+            self._model.to(self._device)
+            self._model.eval()
+            self._summary_dim = int(getattr(self._model.config, "hidden_size", self.config.d_model))
+
     def _encode_query(self, question: str) -> list[float]:
         if question not in self._query_cache:
             self._query_cache[question] = self._encode_text(question, None)
@@ -107,6 +143,9 @@ class Mamba2Navigator(BaseNavigator):
 
     def _encode_text(self, text: str, previous_summary: list[float] | None) -> list[float]:
         torch = self._ensure_runtime_ready()
+        if self.config.load_strategy == "hf_pretrained":
+            return self._encode_text_with_hf_model(text, previous_summary)
+
         token_values = list(text.encode("utf-8"))[: self.config.max_tokens_per_node]
         if not token_values:
             token_values = [0]
@@ -129,6 +168,35 @@ class Mamba2Navigator(BaseNavigator):
             summary = outputs[:, -1, :].detach().float().cpu().squeeze(0).tolist()
 
         return [float(value) for value in summary]
+
+    def _encode_text_with_hf_model(self, text: str, previous_summary: list[float] | None) -> list[float]:
+        torch = self._ensure_runtime_ready()
+        encoded = self._tokenizer(
+            text,
+            return_tensors="pt",
+            truncation=True,
+            max_length=self.config.max_tokens_per_node,
+        )
+        encoded = {key: value.to(self._device) for key, value in encoded.items()}
+
+        with torch.no_grad():
+            outputs = self._model(**encoded, return_dict=True)
+            hidden_states = outputs.last_hidden_state if hasattr(outputs, "last_hidden_state") else outputs[0]
+            summary = hidden_states[:, -1, :].detach().float().cpu().squeeze(0).tolist()
+
+        if previous_summary is not None:
+            summary = self._merge_summaries(previous_summary, summary)
+        return [float(value) for value in summary]
+
+    def _merge_summaries(self, previous_summary: list[float], current_summary: list[float]) -> list[float]:
+        target_dim = min(len(previous_summary), len(current_summary))
+        merged = [
+            float((previous_summary[index] + current_summary[index]) / 2.0)
+            for index in range(target_dim)
+        ]
+        if len(current_summary) > target_dim:
+            merged.extend(float(value) for value in current_summary[target_dim:])
+        return merged
 
     def _resolve_dtype(self, dtype_name: str) -> Any:
         torch = self._torch
