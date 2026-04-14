@@ -13,8 +13,15 @@ from src.controller import ControllerConfig, SSGSController
 from src.evaluation import exact_match
 from src.generator_bridge import build_generator_prompt
 from src.navigator import build_navigator
-from src.router import RuleRouter
-from src.tracing import append_jsonl, build_registry_row, make_run_id, write_json, write_run_payload
+from src.router import build_router
+from src.tracing import (
+    append_jsonl,
+    build_navigation_summary,
+    build_registry_row,
+    make_run_id,
+    write_json,
+    write_run_payload,
+)
 from src.tree_builder import load_tree_from_json, load_tree_payload
 
 
@@ -48,12 +55,14 @@ def main() -> None:
 
     controller = SSGSController(
         navigator=build_navigator(config),
-        router=RuleRouter(),
+        router=build_router(config),
         config=ControllerConfig(
             routing_mode=str(config.get("routing_mode", "rule")),
             context_source=str(config.get("context_source", "t1_visited_leaves_ordered")),
             max_evidence=int(config.get("max_evidence", 3)),
             min_relevance_score=float(config.get("min_relevance_score", 1.0)),
+            max_depth=int(config.get("max_depth", 8)),
+            max_nodes=int(config.get("max_nodes", 64)),
         ),
     )
     trace = controller.run(question, tree)
@@ -79,13 +88,21 @@ def main() -> None:
     payload["output_run_dir"] = str(output_path.parent)
     write_json(output_path, payload)
     registry_row = build_registry_row(payload)
+    navigation_summary = build_navigation_summary(payload)
     write_json(output_path.parent / "registry_row.json", registry_row)
+    write_json(output_path.parent / "navigation_summary.json", navigation_summary)
     registry_path = append_jsonl(ROOT / "outputs" / "reports" / "run_registry.jsonl", registry_row)
+    navigation_registry_path = append_jsonl(
+        ROOT / "outputs" / "reports" / "navigation_summary.jsonl",
+        navigation_summary,
+    )
 
     print(json.dumps(payload, indent=2, ensure_ascii=False))
     print(f"\nSaved run payload to: {output_path}")
     print(f"Saved registry row to: {output_path.parent / 'registry_row.json'}")
+    print(f"Saved navigation summary to: {output_path.parent / 'navigation_summary.json'}")
     print(f"Updated run registry: {registry_path}")
+    print(f"Updated navigation summary registry: {navigation_registry_path}")
 
 
 if __name__ == "__main__":

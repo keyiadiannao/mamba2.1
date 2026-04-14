@@ -25,6 +25,7 @@ FROZEN_TRACE_FIELDS = [
 class TraceRecord:
     routing_mode: str
     context_source: str
+    navigator_type: str | None = None
     leaf_indices_required: list[int] = field(default_factory=list)
     nav_target_leaf_index: int | None = None
     nav_success: bool | None = None
@@ -37,7 +38,12 @@ class TraceRecord:
     exact_match: int | None = None
     rouge_l_f1: float | None = None
     evidence_texts: list[str] = field(default_factory=list)
+    evidence_node_ids: list[str] = field(default_factory=list)
     visited_node_ids: list[str] = field(default_factory=list)
+    node_scores: dict[str, float] = field(default_factory=dict)
+    route_decisions: list[dict[str, object]] = field(default_factory=list)
+    event_log: list[dict[str, object]] = field(default_factory=list)
+    failure_attribution: str | None = None
 
     _start_time: float = field(default_factory=perf_counter, repr=False)
 

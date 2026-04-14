@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+from typing import Any
 
 from src.tree_builder import TreeNode
 
@@ -11,12 +12,16 @@ class NavigatorState:
     path: list[str] = field(default_factory=list)
     text_bytes_seen: int = 0
     relevance_score: float = 0.0
+    hidden_summary: list[float] | None = None
+    backend_metadata: dict[str, Any] = field(default_factory=dict)
 
     def clone(self) -> "NavigatorState":
         return NavigatorState(
             path=list(self.path),
             text_bytes_seen=self.text_bytes_seen,
             relevance_score=self.relevance_score,
+            hidden_summary=list(self.hidden_summary) if self.hidden_summary is not None else None,
+            backend_metadata=dict(self.backend_metadata),
         )
 
 

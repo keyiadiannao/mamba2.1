@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from src.tracing import append_jsonl, build_registry_row
+from src.tracing import append_jsonl, build_navigation_summary, build_registry_row
 
 
 class RegistryOutputsTest(unittest.TestCase):
@@ -57,6 +57,29 @@ class RegistryOutputsTest(unittest.TestCase):
 
         self.assertEqual(len(content), 1)
         self.assertEqual(json.loads(content[0])["run_id"], "x1")
+
+    def test_build_navigation_summary_extracts_nav_fields(self) -> None:
+        payload = {
+            "run_id": "nav_demo_x",
+            "question": "What did Einstein propose?",
+            "config": {"navigator_type": "mock", "routing_mode": "rule"},
+            "trace": {
+                "nav_success": True,
+                "failure_attribution": None,
+                "visited_node_ids": ["root", "branch_relativity"],
+                "visited_leaf_indices_deduped": [1],
+                "evidence_texts": ["Einstein proposed relativity."],
+                "rollback_count": 1,
+                "snapshot_stack_max_depth": 2,
+                "nav_wall_time_ms": 5.0,
+                "context_build_error": None,
+                "evidence_node_ids": ["leaf_relativity_1"],
+            },
+        }
+        summary = build_navigation_summary(payload)
+        self.assertEqual(summary["navigator_type"], "mock")
+        self.assertEqual(summary["visited_node_count"], 2)
+        self.assertEqual(summary["evidence_node_ids"], ["leaf_relativity_1"])
 
 
 if __name__ == "__main__":

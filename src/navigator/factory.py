@@ -21,6 +21,10 @@ def build_navigator(config: dict[str, Any]) -> BaseNavigator:
                 device=str(config.get("navigator_device", "cuda")),
                 dtype=str(config.get("navigator_dtype", "float16")),
                 max_tokens_per_node=int(config.get("navigator_max_tokens_per_node", 512)),
+                d_model=int(config.get("navigator_d_model", 64)),
+                d_state=int(config.get("navigator_d_state", 64)),
+                d_conv=int(config.get("navigator_d_conv", 4)),
+                expand=int(config.get("navigator_expand", 2)),
                 dependency_module=str(
                     config.get("navigator_dependency_module", default_dependency_module)
                 ),
