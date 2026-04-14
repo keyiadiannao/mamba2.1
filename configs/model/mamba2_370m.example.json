@@ -1,0 +1,7 @@
+{
+  "navigator_type": "mamba_ssm",
+  "navigator_model_name": "<replace-with-actual-370m-checkpoint>",
+  "navigator_device": "cuda",
+  "navigator_dtype": "float16",
+  "notes": "Use 370M first after batch navigation smoke runs are stable. This is the recommended first formal-size model."
+}

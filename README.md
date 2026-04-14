@@ -69,6 +69,12 @@ mamba2.1/
 py "scripts\run_nav\run_phase_a_pipeline.py"
 ```
 
+运行批量导航示例：
+
+```powershell
+py "scripts\run_nav\run_navigation_batch.py"
+```
+
 运行最小演示脚本：
 
 ```powershell
@@ -86,6 +92,12 @@ py -m unittest discover -s tests -p "test_*.py"
 - `configs/experiment/phase_a_demo.json`
 - `data/processed/demo_tree_payload.json`
 
+批量示例会读取：
+
+- `configs/experiment/navigation_batch_demo.json`
+- `configs/experiment/navigation_batch_server_mamba_ssm_qwen.json`
+- `data/processed/demo_navigation_batch.json`
+
 当前默认导航器为：
 
 - `navigator_type = mock`
@@ -97,6 +109,8 @@ py -m unittest discover -s tests -p "test_*.py"
 - `outputs/runs/<run_id>/run_payload.json`
 - `outputs/runs/<run_id>/registry_row.json`
 - `outputs/reports/run_registry.jsonl`
+- `outputs/reports/navigation_summary.jsonl`
+- `outputs/reports/batches/<batch_id>/batch_summary.json`
 
 ## 双环境建议
 
@@ -109,3 +123,19 @@ py -m unittest discover -s tests -p "test_*.py"
 
 - `configs/experiment/local_native_qwen.json`
 - `configs/experiment/server_mamba_ssm_qwen.json`
+
+## 模型切换顺序
+
+导航器的模型升级建议按下面顺序走：
+
+1. 当前阶段：`mamba2-smoke`
+2. 第一正式模型：`370M`
+3. 第二正式模型：`1.4B`
+
+建议不要直接跳到 `1.4B`。更稳的顺序是先让：
+
+- 单样本运行稳定
+- 批量导航稳定
+- trace 和 routing 行为稳定
+
+之后再切 `370M`；只有当 `370M` 的结果稳定、资源成本可控时，再切 `1.4B`。

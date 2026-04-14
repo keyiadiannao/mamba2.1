@@ -1,0 +1,7 @@
+{
+  "navigator_type": "mamba_ssm",
+  "navigator_model_name": "<replace-with-actual-1.4b-checkpoint>",
+  "navigator_device": "cuda",
+  "navigator_dtype": "float16",
+  "notes": "Use 1.4B only after 370M routing and trace behavior are stable. Keep generator fixed while scaling navigator."
+}
