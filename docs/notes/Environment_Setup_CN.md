@@ -87,13 +87,15 @@
 nvidia-smi
 python --version
 conda --version
+nvcc --version || true
 
 conda create -n ssgs python=3.11 -y
 source "$(conda info --base)/etc/profile.d/conda.sh"
 conda activate ssgs
 
 python -m pip install --upgrade pip
-pip install torch torchvision torchaudio
+pip uninstall -y torch torchvision torchaudio || true
+pip install --index-url https://download.pytorch.org/whl/cu124 torch torchvision torchaudio
 pip install transformers accelerate sentencepiece datasets pytest
 pip install causal-conv1d
 pip install mamba-ssm
@@ -120,6 +122,7 @@ python scripts/run_nav/run_phase_a_pipeline.py --config configs/experiment/serve
 nvidia-smi
 python --version
 conda --version
+nvcc --version || true
 ```
 
 ### 4.2 创建并激活环境
@@ -135,7 +138,8 @@ python --version
 
 ```bash
 python -m pip install --upgrade pip
-pip install torch torchvision torchaudio
+pip uninstall -y torch torchvision torchaudio || true
+pip install --index-url https://download.pytorch.org/whl/cu124 torch torchvision torchaudio
 pip install transformers accelerate sentencepiece datasets
 pip install pytest
 ```
@@ -160,6 +164,7 @@ pip install mamba-ssm
 python -c "import torch; print(torch.__version__)"
 python -c "import torch; print(torch.cuda.is_available())"
 python -c "import torch; print(torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'no cuda')"
+python -c "import torch; print(torch.version.cuda)"
 python -c "import transformers; print(transformers.__version__)"
 python -c "import mamba_ssm; print('mamba_ssm ok')"
 python -c "import causal_conv1d; print('causal_conv1d ok')"
@@ -203,7 +208,49 @@ python scripts/run_nav/run_phase_a_pipeline.py --config configs/experiment/serve
 
 ---
 
-## 6. 什么时候正式切到真实 Mamba2
+## 6. 你这次报错的直接修复办法
+
+你这次服务器报错的核心是：
+
+- 系统检测到的 CUDA 工具链版本是 `12.4`
+- 当前安装的 PyTorch 是 `2.11.0+cu130`
+- `mamba-ssm` 需要编译扩展时，发现 `12.4 != 13.0`，因此失败
+
+也就是说，问题不是项目代码本身，而是服务器里的 `torch` CUDA 版本装错了。
+
+建议直接在服务器当前环境里执行下面这组修复命令：
+
+```bash
+source "$(conda info --base)/etc/profile.d/conda.sh"
+conda activate ssgs
+
+python -m pip uninstall -y mamba-ssm causal-conv1d torch torchvision torchaudio
+python -m pip cache purge
+
+python -m pip install --upgrade pip
+pip install --index-url https://download.pytorch.org/whl/cu124 torch torchvision torchaudio
+pip install transformers accelerate sentencepiece datasets pytest
+pip install causal-conv1d
+pip install mamba-ssm
+
+python -c "import torch; print(torch.__version__)"
+python -c "import torch; print(torch.version.cuda)"
+python -c "import torch; print(torch.cuda.is_available())"
+python -c "import mamba_ssm; print('mamba_ssm ok')"
+python -c "import causal_conv1d; print('causal_conv1d ok')"
+```
+
+如果这组命令执行成功，再继续：
+
+```bash
+cd /root/autodl-tmp/mamba2.1
+python -m unittest discover -s tests -p "test_*.py"
+python scripts/run_nav/run_phase_a_pipeline.py --config configs/experiment/server_mamba_ssm_qwen.json
+```
+
+---
+
+## 7. 什么时候正式切到真实 Mamba2
 
 建议分两步：
 
@@ -221,7 +268,7 @@ python scripts/run_nav/run_phase_a_pipeline.py --config configs/experiment/serve
 
 ---
 
-## 7. 当前与你相关的最短操作路径
+## 8. 当前与你相关的最短操作路径
 
 如果你现在就要开始，建议按这个顺序做：
 
