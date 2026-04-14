@@ -1,0 +1,7 @@
+{
+  "routing_mode": "rule",
+  "context_source": "t1_visited_leaves_ordered",
+  "max_evidence": 3,
+  "min_relevance_score": 1.0,
+  "notes": "Minimal demo config for Phase A pipeline smoke tests."
+}

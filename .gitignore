@@ -1,0 +1,52 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+.Python
+
+# Virtual environments
+.venv/
+venv/
+env/
+.env/
+
+# Conda
+.conda/
+
+# IDE
+.vscode/
+.idea/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Local experiment artifacts
+outputs/
+data/cache/
+data/interim/
+
+# Large datasets and model artifacts
+data/raw/
+checkpoints/
+models/
+weights/
+*.pt
+*.bin
+*.safetensors
+
+# Eval and runtime caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.tmp
+*.temp
