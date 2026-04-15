@@ -51,6 +51,7 @@ def run_navigation_sample(
     sample_id: str | None = None,
     batch_id: str | None = None,
     leaf_indices_required: list[int] | None = None,
+    controller: SSGSController | None = None,
 ) -> dict[str, Any]:
     resolved_tree_path = root_dir / tree_path
     tree_payload = load_tree_payload(resolved_tree_path)
@@ -60,8 +61,8 @@ def run_navigation_sample(
     if not final_question:
         raise ValueError("A question must be provided in the config, sample, or tree payload.")
 
-    controller = build_controller(config)
-    trace = controller.run(final_question, tree)
+    active_controller = controller or build_controller(config)
+    trace = active_controller.run(final_question, tree)
     if leaf_indices_required is not None:
         trace.leaf_indices_required = list(leaf_indices_required)
     trace.batch_id = batch_id

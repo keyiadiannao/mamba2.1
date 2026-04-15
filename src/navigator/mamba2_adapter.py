@@ -124,7 +124,7 @@ class Mamba2Navigator(BaseNavigator):
         if self._model is None:
             model_kwargs: dict[str, Any] = {}
             if self._device.type != "cpu":
-                model_kwargs["torch_dtype"] = self._dtype
+                model_kwargs["dtype"] = self._dtype
             try:
                 self._model = transformers.AutoModel.from_pretrained(checkpoint, **model_kwargs)
             except Exception:

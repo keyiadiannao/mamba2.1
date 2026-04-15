@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from src.pipeline import build_batch_summary, load_json, run_navigation_sample
+from src.pipeline import build_batch_summary, build_controller, load_json, run_navigation_sample
 from src.tracing import append_jsonl, make_run_id, write_json
 
 
@@ -33,6 +33,7 @@ def main() -> None:
         raise ValueError("Batch config requires a non-empty samples list.")
 
     batch_id = make_run_id(str(config.get("batch_id_prefix", "nav_batch")))
+    controller = build_controller(config)
     sample_payloads = []
     for index, sample in enumerate(samples, start=1):
         sample_id = str(sample.get("sample_id", f"sample_{index:03d}"))
@@ -46,6 +47,7 @@ def main() -> None:
             sample_id=sample_id,
             batch_id=batch_id,
             leaf_indices_required=list(sample.get("positive_leaf_indices", [])),
+            controller=controller,
         )
         sample_payloads.append(payload)
 
