@@ -105,6 +105,12 @@ py "scripts\run_nav\train_learned_router.py"
 py "scripts\build_tree\build_tree_from_jsonl.py" --input "data\raw\your_corpus.jsonl" --output "data\processed\your_tree_payload.json"
 ```
 
+把公开语料子集和 QA 标注一起转成 `tree payload + batch manifest`：
+
+```powershell
+py "scripts\build_tree\build_navigation_inputs_from_jsonl.py" --corpus-input "data\raw\your_corpus.jsonl" --qa-input "data\raw\your_qa.jsonl" --tree-output "data\processed\real_corpus_tree_payload.json" --batch-output "data\processed\real_corpus_navigation_batch.json"
+```
+
 运行最小演示脚本：
 
 ```powershell
@@ -149,6 +155,19 @@ py -m unittest discover -s tests -p "test_*.py"
 {"doc_id":"doc_001","title":"Einstein Notes","summary":"Relativity overview","text":"Einstein proposed special relativity and general relativity."}
 {"doc_id":"doc_002","title":"Newton Notes","summary":"Classical mechanics overview","text":"Newtonian mechanics explains force, motion, and gravity."}
 ```
+
+与之对应的 QA `jsonl` 示例：
+
+```json
+{"sample_id":"q1","question":"What did Einstein propose?","reference_answer":"Einstein proposed special relativity and general relativity.","positive_doc_ids":["doc_001"]}
+{"sample_id":"q2","question":"What does Newtonian mechanics explain?","reference_answer":"Newtonian mechanics explains force, motion, and gravity.","positive_doc_ids":["doc_002"]}
+```
+
+推荐做法：
+
+- 主实验优先使用公开数据集或公开语料子集，不要用模型生成文本充当“真实语料”
+- 手写小样本只用于 smoke test、接口验证和本地快速调试
+- 先把公开数据规整成 `corpus jsonl + qa jsonl`，再统一走构建脚本，保证后续实验可复现
 
 ## 双环境建议
 

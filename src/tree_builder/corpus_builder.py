@@ -53,6 +53,70 @@ def load_corpus_jsonl(path: str | Path) -> list[dict[str, Any]]:
     return records
 
 
+def build_doc_leaf_index_map(tree_payload: dict[str, Any]) -> dict[str, list[int]]:
+    root_payload = tree_payload.get("root", {})
+    if not isinstance(root_payload, dict):
+        raise ValueError("Tree payload must include a root object.")
+
+    doc_leaf_index_map: dict[str, list[int]] = {}
+    for branch in root_payload.get("children", []):
+        if not isinstance(branch, dict):
+            continue
+        metadata = branch.get("metadata", {})
+        doc_id = metadata.get("doc_id") if isinstance(metadata, dict) else None
+        if not isinstance(doc_id, str) or not doc_id:
+            continue
+
+        leaf_indices: list[int] = []
+        for child in branch.get("children", []):
+            if not isinstance(child, dict):
+                continue
+            leaf_index = child.get("leaf_index")
+            if isinstance(leaf_index, int):
+                leaf_indices.append(leaf_index)
+        doc_leaf_index_map[doc_id] = leaf_indices
+    return doc_leaf_index_map
+
+
+def build_navigation_samples_from_qa(
+    qa_records: list[dict[str, Any]],
+    *,
+    tree_payload: dict[str, Any],
+    tree_path: str,
+) -> dict[str, Any]:
+    doc_leaf_index_map = build_doc_leaf_index_map(tree_payload)
+    samples: list[dict[str, Any]] = []
+
+    for sample_index, record in enumerate(qa_records):
+        question = str(record.get("question") or "").strip()
+        if not question:
+            raise ValueError(f"QA record {sample_index} is missing a question.")
+
+        sample_id = str(record.get("sample_id") or f"sample_{sample_index:03d}")
+        reference_answer = str(record.get("reference_answer") or "").strip()
+        positive_doc_ids = record.get("positive_doc_ids", [])
+        if not isinstance(positive_doc_ids, list):
+            raise ValueError(f"QA record {sample_id} must provide positive_doc_ids as a list.")
+
+        positive_leaf_indices: list[int] = []
+        for doc_id in positive_doc_ids:
+            if not isinstance(doc_id, str):
+                continue
+            positive_leaf_indices.extend(doc_leaf_index_map.get(doc_id, []))
+
+        sample_payload: dict[str, Any] = {
+            "sample_id": sample_id,
+            "question": question,
+            "tree_path": tree_path,
+            "positive_leaf_indices": sorted(set(positive_leaf_indices)),
+        }
+        if reference_answer:
+            sample_payload["reference_answer"] = reference_answer
+        samples.append(sample_payload)
+
+    return {"samples": samples}
+
+
 def build_tree_payload_from_corpus(
     records: list[dict[str, Any]],
     *,
