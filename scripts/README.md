@@ -11,3 +11,4 @@
 
 - `run_end_to_end_batch.py`: 运行固定生成器的端到端 batch 评测
 - `compare_end_to_end_reports.py`: 汇总端到端 `EM / F1 / ROUGE-L` 与导航过程指标
+- `export_end_to_end_diagnostics.py`: 从多个 batch 中导出对齐样本，便于人工诊断 `prompt / context / answer`

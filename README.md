@@ -88,6 +88,12 @@ py "scripts\run_eval\run_end_to_end_batch.py" --config "configs\experiment\end_t
 py "scripts\run_eval\compare_end_to_end_reports.py"
 ```
 
+导出端到端小样本诊断集：
+
+```powershell
+py "scripts\run_eval\export_end_to_end_diagnostics.py" --batch-id "batch_oracle" --batch-id "batch_rule"
+```
+
 比较导航汇总结果：
 
 ```powershell
@@ -309,4 +315,10 @@ py "scripts\run_eval\run_end_to_end_batch.py" --config "configs\experiment\end_t
 
 ```powershell
 py "scripts\run_eval\compare_end_to_end_reports.py" --batch-id-contains "end_to_end_real_corpus_370m_qwen7b"
+```
+
+服务器端到端诊断导出示例：
+
+```powershell
+py "scripts\run_eval\export_end_to_end_diagnostics.py" --batch-id "end_to_end_real_corpus_370m_qwen7b_oracle_20260415_202905" --batch-id "end_to_end_real_corpus_370m_qwen7b_rule_20260415_193429" --priority-batch-id "end_to_end_real_corpus_370m_qwen7b_oracle_20260415_202905" --sample-limit 20 --output "outputs/reports/oracle_rule_diagnostics_top20.jsonl"
 ```
