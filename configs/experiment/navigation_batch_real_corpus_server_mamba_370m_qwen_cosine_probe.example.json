@@ -22,7 +22,7 @@
   "generator_model_name": "qwen",
   "routing_mode": "cosine_probe",
   "context_source": "t1_visited_leaves_ordered",
-  "max_evidence": 3,
+  "max_evidence": 8,
   "min_relevance_score": 1.0,
   "max_depth": 8,
   "max_nodes": 64

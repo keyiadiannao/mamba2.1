@@ -129,6 +129,18 @@ py "scripts\build_tree\prepare_2wiki_subset.py" --input "data\raw\2wiki_subset.j
 py "scripts\build_tree\extract_2wiki_subset.py" --input "data\raw\2wiki_full.jsonl" --output "data\raw\2wiki_subset.jsonl" --limit 20 --min-context-pages 2 --min-supporting-facts 2 --seed 42
 ```
 
+基于真实语料导出 learned router 训练数据：
+
+```powershell
+py "scripts\run_nav\export_router_training_data.py" --samples "data\processed\real_corpus_navigation_batch.json" --output "outputs\reports\router_training_data_real_corpus.jsonl"
+```
+
+基于真实语料训练 learned router checkpoint：
+
+```powershell
+py "scripts\run_nav\train_learned_router.py" --input "outputs\reports\router_training_data_real_corpus.jsonl" --output "configs\router\learned_router_real_corpus.json"
+```
+
 运行最小演示脚本：
 
 ```powershell
@@ -189,6 +201,7 @@ py -m unittest discover -s tests -p "test_*.py"
 - 如果原始样本更接近多页 Wikipedia / 多节长文档格式，先运行 `prepare_wiki_longdoc_subset.py`，再运行 `build_navigation_inputs_from_jsonl.py`
 - 如果原始样本来自 `2WikiMultiHopQA`，推荐顺序是：`prepare_2wiki_subset.py -> prepare_wiki_longdoc_subset.py -> build_navigation_inputs_from_jsonl.py`
 - 如果手头是完整 `2Wiki` 文件，先运行 `extract_2wiki_subset.py` 抽出一个 20-50 条的小子集，再走后续预处理链
+- 当真实语料链跑通后，下一步推荐进入学习头主线：`export_router_training_data.py -> train_learned_router.py -> navigation_batch_real_corpus_server_mamba_370m_qwen_learned_classifier`
 
 `prepare_wiki_longdoc_subset.py` 输入样例：
 
@@ -234,5 +247,9 @@ py -m unittest discover -s tests -p "test_*.py"
 - `configs\experiment\navigation_batch_server_mamba_370m_qwen_rule.json`
 - `configs\experiment\navigation_batch_server_mamba_370m_qwen_cosine_probe.json`
 - `configs\experiment\navigation_batch_server_mamba_370m_qwen_learned_classifier.json`
+- `configs\experiment\navigation_batch_real_corpus_server_mamba_ssm_qwen_rule.example.json`
+- `configs\experiment\navigation_batch_real_corpus_server_mamba_370m_qwen_rule.example.json`
+- `configs\experiment\navigation_batch_real_corpus_server_mamba_370m_qwen_cosine_probe.example.json`
+- `configs\experiment\navigation_batch_real_corpus_server_mamba_370m_qwen_learned_classifier.example.json`
 - `configs\model\mamba2_370m.example.json`
 - `configs\model\mamba2_1p4b.example.json`
