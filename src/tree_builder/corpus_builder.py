@@ -333,7 +333,58 @@ def build_corpus_and_qa_from_wiki_longdoc_samples(
     source_name: str = "wiki_longdoc_subset",
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     corpus_by_doc_id: dict[str, dict[str, Any]] = {}
+    group_signatures: dict[str, tuple[str, str]] = {}
     qa_records: list[dict[str, Any]] = []
+
+    def resolve_group_id(base_group_id: str, *, sample_id: str, title: str, text: str) -> str:
+        signature = (title, text)
+        existing = group_signatures.get(base_group_id)
+        if existing is None or existing == signature:
+            group_signatures[base_group_id] = signature
+            return base_group_id
+
+        suffix_index = 0
+        while True:
+            candidate = f"{base_group_id}__{sample_id}" if suffix_index == 0 else f"{base_group_id}__{sample_id}_{suffix_index:02d}"
+            existing = group_signatures.get(candidate)
+            if existing is None or existing == signature:
+                group_signatures[candidate] = signature
+                return candidate
+            suffix_index += 1
+
+    def resolve_section_id(
+        base_section_id: str,
+        *,
+        sample_id: str,
+        group_id: str,
+        page_title: str,
+        lead_text: str,
+        heading: str,
+        section_text: str,
+    ) -> str:
+        record = {
+            "doc_id": base_section_id,
+            "group_id": group_id,
+            "group_title": page_title,
+            "group_text": lead_text,
+            "title": f"{page_title} / {heading}",
+            "summary": heading,
+            "text": section_text,
+            "source": source_name,
+        }
+        existing = corpus_by_doc_id.get(base_section_id)
+        if existing is None or existing == record:
+            return base_section_id
+
+        suffix_index = 0
+        while True:
+            candidate = f"{base_section_id}__{sample_id}" if suffix_index == 0 else f"{base_section_id}__{sample_id}_{suffix_index:02d}"
+            candidate_record = dict(record)
+            candidate_record["doc_id"] = candidate
+            existing = corpus_by_doc_id.get(candidate)
+            if existing is None or existing == candidate_record:
+                return candidate
+            suffix_index += 1
 
     for sample_index, sample in enumerate(sample_records):
         question = _first_non_empty(sample.get("question"))
@@ -347,12 +398,14 @@ def build_corpus_and_qa_from_wiki_longdoc_samples(
             raise ValueError(f"Sample {sample_id} must provide a non-empty pages list.")
 
         page_to_section_ids: dict[str, list[str]] = {}
+        section_id_aliases: dict[str, str] = {}
         for page_index, page in enumerate(pages):
             if not isinstance(page, dict):
                 continue
             page_title = _first_non_empty(page.get("title")) or f"page_{page_index:03d}"
-            page_id = _first_non_empty(page.get("page_id")) or _slugify(page_title)
+            raw_page_id = _first_non_empty(page.get("page_id")) or _slugify(page_title)
             lead_text = _first_non_empty(page.get("lead_text"), page.get("summary"), page_title) or page_title
+            page_id = resolve_group_id(raw_page_id, sample_id=sample_id, title=page_title, text=lead_text)
             sections = page.get("sections", [])
             if not isinstance(sections, list):
                 continue
@@ -363,7 +416,7 @@ def build_corpus_and_qa_from_wiki_longdoc_samples(
                     continue
                 heading = _first_non_empty(section.get("heading"), section.get("title")) or f"Section {section_index + 1}"
                 raw_section_id = _first_non_empty(section.get("section_id"))
-                section_id = raw_section_id or f"{page_id}__{_slugify(heading)}_{section_index:03d}"
+                base_section_id = raw_section_id or f"{raw_page_id}__{_slugify(heading)}_{section_index:03d}"
 
                 paragraphs = section.get("paragraphs", [])
                 if not isinstance(paragraphs, list):
@@ -371,6 +424,16 @@ def build_corpus_and_qa_from_wiki_longdoc_samples(
                 paragraph_texts = [paragraph.strip() for paragraph in paragraphs if isinstance(paragraph, str) and paragraph.strip()]
                 if not paragraph_texts:
                     continue
+                section_text = "\n\n".join(paragraph_texts)
+                section_id = resolve_section_id(
+                    base_section_id,
+                    sample_id=sample_id,
+                    group_id=page_id,
+                    page_title=page_title,
+                    lead_text=lead_text,
+                    heading=heading,
+                    section_text=section_text,
+                )
 
                 record = {
                     "doc_id": section_id,
@@ -379,7 +442,7 @@ def build_corpus_and_qa_from_wiki_longdoc_samples(
                     "group_text": lead_text,
                     "title": f"{page_title} / {heading}",
                     "summary": heading,
-                    "text": "\n\n".join(paragraph_texts),
+                    "text": section_text,
                     "source": source_name,
                 }
 
@@ -388,13 +451,19 @@ def build_corpus_and_qa_from_wiki_longdoc_samples(
                     raise ValueError(f"Conflicting section payload for doc_id: {section_id}")
                 corpus_by_doc_id[section_id] = record
                 section_ids.append(section_id)
+                if raw_section_id:
+                    section_id_aliases[raw_section_id] = section_id
 
-            page_to_section_ids[page_id] = section_ids
+            page_to_section_ids[raw_page_id] = section_ids
 
         positive_doc_ids_raw = sample.get("supporting_section_ids")
         positive_doc_ids: list[str] = []
         if isinstance(positive_doc_ids_raw, list) and positive_doc_ids_raw:
-            positive_doc_ids = [doc_id for doc_id in positive_doc_ids_raw if isinstance(doc_id, str) and doc_id]
+            positive_doc_ids = [
+                section_id_aliases.get(doc_id, doc_id)
+                for doc_id in positive_doc_ids_raw
+                if isinstance(doc_id, str) and doc_id
+            ]
         else:
             supporting_page_ids = sample.get("supporting_page_ids", [])
             if isinstance(supporting_page_ids, list):

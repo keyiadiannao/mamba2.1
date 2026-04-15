@@ -145,6 +145,58 @@ class RealCorpusInputsTest(unittest.TestCase):
             ["page_scientist__awards", "page_scientist__career"],
         )
 
+    def test_build_corpus_and_qa_from_wiki_longdoc_samples_namespaces_conflicting_sections(self) -> None:
+        corpus_records, qa_records = build_corpus_and_qa_from_wiki_longdoc_samples(
+            [
+                {
+                    "sample_id": "sample_a",
+                    "question": "Question A?",
+                    "reference_answer": "Answer A",
+                    "supporting_section_ids": ["shared_section"],
+                    "pages": [
+                        {
+                            "page_id": "shared_page",
+                            "title": "Shared Page",
+                            "lead_text": "Shared lead A",
+                            "sections": [
+                                {
+                                    "section_id": "shared_section",
+                                    "heading": "History",
+                                    "paragraphs": ["Page A history text."],
+                                }
+                            ],
+                        }
+                    ],
+                },
+                {
+                    "sample_id": "sample_b",
+                    "question": "Question B?",
+                    "reference_answer": "Answer B",
+                    "supporting_section_ids": ["shared_section"],
+                    "pages": [
+                        {
+                            "page_id": "shared_page",
+                            "title": "Shared Page",
+                            "lead_text": "Shared lead B",
+                            "sections": [
+                                {
+                                    "section_id": "shared_section",
+                                    "heading": "History",
+                                    "paragraphs": ["Page B history text."],
+                                }
+                            ],
+                        }
+                    ],
+                },
+            ]
+        )
+
+        doc_ids = {record["doc_id"] for record in corpus_records}
+        self.assertIn("shared_section", doc_ids)
+        self.assertIn("shared_section__sample_b", doc_ids)
+        self.assertEqual(qa_records[0]["positive_doc_ids"], ["shared_section"])
+        self.assertEqual(qa_records[1]["positive_doc_ids"], ["shared_section__sample_b"])
+
     def test_grouped_tree_payload_and_leaf_mapping_work_for_wiki_longdoc_records(self) -> None:
         corpus_records, qa_records = build_corpus_and_qa_from_wiki_longdoc_samples(
             [
