@@ -10,6 +10,7 @@ def build_navigation_summary(payload: dict[str, Any]) -> dict[str, Any]:
     return {
         "run_id": payload.get("run_id"),
         "sample_id": payload.get("sample_id"),
+        "batch_id": payload.get("batch_id"),
         "question": payload.get("question"),
         "navigator_type": config.get("navigator_type", "mock"),
         "routing_mode": trace.get("routing_mode", config.get("routing_mode")),
@@ -20,6 +21,8 @@ def build_navigation_summary(payload: dict[str, Any]) -> dict[str, Any]:
         "evidence_count": len(trace.get("evidence_texts") or []),
         "rollback_count": trace.get("rollback_count"),
         "snapshot_stack_max_depth": trace.get("snapshot_stack_max_depth"),
+        "snapshot_push_count": trace.get("snapshot_push_count"),
+        "snapshot_restore_count": trace.get("snapshot_restore_count"),
         "nav_wall_time_ms": trace.get("nav_wall_time_ms"),
         "context_build_error": trace.get("context_build_error"),
         "evidence_node_ids": trace.get("evidence_node_ids") or [],

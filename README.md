@@ -81,6 +81,12 @@ py "scripts\run_nav\run_navigation_batch.py"
 py "scripts\run_nav\compare_navigation_reports.py"
 ```
 
+按指定 `batch_id` 精确比较本轮结果：
+
+```powershell
+py "scripts\run_nav\compare_navigation_reports.py" --batch-id "your_batch_id"
+```
+
 导出 learned router 训练数据：
 
 ```powershell
@@ -91,6 +97,12 @@ py "scripts\run_nav\export_router_training_data.py"
 
 ```powershell
 py "scripts\run_nav\train_learned_router.py"
+```
+
+把真实语料 `jsonl` 转成导航树：
+
+```powershell
+py "scripts\build_tree\build_tree_from_jsonl.py" --input "data\raw\your_corpus.jsonl" --output "data\processed\your_tree_payload.json"
 ```
 
 运行最小演示脚本：
@@ -130,6 +142,13 @@ py -m unittest discover -s tests -p "test_*.py"
 - `outputs/reports/run_registry.jsonl`
 - `outputs/reports/navigation_summary.jsonl`
 - `outputs/reports/batches/<batch_id>/batch_summary.json`
+
+真实语料最小输入格式示例：
+
+```json
+{"doc_id":"doc_001","title":"Einstein Notes","summary":"Relativity overview","text":"Einstein proposed special relativity and general relativity."}
+{"doc_id":"doc_002","title":"Newton Notes","summary":"Classical mechanics overview","text":"Newtonian mechanics explains force, motion, and gravity."}
+```
 
 ## 双环境建议
 

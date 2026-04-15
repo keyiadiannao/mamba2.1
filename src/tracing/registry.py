@@ -13,6 +13,7 @@ def build_registry_row(payload: dict[str, Any]) -> dict[str, Any]:
     return {
         "run_id": payload.get("run_id"),
         "sample_id": payload.get("sample_id"),
+        "batch_id": payload.get("batch_id"),
         "question": payload.get("question"),
         "tree_path": payload.get("tree_path"),
         "navigator_type": config.get("navigator_type", "mock"),
@@ -24,6 +25,8 @@ def build_registry_row(payload: dict[str, Any]) -> dict[str, Any]:
         "nav_success": trace.get("nav_success"),
         "rollback_count": trace.get("rollback_count"),
         "snapshot_stack_max_depth": trace.get("snapshot_stack_max_depth"),
+        "snapshot_push_count": trace.get("snapshot_push_count"),
+        "snapshot_restore_count": trace.get("snapshot_restore_count"),
         "nav_wall_time_ms": trace.get("nav_wall_time_ms"),
         "visited_leaf_count": len(trace.get("visited_leaf_indices_deduped") or []),
         "evidence_count": len(evidence_texts),

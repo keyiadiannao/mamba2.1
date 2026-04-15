@@ -7,6 +7,7 @@ from time import perf_counter
 FROZEN_TRACE_FIELDS = [
     "routing_mode",
     "context_source",
+    "batch_id",
     "leaf_indices_required",
     "nav_target_leaf_index",
     "nav_success",
@@ -14,6 +15,8 @@ FROZEN_TRACE_FIELDS = [
     "visited_leaf_indices_deduped",
     "rollback_count",
     "snapshot_stack_max_depth",
+    "snapshot_push_count",
+    "snapshot_restore_count",
     "nav_wall_time_ms",
     "context_build_error",
     "exact_match",
@@ -26,6 +29,7 @@ class TraceRecord:
     routing_mode: str
     context_source: str
     navigator_type: str | None = None
+    batch_id: str | None = None
     leaf_indices_required: list[int] = field(default_factory=list)
     nav_target_leaf_index: int | None = None
     nav_success: bool | None = None
@@ -33,6 +37,8 @@ class TraceRecord:
     visited_leaf_indices_deduped: list[int] | None = None
     rollback_count: int = 0
     snapshot_stack_max_depth: int = 0
+    snapshot_push_count: int = 0
+    snapshot_restore_count: int = 0
     nav_wall_time_ms: float | None = None
     context_build_error: str | None = None
     exact_match: int | None = None

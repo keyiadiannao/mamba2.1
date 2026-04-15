@@ -36,8 +36,11 @@ class MinimalPipelineTest(unittest.TestCase):
         for field_name in [
             "routing_mode",
             "context_source",
+            "batch_id",
             "rollback_count",
             "snapshot_stack_max_depth",
+            "snapshot_push_count",
+            "snapshot_restore_count",
             "nav_wall_time_ms",
         ]:
             self.assertIn(field_name, FROZEN_TRACE_FIELDS)
@@ -57,6 +60,9 @@ class MinimalPipelineTest(unittest.TestCase):
         self.assertGreaterEqual(len(trace.event_log), 1)
         self.assertGreaterEqual(len(trace.route_decisions), 1)
         self.assertIn("leaf_relativity_1", trace.evidence_node_ids)
+        self.assertGreaterEqual(trace.snapshot_push_count, 1)
+        self.assertGreaterEqual(trace.snapshot_restore_count, 0)
+        self.assertTrue(any(event["event"] == "snapshot_push" for event in trace.event_log))
 
 
 if __name__ == "__main__":

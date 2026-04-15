@@ -1,4 +1,12 @@
+from .corpus_builder import build_tree_payload_from_corpus, load_corpus_jsonl
 from .json_loader import load_tree_from_json, load_tree_payload
 from .simple_tree import DocumentTree, TreeNode
 
-__all__ = ["DocumentTree", "TreeNode", "load_tree_from_json", "load_tree_payload"]
+__all__ = [
+    "DocumentTree",
+    "TreeNode",
+    "build_tree_payload_from_corpus",
+    "load_corpus_jsonl",
+    "load_tree_from_json",
+    "load_tree_payload",
+]

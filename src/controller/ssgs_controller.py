@@ -115,6 +115,15 @@ class SSGSController:
 
         snapshot = next_state.clone()
         trace.snapshot_stack_max_depth = max(trace.snapshot_stack_max_depth, len(snapshot.path))
+        trace.snapshot_push_count += 1
+        trace.event_log.append(
+            {
+                "event": "snapshot_push",
+                "node_id": node.node_id,
+                "depth": depth,
+                "stack_depth": len(snapshot.path),
+            }
+        )
 
         ordered = self.router.rank_children(question, node, node.children, next_state)
         trace.route_decisions.append(
@@ -133,12 +142,22 @@ class SSGSController:
             self._explore_node(question, child, snapshot.clone(), trace, depth + 1)
             if len(trace.evidence_texts) == before_evidence:
                 trace.rollback_count += 1
+                trace.snapshot_restore_count += 1
                 trace.event_log.append(
                     {
                         "event": "rollback",
                         "from_child_node_id": child.node_id,
                         "to_parent_node_id": node.node_id,
                         "depth": depth,
+                    }
+                )
+                trace.event_log.append(
+                    {
+                        "event": "snapshot_restore",
+                        "from_child_node_id": child.node_id,
+                        "to_parent_node_id": node.node_id,
+                        "depth": depth,
+                        "stack_depth": len(snapshot.path),
                     }
                 )
 

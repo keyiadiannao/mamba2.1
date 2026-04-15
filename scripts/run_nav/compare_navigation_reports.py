@@ -28,6 +28,11 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Optional substring filter on run_id.",
     )
+    parser.add_argument(
+        "--batch-id",
+        default=None,
+        help="Optional exact batch_id filter.",
+    )
     return parser.parse_args()
 
 
@@ -52,6 +57,8 @@ def main() -> None:
         if args.navigator_type and row.get("navigator_type") != args.navigator_type:
             continue
         if args.run_id_contains and args.run_id_contains not in str(row.get("run_id")):
+            continue
+        if args.batch_id and row.get("batch_id") != args.batch_id:
             continue
         filtered.append(row)
 
@@ -79,6 +86,7 @@ def main() -> None:
         "input_path": str(ROOT / Path(args.input)),
         "navigator_type_filter": args.navigator_type,
         "run_id_contains_filter": args.run_id_contains,
+        "batch_id_filter": args.batch_id,
         "row_count": len(filtered),
         "comparison": comparison,
     }

@@ -13,6 +13,7 @@ class RegistryOutputsTest(unittest.TestCase):
     def test_build_registry_row_extracts_core_fields(self) -> None:
         payload = {
             "run_id": "phase_a_demo_x",
+            "batch_id": "batch_demo_x",
             "question": "What did Einstein propose?",
             "tree_path": "data/processed/demo_tree_payload.json",
             "output_run_dir": "outputs/runs/phase_a_demo_x",
@@ -30,6 +31,8 @@ class RegistryOutputsTest(unittest.TestCase):
                 "nav_success": True,
                 "rollback_count": 2,
                 "snapshot_stack_max_depth": 3,
+                "snapshot_push_count": 2,
+                "snapshot_restore_count": 2,
                 "nav_wall_time_ms": 12.5,
                 "visited_leaf_indices_deduped": [1, 2],
                 "evidence_texts": ["Einstein proposed relativity."],
@@ -40,6 +43,7 @@ class RegistryOutputsTest(unittest.TestCase):
 
         row = build_registry_row(payload)
         self.assertEqual(row["run_id"], "phase_a_demo_x")
+        self.assertEqual(row["batch_id"], "batch_demo_x")
         self.assertEqual(row["navigator_type"], "mamba_ssm")
         self.assertEqual(row["navigator_model_name"], "mamba2")
         self.assertEqual(row["generator_type"], "qwen")
@@ -61,6 +65,7 @@ class RegistryOutputsTest(unittest.TestCase):
     def test_build_navigation_summary_extracts_nav_fields(self) -> None:
         payload = {
             "run_id": "nav_demo_x",
+            "batch_id": "batch_demo_x",
             "question": "What did Einstein propose?",
             "config": {"navigator_type": "mock", "routing_mode": "rule"},
             "trace": {
@@ -71,12 +76,15 @@ class RegistryOutputsTest(unittest.TestCase):
                 "evidence_texts": ["Einstein proposed relativity."],
                 "rollback_count": 1,
                 "snapshot_stack_max_depth": 2,
+                "snapshot_push_count": 1,
+                "snapshot_restore_count": 1,
                 "nav_wall_time_ms": 5.0,
                 "context_build_error": None,
                 "evidence_node_ids": ["leaf_relativity_1"],
             },
         }
         summary = build_navigation_summary(payload)
+        self.assertEqual(summary["batch_id"], "batch_demo_x")
         self.assertEqual(summary["navigator_type"], "mock")
         self.assertEqual(summary["visited_node_count"], 2)
         self.assertEqual(summary["evidence_node_ids"], ["leaf_relativity_1"])
