@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -63,9 +64,152 @@ def _dedupe_preserve_order(values: list[int]) -> list[int]:
     return ordered
 
 
+def _extract_entity_key(node_id: str) -> str:
+    if "__sent_" in node_id:
+        return node_id.split("__sent_", 1)[0]
+    return node_id
+
+
+def _tokenize_content(text: str) -> set[str]:
+    stopwords = {
+        "a",
+        "an",
+        "and",
+        "are",
+        "as",
+        "at",
+        "be",
+        "by",
+        "did",
+        "do",
+        "does",
+        "for",
+        "from",
+        "has",
+        "have",
+        "in",
+        "is",
+        "of",
+        "on",
+        "or",
+        "the",
+        "to",
+        "was",
+        "were",
+        "which",
+        "who",
+        "whom",
+        "whose",
+        "where",
+        "when",
+        "what",
+    }
+    tokens = set(re.findall(r"[A-Za-z0-9]+", text.lower()))
+    return {token for token in tokens if token not in stopwords and len(token) > 1}
+
+
+def _apply_evidence_controls(
+    selected_nodes: list[Any],
+    question: str,
+    config: dict[str, Any],
+) -> list[Any]:
+    mode = str(config.get("evidence_control_mode", "baseline")).strip().lower()
+    if mode != "anti_collapse":
+        return selected_nodes
+
+    per_entity_max = max(1, int(config.get("evidence_control_per_entity_max", 2)))
+    require_overlap = bool(config.get("evidence_control_require_question_overlap", True))
+    question_tokens = _tokenize_content(question)
+
+    filtered: list[Any] = []
+    entity_counts: dict[str, int] = {}
+    for node in selected_nodes:
+        entity_key = _extract_entity_key(node.node_id)
+        current_count = entity_counts.get(entity_key, 0)
+        if current_count >= per_entity_max:
+            continue
+        if require_overlap and question_tokens:
+            if not (_tokenize_content(node.text) & question_tokens):
+                continue
+        entity_counts[entity_key] = current_count + 1
+        filtered.append(node)
+
+    if filtered:
+        return filtered
+
+    # Fallback: enforce entity cap only, to avoid empty contexts.
+    fallback: list[Any] = []
+    fallback_counts: dict[str, int] = {}
+    for node in selected_nodes:
+        entity_key = _extract_entity_key(node.node_id)
+        current_count = fallback_counts.get(entity_key, 0)
+        if current_count >= per_entity_max:
+            continue
+        fallback_counts[entity_key] = current_count + 1
+        fallback.append(node)
+
+    return fallback if fallback else selected_nodes
+
+
+def _extract_which_options(question: str) -> tuple[str, str] | None:
+    lowered = question.lower()
+    if " or " not in lowered:
+        return None
+    question_body = question.strip().rstrip("?").strip()
+    left, right = question_body.rsplit(" or ", 1)
+    left_option = left.split(",")[-1].strip()
+    right_option = right.strip()
+    if not left_option or not right_option:
+        return None
+    return left_option, right_option
+
+
+def _normalize_choice(value: str) -> str:
+    return " ".join(re.findall(r"[A-Za-z0-9]+", value.lower()))
+
+
+def _postprocess_generated_answer(
+    question: str,
+    generated_answer: str | None,
+    config: dict[str, Any],
+) -> tuple[str | None, str, str | None]:
+    mode = str(config.get("postprocess_mode", "off")).strip().lower()
+    if mode != "constrained" or not generated_answer:
+        return generated_answer, mode, None
+
+    answer = generated_answer.strip()
+    normalized_answer = _normalize_choice(answer)
+    if not normalized_answer:
+        return answer, mode, None
+
+    lowered_question = question.strip().lower()
+    if re.match(r"^(do|does|did|is|are|was|were|can|could|has|have|had)\b", lowered_question):
+        answer_tokens = set(normalized_answer.split())
+        if "yes" in answer_tokens:
+            return "yes", mode, "force_yesno"
+        if "no" in answer_tokens:
+            return "no", mode, "force_yesno"
+        return answer, mode, None
+
+    options = _extract_which_options(question)
+    if options is None:
+        return answer, mode, None
+
+    left_option, right_option = options
+    left_norm = _normalize_choice(left_option)
+    right_norm = _normalize_choice(right_option)
+    if left_norm and left_norm in normalized_answer:
+        return left_option, mode, "force_binary_choice"
+    if right_norm and right_norm in normalized_answer:
+        return right_option, mode, "force_binary_choice"
+    return answer, mode, None
+
+
 def _build_context_from_trace(
     tree,
     trace,
+    question: str,
+    config: dict[str, Any],
     context_source: str,
     max_items: int,
 ) -> tuple[list[str], list[str], str | None]:
@@ -78,7 +222,9 @@ def _build_context_from_trace(
 
     if context_source == "t1_visited_leaves_ordered":
         ordered_indices = _dedupe_preserve_order(list(trace.visited_leaf_visits_ordered or []))
-        selected_nodes = [leaf_index_map[index] for index in ordered_indices if index in leaf_index_map][:max_items]
+        selected_nodes = [leaf_index_map[index] for index in ordered_indices if index in leaf_index_map]
+        selected_nodes = _apply_evidence_controls(selected_nodes, question=question, config=config)
+        selected_nodes = selected_nodes[:max_items]
         if selected_nodes:
             return [node.text for node in selected_nodes], [node.node_id for node in selected_nodes], None
         selected_node_ids = list(trace.evidence_node_ids[:max_items])
@@ -134,6 +280,8 @@ def run_navigation_sample(
     context_texts, context_node_ids, context_error = _build_context_from_trace(
         tree=tree,
         trace=trace,
+        question=final_question,
+        config=config,
         context_source=str(config.get("context_source", "t1_visited_leaves_ordered")),
         max_items=context_max_items,
     )
@@ -144,8 +292,17 @@ def run_navigation_sample(
         if not trace.failure_attribution:
             trace.failure_attribution = "context_construction_failure"
 
-    generated_answer, prompt, generation_error = build_generator_result(config, final_question, context_texts)
-    trace.generated_answer = generated_answer
+    raw_generated_answer, prompt, generation_error = build_generator_result(config, final_question, context_texts)
+    postprocessed_answer, postprocess_mode, postprocess_rule = _postprocess_generated_answer(
+        question=final_question,
+        generated_answer=raw_generated_answer,
+        config=config,
+    )
+    trace.raw_generated_answer = raw_generated_answer
+    trace.postprocessed_answer = postprocessed_answer
+    trace.generated_answer = postprocessed_answer
+    trace.postprocess_mode = postprocess_mode
+    trace.postprocess_rule = postprocess_rule
     trace.generation_error = generation_error
     if generation_error and not trace.failure_attribution:
         trace.failure_attribution = "generation_failure"
@@ -162,7 +319,7 @@ def run_navigation_sample(
                 trace.answer_f1 = 0.0
                 trace.rouge_l_f1 = 0.0
             else:
-                score_source = generated_answer or ""
+                score_source = postprocessed_answer or ""
                 trace.exact_match = exact_match(score_source, final_reference)
                 trace.answer_f1 = answer_f1(score_source, final_reference)
                 trace.rouge_l_f1 = rouge_l_f1(score_source, final_reference)
@@ -190,7 +347,9 @@ def run_navigation_sample(
         "generator_prompt": prompt,
         "generator_evidence_texts": context_texts,
         "generator_evidence_node_ids": context_node_ids,
-        "generated_answer": generated_answer,
+        "raw_generated_answer": raw_generated_answer,
+        "postprocessed_answer": postprocessed_answer,
+        "generated_answer": postprocessed_answer,
         "reference_answer": final_reference,
     }
 

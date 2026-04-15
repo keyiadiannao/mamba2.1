@@ -22,6 +22,8 @@ FROZEN_TRACE_FIELDS = [
     "exact_match",
     "answer_f1",
     "rouge_l_f1",
+    "postprocess_mode",
+    "postprocess_rule",
 ]
 
 
@@ -46,7 +48,11 @@ class TraceRecord:
     answer_f1: float | None = None
     rouge_l_f1: float | None = None
     generated_answer: str | None = None
+    raw_generated_answer: str | None = None
+    postprocessed_answer: str | None = None
     generation_error: str | None = None
+    postprocess_mode: str | None = None
+    postprocess_rule: str | None = None
     context_texts: list[str] = field(default_factory=list)
     context_node_ids: list[str] = field(default_factory=list)
     evidence_texts: list[str] = field(default_factory=list)

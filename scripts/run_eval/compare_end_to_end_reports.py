@@ -34,6 +34,21 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Optional substring filter on batch_id.",
     )
+    parser.add_argument(
+        "--ablation-batch-id",
+        action="append",
+        default=None,
+        help="Batch id to include in one-click ablation summary; may be provided multiple times.",
+    )
+    parser.add_argument(
+        "--gap-pair",
+        action="append",
+        default=None,
+        help=(
+            "Optional gap pair in format name:left_batch_id:right_batch_id. "
+            "For example: rule_vs_oracle:batch_rule:batch_oracle"
+        ),
+    )
     return parser.parse_args()
 
 
@@ -47,6 +62,88 @@ def load_rows(path: Path) -> list[dict[str, object]]:
             if stripped:
                 rows.append(json.loads(stripped))
     return rows
+
+
+def _summarize_group(group_rows: list[dict[str, object]]) -> dict[str, object]:
+    sample_count = len(group_rows)
+    nav_successes = sum(1 for row in group_rows if row.get("nav_success"))
+    exact_match_hits = sum(1 for row in group_rows if row.get("exact_match") == 1)
+    answer_f1_values = [float(row["answer_f1"]) for row in group_rows if row.get("answer_f1") is not None]
+    rouge_values = [float(row["rouge_l_f1"]) for row in group_rows if row.get("rouge_l_f1") is not None]
+    nav_time_values = [float(row.get("nav_wall_time_ms") or 0.0) for row in group_rows]
+    rollback_values = [int(row.get("rollback_count") or 0) for row in group_rows]
+    evidence_values = [int(row.get("evidence_count") or 0) for row in group_rows]
+    context_values = [int(row.get("context_item_count") or 0) for row in group_rows]
+
+    return {
+        "sample_count": sample_count,
+        "context_source": group_rows[0].get("context_source"),
+        "routing_mode": group_rows[0].get("routing_mode"),
+        "nav_success_rate": (nav_successes / sample_count) if sample_count else 0.0,
+        "exact_match_rate": (exact_match_hits / sample_count) if sample_count else 0.0,
+        "avg_answer_f1": (sum(answer_f1_values) / len(answer_f1_values)) if answer_f1_values else 0.0,
+        "avg_rouge_l_f1": (sum(rouge_values) / len(rouge_values)) if rouge_values else 0.0,
+        "avg_nav_wall_time_ms": (sum(nav_time_values) / sample_count) if sample_count else 0.0,
+        "avg_rollback_count": (sum(rollback_values) / sample_count) if sample_count else 0.0,
+        "avg_evidence_count": (sum(evidence_values) / sample_count) if sample_count else 0.0,
+        "avg_context_item_count": (sum(context_values) / sample_count) if sample_count else 0.0,
+        "sample_ids": [row.get("sample_id") for row in group_rows],
+    }
+
+
+def _build_ablation_summary(
+    filtered_rows: list[dict[str, object]],
+    ablation_batch_ids: list[str],
+    gap_pairs: list[str],
+) -> dict[str, object]:
+    batch_to_rows: dict[str, list[dict[str, object]]] = defaultdict(list)
+    for row in filtered_rows:
+        batch_id = str(row.get("batch_id") or "")
+        if batch_id in ablation_batch_ids:
+            batch_to_rows[batch_id].append(row)
+
+    batch_metrics: dict[str, dict[str, object]] = {}
+    for batch_id in ablation_batch_ids:
+        rows = batch_to_rows.get(batch_id, [])
+        if rows:
+            batch_metrics[batch_id] = _summarize_group(rows)
+        else:
+            batch_metrics[batch_id] = {
+                "sample_count": 0,
+                "exact_match_rate": 0.0,
+                "avg_answer_f1": 0.0,
+                "avg_rouge_l_f1": 0.0,
+                "error": "batch_id not found in filtered rows",
+            }
+
+    computed_gaps: list[dict[str, object]] = []
+    for pair in gap_pairs:
+        parts = pair.split(":", 2)
+        if len(parts) != 3:
+            computed_gaps.append({"raw": pair, "error": "invalid format, expected name:left:right"})
+            continue
+        name, left_id, right_id = parts
+        left = batch_metrics.get(left_id)
+        right = batch_metrics.get(right_id)
+        if not left or not right:
+            computed_gaps.append({"name": name, "left": left_id, "right": right_id, "error": "missing batch metric"})
+            continue
+        computed_gaps.append(
+            {
+                "name": name,
+                "left": left_id,
+                "right": right_id,
+                "exact_match_rate_gap": float(left.get("exact_match_rate", 0.0)) - float(right.get("exact_match_rate", 0.0)),
+                "avg_answer_f1_gap": float(left.get("avg_answer_f1", 0.0)) - float(right.get("avg_answer_f1", 0.0)),
+                "avg_rouge_l_f1_gap": float(left.get("avg_rouge_l_f1", 0.0)) - float(right.get("avg_rouge_l_f1", 0.0)),
+            }
+        )
+
+    return {
+        "batch_ids": ablation_batch_ids,
+        "batch_metrics": batch_metrics,
+        "gaps": computed_gaps,
+    }
 
 
 def main() -> None:
@@ -72,30 +169,7 @@ def main() -> None:
 
     comparison: dict[str, dict[str, object]] = {}
     for group_key, group_rows in grouped.items():
-        sample_count = len(group_rows)
-        nav_successes = sum(1 for row in group_rows if row.get("nav_success"))
-        exact_match_hits = sum(1 for row in group_rows if row.get("exact_match") == 1)
-        answer_f1_values = [float(row["answer_f1"]) for row in group_rows if row.get("answer_f1") is not None]
-        rouge_values = [float(row["rouge_l_f1"]) for row in group_rows if row.get("rouge_l_f1") is not None]
-        nav_time_values = [float(row.get("nav_wall_time_ms") or 0.0) for row in group_rows]
-        rollback_values = [int(row.get("rollback_count") or 0) for row in group_rows]
-        evidence_values = [int(row.get("evidence_count") or 0) for row in group_rows]
-        context_values = [int(row.get("context_item_count") or 0) for row in group_rows]
-
-        comparison[group_key] = {
-            "sample_count": sample_count,
-            "context_source": group_rows[0].get("context_source"),
-            "routing_mode": group_rows[0].get("routing_mode"),
-            "nav_success_rate": (nav_successes / sample_count) if sample_count else 0.0,
-            "exact_match_rate": (exact_match_hits / sample_count) if sample_count else 0.0,
-            "avg_answer_f1": (sum(answer_f1_values) / len(answer_f1_values)) if answer_f1_values else 0.0,
-            "avg_rouge_l_f1": (sum(rouge_values) / len(rouge_values)) if rouge_values else 0.0,
-            "avg_nav_wall_time_ms": (sum(nav_time_values) / sample_count) if sample_count else 0.0,
-            "avg_rollback_count": (sum(rollback_values) / sample_count) if sample_count else 0.0,
-            "avg_evidence_count": (sum(evidence_values) / sample_count) if sample_count else 0.0,
-            "avg_context_item_count": (sum(context_values) / sample_count) if sample_count else 0.0,
-            "sample_ids": [row.get("sample_id") for row in group_rows],
-        }
+        comparison[group_key] = _summarize_group(group_rows)
 
     output = {
         "input_path": str(ROOT / Path(args.input)),
@@ -105,6 +179,13 @@ def main() -> None:
         "row_count": len(filtered),
         "comparison": comparison,
     }
+    ablation_batch_ids = list(args.ablation_batch_id or [])
+    if ablation_batch_ids:
+        output["ablation_summary"] = _build_ablation_summary(
+            filtered_rows=filtered,
+            ablation_batch_ids=ablation_batch_ids,
+            gap_pairs=list(args.gap_pair or []),
+        )
     print(json.dumps(output, indent=2, ensure_ascii=False))
 
 

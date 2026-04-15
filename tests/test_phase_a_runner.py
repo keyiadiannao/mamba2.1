@@ -8,9 +8,46 @@ from pathlib import Path
 from unittest.mock import patch
 
 from src.pipeline import build_batch_summary, load_json, run_navigation_sample
+from src.pipeline.phase_a_runner import _apply_evidence_controls, _postprocess_generated_answer
 
 
 class PhaseARunnerTest(unittest.TestCase):
+    def test_postprocess_constrained_projects_answer_to_binary_options(self) -> None:
+        answer, mode, rule = _postprocess_generated_answer(
+            question="Which film was released more recently, Royal Treasure or When Love Begins?",
+            generated_answer="The more recent one is Royal Treasure.",
+            config={"postprocess_mode": "constrained"},
+        )
+        self.assertEqual(answer, "Royal Treasure")
+        self.assertEqual(mode, "constrained")
+        self.assertEqual(rule, "force_binary_choice")
+
+    def test_apply_evidence_controls_anti_collapse_limits_entity_and_requires_overlap(self) -> None:
+        class _Node:
+            def __init__(self, node_id: str, text: str) -> None:
+                self.node_id = node_id
+                self.text = text
+
+        selected_nodes = [
+            _Node("leaf_sergei_parajanov__sent_000_000_000", "Sergei Parajanov died in 1990."),
+            _Node("leaf_sergei_parajanov__sent_000_000_001", "He was a Soviet artist."),
+            _Node("leaf_royal_treasure__sent_000_000_000", "Royal Treasure was released in 2016."),
+            _Node("leaf_when_love_begins__sent_000_000_000", "When Love Begins is a 2008 film."),
+        ]
+        filtered = _apply_evidence_controls(
+            selected_nodes=selected_nodes,
+            question="Which film was released more recently, Royal Treasure or When Love Begins?",
+            config={
+                "evidence_control_mode": "anti_collapse",
+                "evidence_control_per_entity_max": 1,
+                "evidence_control_require_question_overlap": True,
+            },
+        )
+        self.assertEqual([node.node_id for node in filtered], [
+            "leaf_royal_treasure__sent_000_000_000",
+            "leaf_when_love_begins__sent_000_000_000",
+        ])
+
     def test_load_json_reads_batch_samples(self) -> None:
         payload = load_json(Path("data/processed/demo_navigation_batch.json"))
         self.assertEqual(len(payload["samples"]), 3)

@@ -34,6 +34,10 @@ def build_registry_row(payload: dict[str, Any]) -> dict[str, Any]:
         "exact_match": trace.get("exact_match"),
         "answer_f1": trace.get("answer_f1"),
         "rouge_l_f1": trace.get("rouge_l_f1"),
+        "postprocess_mode": trace.get("postprocess_mode"),
+        "postprocess_rule": trace.get("postprocess_rule"),
+        "raw_generated_answer": trace.get("raw_generated_answer"),
+        "postprocessed_answer": trace.get("postprocessed_answer"),
         "generation_error": trace.get("generation_error"),
         "output_run_dir": payload.get("output_run_dir"),
     }
