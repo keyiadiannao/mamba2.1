@@ -150,16 +150,33 @@ def run_navigation_sample(
     if generation_error and not trace.failure_attribution:
         trace.failure_attribution = "generation_failure"
 
-    score_source: str | None = generated_answer
-    if score_source is None and context_texts:
-        score_source = context_texts[0]
-    if score_source is None and trace.evidence_texts:
-        score_source = trace.evidence_texts[0]
+    run_generator = bool(config.get("run_generator", False))
+    if isinstance(final_reference, str):
+        if context_error:
+            trace.exact_match = 0
+            trace.answer_f1 = 0.0
+            trace.rouge_l_f1 = 0.0
+        elif run_generator:
+            if generation_error:
+                trace.exact_match = 0
+                trace.answer_f1 = 0.0
+                trace.rouge_l_f1 = 0.0
+            else:
+                score_source = generated_answer or ""
+                trace.exact_match = exact_match(score_source, final_reference)
+                trace.answer_f1 = answer_f1(score_source, final_reference)
+                trace.rouge_l_f1 = rouge_l_f1(score_source, final_reference)
+        else:
+            score_source: str | None = None
+            if context_texts:
+                score_source = context_texts[0]
+            elif trace.evidence_texts:
+                score_source = trace.evidence_texts[0]
 
-    if isinstance(final_reference, str) and isinstance(score_source, str) and score_source:
-        trace.exact_match = exact_match(score_source, final_reference)
-        trace.answer_f1 = answer_f1(score_source, final_reference)
-        trace.rouge_l_f1 = rouge_l_f1(score_source, final_reference)
+            if isinstance(score_source, str) and score_source:
+                trace.exact_match = exact_match(score_source, final_reference)
+                trace.answer_f1 = answer_f1(score_source, final_reference)
+                trace.rouge_l_f1 = rouge_l_f1(score_source, final_reference)
 
     run_id = make_run_id(run_id_prefix or str(config.get("run_id_prefix", "phase_a")))
     payload = {

@@ -221,7 +221,7 @@ py -m unittest discover -s tests -p "test_*.py"
 - 如果原始样本更接近多页 Wikipedia / 多节长文档格式，先运行 `prepare_wiki_longdoc_subset.py`，再运行 `build_navigation_inputs_from_jsonl.py`
 - 如果原始样本来自 `2WikiMultiHopQA`，推荐顺序是：`prepare_2wiki_subset.py -> prepare_wiki_longdoc_subset.py -> build_navigation_inputs_from_jsonl.py`
 - 如果手头是完整 `2Wiki` 文件，先运行 `extract_2wiki_subset.py` 抽出一个 20-50 条的小子集，再走后续预处理链
-- 当真实语料链跑通后，下一步推荐进入学习头主线：`export_router_training_data.py -> train_learned_router.py -> navigation_batch_real_corpus_server_mamba_370m_qwen_learned_classifier`
+- 当真实语料链跑通后，第二阶段主线应先进入固定生成器的端到端评测；`learned head` 暂保留为补充路线，而不是默认下一步主线
 
 `prepare_wiki_longdoc_subset.py` 输入样例：
 

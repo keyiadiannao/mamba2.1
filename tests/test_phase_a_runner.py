@@ -213,6 +213,121 @@ class PhaseARunnerTest(unittest.TestCase):
 
         self.assertEqual(payload["generator_evidence_texts"], ["alpha", "beta"])
 
+    def test_context_build_failure_scores_zero_instead_of_falling_back(self) -> None:
+        temp_dir = Path(tempfile.mkdtemp())
+        self.addCleanup(lambda: __import__("shutil").rmtree(temp_dir, ignore_errors=True))
+
+        tree_dir = temp_dir / "data" / "processed"
+        tree_dir.mkdir(parents=True, exist_ok=True)
+        tree_path = tree_dir / "demo_tree_payload.json"
+        tree_path.write_text(
+            json.dumps(
+                {
+                    "question": "What did Einstein propose in relativity?",
+                    "reference_answer": "Einstein proposed relativity, including special relativity and general relativity.",
+                    "root": {
+                        "node_id": "root",
+                        "text": "physics knowledge index",
+                        "children": [
+                            {
+                                "node_id": "branch_relativity",
+                                "text": "Einstein relativity branch",
+                                "children": [
+                                    {
+                                        "node_id": "leaf_relativity_1",
+                                        "text": "Einstein proposed relativity, including special relativity and general relativity.",
+                                        "leaf_index": 0,
+                                    }
+                                ],
+                            }
+                        ],
+                    },
+                },
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+
+        payload = run_navigation_sample(
+            root_dir=temp_dir,
+            config={
+                "output_dir": "outputs/runs",
+                "navigator_type": "mock",
+                "routing_mode": "rule",
+                "context_source": "oracle_item_leaves",
+                "run_generator": False,
+            },
+            question="What did Einstein propose in relativity?",
+            tree_path="data/processed/demo_tree_payload.json",
+            reference_answer="Einstein proposed relativity, including special relativity and general relativity.",
+            run_id_prefix="test_context_failure",
+            sample_id="sample_context_failure",
+        )
+
+        self.assertIn("oracle_item_leaves", payload["trace"]["context_build_error"])
+        self.assertEqual(payload["trace"]["exact_match"], 0)
+        self.assertEqual(payload["trace"]["answer_f1"], 0.0)
+        self.assertEqual(payload["trace"]["rouge_l_f1"], 0.0)
+
+    def test_generation_failure_scores_zero_in_end_to_end_mode(self) -> None:
+        temp_dir = Path(tempfile.mkdtemp())
+        self.addCleanup(lambda: __import__("shutil").rmtree(temp_dir, ignore_errors=True))
+
+        tree_dir = temp_dir / "data" / "processed"
+        tree_dir.mkdir(parents=True, exist_ok=True)
+        tree_path = tree_dir / "demo_tree_payload.json"
+        tree_path.write_text(
+            json.dumps(
+                {
+                    "question": "What did Einstein propose in relativity?",
+                    "reference_answer": "Einstein proposed relativity, including special relativity and general relativity.",
+                    "root": {
+                        "node_id": "root",
+                        "text": "physics knowledge index",
+                        "children": [
+                            {
+                                "node_id": "branch_relativity",
+                                "text": "Einstein relativity branch",
+                                "children": [
+                                    {
+                                        "node_id": "leaf_relativity_1",
+                                        "text": "Einstein proposed relativity, including special relativity and general relativity.",
+                                        "leaf_index": 0,
+                                    }
+                                ],
+                            }
+                        ],
+                    },
+                },
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+
+        payload = run_navigation_sample(
+            root_dir=temp_dir,
+            config={
+                "output_dir": "outputs/runs",
+                "navigator_type": "mock",
+                "routing_mode": "rule",
+                "context_source": "t1_visited_leaves_ordered",
+                "run_generator": True,
+                "generator_type": "qwen",
+                "generator_inference_mode": "hf_causal_lm",
+                "generator_model_name": "qwen",
+            },
+            question="What did Einstein propose in relativity?",
+            tree_path="data/processed/demo_tree_payload.json",
+            reference_answer="Einstein proposed relativity, including special relativity and general relativity.",
+            run_id_prefix="test_generation_failure",
+            sample_id="sample_generation_failure",
+        )
+
+        self.assertIsNotNone(payload["trace"]["generation_error"])
+        self.assertEqual(payload["trace"]["exact_match"], 0)
+        self.assertEqual(payload["trace"]["answer_f1"], 0.0)
+        self.assertEqual(payload["trace"]["rouge_l_f1"], 0.0)
+
     def test_batch_runner_reuses_single_controller_instance(self) -> None:
         config_path = Path("configs/experiment/navigation_batch_demo.json").resolve()
         call_counter = {"count": 0}
