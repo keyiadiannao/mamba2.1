@@ -117,6 +117,12 @@ py "scripts\build_tree\build_navigation_inputs_from_jsonl.py" --corpus-input "da
 py "scripts\build_tree\prepare_wiki_longdoc_subset.py" --input "data\raw\wiki_longdoc_samples.jsonl" --corpus-output "data\interim\wiki_longdoc_corpus.jsonl" --qa-output "data\interim\wiki_longdoc_qa.jsonl"
 ```
 
+把 `2WikiMultiHopQA` 原始样本先转成 wiki-longdoc 中间格式：
+
+```powershell
+py "scripts\build_tree\prepare_2wiki_subset.py" --input "data\raw\2wiki_subset.jsonl" --output "data\interim\2wiki_longdoc_samples.jsonl"
+```
+
 运行最小演示脚本：
 
 ```powershell
@@ -175,6 +181,7 @@ py -m unittest discover -s tests -p "test_*.py"
 - 手写小样本只用于 smoke test、接口验证和本地快速调试
 - 先把公开数据规整成 `corpus jsonl + qa jsonl`，再统一走构建脚本，保证后续实验可复现
 - 如果原始样本更接近多页 Wikipedia / 多节长文档格式，先运行 `prepare_wiki_longdoc_subset.py`，再运行 `build_navigation_inputs_from_jsonl.py`
+- 如果原始样本来自 `2WikiMultiHopQA`，推荐顺序是：`prepare_2wiki_subset.py -> prepare_wiki_longdoc_subset.py -> build_navigation_inputs_from_jsonl.py`
 
 `prepare_wiki_longdoc_subset.py` 输入样例：
 

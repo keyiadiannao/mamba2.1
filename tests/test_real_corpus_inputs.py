@@ -7,6 +7,7 @@ from src.tree_builder import (
     build_doc_leaf_index_map,
     build_navigation_samples_from_qa,
     build_tree_payload_from_corpus,
+    build_wiki_longdoc_samples_from_2wiki,
 )
 
 
@@ -148,6 +149,112 @@ class RealCorpusInputsTest(unittest.TestCase):
             batch_payload["samples"][0]["tree_path"],
             "data/processed/wiki_longdoc_tree_payload.json",
         )
+
+    def test_build_wiki_longdoc_samples_from_2wiki_supports_list_schema(self) -> None:
+        normalized_samples = build_wiki_longdoc_samples_from_2wiki(
+            [
+                {
+                    "_id": "two_wiki_1",
+                    "question": "Where did the scientist work?",
+                    "answer": "At the Cavendish Laboratory.",
+                    "context": [
+                        [
+                            "Scientist",
+                            [
+                                "Scientist was a physicist.",
+                                "Scientist worked at the Cavendish Laboratory.",
+                                "Scientist later taught at the university.",
+                                "Scientist wrote a memoir.",
+                            ],
+                        ]
+                    ],
+                    "supporting_facts": [["Scientist", 1]],
+                }
+            ],
+            sentences_per_section=2,
+            lead_sentences=1,
+        )
+
+        self.assertEqual(normalized_samples[0]["sample_id"], "two_wiki_1")
+        self.assertEqual(normalized_samples[0]["pages"][0]["page_id"], "scientist")
+        self.assertEqual(
+            normalized_samples[0]["supporting_section_ids"],
+            ["scientist__sent_000_001"],
+        )
+        self.assertEqual(len(normalized_samples[0]["pages"][0]["sections"]), 2)
+
+    def test_build_wiki_longdoc_samples_from_2wiki_supports_dict_schema(self) -> None:
+        normalized_samples = build_wiki_longdoc_samples_from_2wiki(
+            [
+                {
+                    "id": "two_wiki_2",
+                    "question": "What did the city build?",
+                    "answer": "A stone bridge.",
+                    "context": {
+                        "title": ["City", "River"],
+                        "sentences": [
+                            [
+                                "City was ancient.",
+                                "City built a stone bridge.",
+                                "City prospered afterward.",
+                            ],
+                            [
+                                "River crossed the region.",
+                                "River flooded seasonally.",
+                            ],
+                        ],
+                    },
+                    "supporting_facts": {
+                        "title": ["City"],
+                        "sent_id": [1],
+                    },
+                }
+            ],
+            sentences_per_section=2,
+            lead_sentences=1,
+        )
+
+        self.assertEqual(normalized_samples[0]["sample_id"], "two_wiki_2")
+        self.assertEqual(len(normalized_samples[0]["pages"]), 2)
+        self.assertEqual(
+            normalized_samples[0]["supporting_section_ids"],
+            ["city__sent_000_001"],
+        )
+
+    def test_2wiki_samples_flow_into_navigation_inputs(self) -> None:
+        normalized_samples = build_wiki_longdoc_samples_from_2wiki(
+            [
+                {
+                    "_id": "two_wiki_3",
+                    "question": "Where did the scientist work?",
+                    "answer": "At the Cavendish Laboratory.",
+                    "context": [
+                        [
+                            "Scientist",
+                            [
+                                "Scientist was a physicist.",
+                                "Scientist worked at the Cavendish Laboratory.",
+                                "Scientist later taught at the university.",
+                            ],
+                        ]
+                    ],
+                    "supporting_facts": [["Scientist", 1]],
+                }
+            ],
+            sentences_per_section=2,
+            lead_sentences=1,
+        )
+        corpus_records, qa_records = build_corpus_and_qa_from_wiki_longdoc_samples(normalized_samples)
+        tree_payload = build_tree_payload_from_corpus(corpus_records, max_chars_per_leaf=500)
+        batch_payload = build_navigation_samples_from_qa(
+            qa_records,
+            tree_payload=tree_payload,
+            tree_path="data/processed/two_wiki_tree_payload.json",
+        )
+
+        root_children = tree_payload["root"]["children"]
+        self.assertEqual(root_children[0]["node_id"], "group_scientist")
+        self.assertEqual(batch_payload["samples"][0]["positive_leaf_indices"], [0])
 
 
 if __name__ == "__main__":

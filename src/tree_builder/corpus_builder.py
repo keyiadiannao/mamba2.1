@@ -45,6 +45,150 @@ def _first_non_empty(*values: object) -> str | None:
     return None
 
 
+def _normalize_2wiki_context(example: dict[str, Any]) -> list[dict[str, Any]]:
+    context = example.get("context")
+    normalized: list[dict[str, Any]] = []
+
+    if isinstance(context, list):
+        for item in context:
+            if isinstance(item, dict):
+                title = _first_non_empty(item.get("title"))
+                sentences = item.get("content", item.get("sentences"))
+                if isinstance(title, str) and isinstance(sentences, list):
+                    normalized.append({"title": title, "sentences": [str(sentence) for sentence in sentences]})
+            elif isinstance(item, list) and len(item) >= 2:
+                title = _first_non_empty(item[0])
+                sentences = item[1]
+                if isinstance(title, str) and isinstance(sentences, list):
+                    normalized.append({"title": title, "sentences": [str(sentence) for sentence in sentences]})
+        return normalized
+
+    if isinstance(context, dict):
+        titles = context.get("title")
+        sentences_list = context.get("sentences", context.get("content"))
+        if isinstance(titles, list) and isinstance(sentences_list, list):
+            for title, sentences in zip(titles, sentences_list):
+                normalized_title = _first_non_empty(title)
+                if isinstance(normalized_title, str) and isinstance(sentences, list):
+                    normalized.append({"title": normalized_title, "sentences": [str(sentence) for sentence in sentences]})
+        return normalized
+
+    raise ValueError("Unsupported 2Wiki context format.")
+
+
+def _normalize_2wiki_supporting_facts(example: dict[str, Any]) -> list[dict[str, Any]]:
+    supporting_facts = example.get("supporting_facts")
+    normalized: list[dict[str, Any]] = []
+
+    if isinstance(supporting_facts, list):
+        for item in supporting_facts:
+            if isinstance(item, dict):
+                title = _first_non_empty(item.get("title"))
+                sent_id = item.get("sent_id")
+                if isinstance(title, str) and isinstance(sent_id, int):
+                    normalized.append({"title": title, "sent_id": sent_id})
+            elif isinstance(item, list) and len(item) >= 2:
+                title = _first_non_empty(item[0])
+                sent_id = item[1]
+                if isinstance(title, str) and isinstance(sent_id, int):
+                    normalized.append({"title": title, "sent_id": sent_id})
+        return normalized
+
+    if isinstance(supporting_facts, dict):
+        titles = supporting_facts.get("title")
+        sent_ids = supporting_facts.get("sent_id")
+        if isinstance(titles, list) and isinstance(sent_ids, list):
+            for title, sent_id in zip(titles, sent_ids):
+                normalized_title = _first_non_empty(title)
+                if isinstance(normalized_title, str) and isinstance(sent_id, int):
+                    normalized.append({"title": normalized_title, "sent_id": sent_id})
+        return normalized
+
+    return normalized
+
+
+def build_wiki_longdoc_samples_from_2wiki(
+    sample_records: list[dict[str, Any]],
+    *,
+    sentences_per_section: int = 5,
+    lead_sentences: int = 2,
+) -> list[dict[str, Any]]:
+    if sentences_per_section <= 0:
+        raise ValueError("sentences_per_section must be positive.")
+    if lead_sentences <= 0:
+        raise ValueError("lead_sentences must be positive.")
+
+    normalized_samples: list[dict[str, Any]] = []
+    for sample_index, example in enumerate(sample_records):
+        question = _first_non_empty(example.get("question"))
+        if question is None:
+            raise ValueError(f"2Wiki sample {sample_index} is missing a question.")
+
+        sample_id = _first_non_empty(example.get("_id"), example.get("id")) or f"two_wiki_{sample_index:06d}"
+        reference_answer = _first_non_empty(example.get("answer"))
+        context_pages = _normalize_2wiki_context(example)
+        supporting_facts = _normalize_2wiki_supporting_facts(example)
+        support_lookup: dict[str, set[int]] = {}
+        for fact in supporting_facts:
+            support_lookup.setdefault(fact["title"], set()).add(fact["sent_id"])
+
+        pages: list[dict[str, Any]] = []
+        supporting_section_ids: list[str] = []
+
+        for page_index, page in enumerate(context_pages):
+            title = page["title"]
+            page_id = _slugify(title)
+            sentences = [sentence.strip() for sentence in page["sentences"] if isinstance(sentence, str) and sentence.strip()]
+            if not sentences:
+                continue
+
+            lead_text = " ".join(sentences[:lead_sentences])
+            sections: list[dict[str, Any]] = []
+            supporting_sentence_ids = support_lookup.get(title, set())
+            for start in range(0, len(sentences), sentences_per_section):
+                sentence_chunk = sentences[start : start + sentences_per_section]
+                if not sentence_chunk:
+                    continue
+                end = start + len(sentence_chunk) - 1
+                section_id = f"{page_id}__sent_{start:03d}_{end:03d}"
+                sections.append(
+                    {
+                        "section_id": section_id,
+                        "heading": f"Sentences {start}-{end}",
+                        "paragraphs": [" ".join(sentence_chunk)],
+                    }
+                )
+                if any(start <= sentence_id <= end for sentence_id in supporting_sentence_ids):
+                    supporting_section_ids.append(section_id)
+
+            if not sections:
+                continue
+
+            pages.append(
+                {
+                    "page_id": page_id,
+                    "title": title,
+                    "lead_text": lead_text or title,
+                    "sections": sections,
+                }
+            )
+
+        normalized_sample: dict[str, Any] = {
+            "sample_id": sample_id,
+            "question": question,
+            "pages": pages,
+        }
+        if reference_answer is not None:
+            normalized_sample["reference_answer"] = reference_answer
+        if supporting_section_ids:
+            normalized_sample["supporting_section_ids"] = sorted(set(supporting_section_ids))
+        elif support_lookup:
+            normalized_sample["supporting_page_ids"] = sorted({_slugify(title) for title in support_lookup})
+        normalized_samples.append(normalized_sample)
+
+    return normalized_samples
+
+
 def load_corpus_jsonl(path: str | Path) -> list[dict[str, Any]]:
     corpus_path = Path(path)
     records: list[dict[str, Any]] = []
