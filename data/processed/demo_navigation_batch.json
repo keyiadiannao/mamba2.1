@@ -4,18 +4,21 @@
       "sample_id": "einstein_relativity",
       "question": "What did Einstein propose in relativity?",
       "tree_path": "data/processed/demo_tree_payload.json",
+      "positive_leaf_indices": [1],
       "reference_answer": "Einstein proposed relativity, including special relativity and general relativity."
     },
     {
       "sample_id": "relativity_gravity",
       "question": "What does relativity explain about gravity?",
       "tree_path": "data/processed/demo_tree_payload.json",
+      "positive_leaf_indices": [2],
       "reference_answer": "Relativity changed modern physics and explains spacetime and gravity."
     },
     {
       "sample_id": "newton_motion",
       "question": "What does Newtonian mechanics explain?",
       "tree_path": "data/processed/demo_tree_payload.json",
+      "positive_leaf_indices": [0],
       "reference_answer": "Newtonian mechanics explains force, motion, and gravity."
     }
   ]

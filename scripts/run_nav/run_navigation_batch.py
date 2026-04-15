@@ -44,6 +44,7 @@ def main() -> None:
             reference_answer=str(sample["reference_answer"]) if sample.get("reference_answer") else None,
             run_id_prefix=f"{config.get('run_id_prefix', 'nav_batch')}_{sample_id}",
             sample_id=sample_id,
+            leaf_indices_required=list(sample.get("positive_leaf_indices", [])),
         )
         sample_payloads.append(payload)
 

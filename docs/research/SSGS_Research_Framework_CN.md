@@ -358,6 +358,7 @@ Navigator-Generator 解耦后，是否可以形成完整、可复现、可审计
 - 把可学习头挂在 Router/Scoring 模块
 - 输入为 query 表示、当前状态摘要、候选子节点表示等
 - 输出为候选 child score 或 relevance score
+- 推荐先在 370M 上训练轻量线性/MLP 评分头，而不是一开始就和 1.4B 同时上
 
 5. `1.4B`
 - 最后再做规模放大

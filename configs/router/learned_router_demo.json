@@ -1,0 +1,20 @@
+{
+  "feature_names": [
+    "child_is_leaf",
+    "cosine_probe",
+    "lexical_overlap",
+    "parent_relevance",
+    "text_length_tokens"
+  ],
+  "weights": [
+    -0.041209871568818335,
+    0.3053371583580829,
+    1.6955203515355333,
+    -0.041209871568818335,
+    -0.20641483654262685
+  ],
+  "bias": 0.021703961288934714,
+  "epochs": 200,
+  "lr": 0.05,
+  "row_count": 15
+}

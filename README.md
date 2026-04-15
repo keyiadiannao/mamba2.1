@@ -81,6 +81,18 @@ py "scripts\run_nav\run_navigation_batch.py"
 py "scripts\run_nav\compare_navigation_reports.py"
 ```
 
+导出 learned router 训练数据：
+
+```powershell
+py "scripts\run_nav\export_router_training_data.py"
+```
+
+训练 learned router：
+
+```powershell
+py "scripts\run_nav\train_learned_router.py"
+```
+
 运行最小演示脚本：
 
 ```powershell
@@ -150,5 +162,7 @@ py -m unittest discover -s tests -p "test_*.py"
 当前推荐的正式模型入口：
 
 - `configs\experiment\navigation_batch_server_mamba_370m_qwen_rule.json`
+- `configs\experiment\navigation_batch_server_mamba_370m_qwen_cosine_probe.json`
+- `configs\experiment\navigation_batch_server_mamba_370m_qwen_learned_classifier.json`
 - `configs\model\mamba2_370m.example.json`
 - `configs\model\mamba2_1p4b.example.json`

@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
-from .base import BaseRouter, CosineProbeRouter, RuleRouter
+from .base import BaseRouter, CosineProbeRouter, LearnedClassifierRouter, RuleRouter
 
 
 def build_router(config: dict[str, Any]) -> BaseRouter:
@@ -15,9 +16,11 @@ def build_router(config: dict[str, Any]) -> BaseRouter:
         return CosineProbeRouter()
 
     if routing_mode == "learned_classifier":
-        raise NotImplementedError(
-            "Routing mode 'learned_classifier' is reserved for a later stage. "
-            "Use 'rule' or 'cosine_probe' in the current Phase A navigation framework."
-        )
+        checkpoint_path = config.get("router_checkpoint_path")
+        if not checkpoint_path:
+            raise ValueError(
+                "Routing mode 'learned_classifier' requires 'router_checkpoint_path' in the config."
+            )
+        return LearnedClassifierRouter(Path(str(checkpoint_path)))
 
     raise ValueError(f"Unsupported routing_mode: {routing_mode}")

@@ -49,6 +49,7 @@ def run_navigation_sample(
     reference_answer: str | None = None,
     run_id_prefix: str | None = None,
     sample_id: str | None = None,
+    leaf_indices_required: list[int] | None = None,
 ) -> dict[str, Any]:
     resolved_tree_path = root_dir / tree_path
     tree_payload = load_tree_payload(resolved_tree_path)
@@ -60,6 +61,8 @@ def run_navigation_sample(
 
     controller = build_controller(config)
     trace = controller.run(final_question, tree)
+    if leaf_indices_required is not None:
+        trace.leaf_indices_required = list(leaf_indices_required)
     prompt = build_generator_prompt(final_question, trace.evidence_texts)
 
     final_reference = reference_answer
