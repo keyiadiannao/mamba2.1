@@ -1,4 +1,5 @@
 from .corpus_builder import (
+    build_corpus_and_qa_from_wiki_longdoc_samples,
     build_doc_leaf_index_map,
     build_navigation_samples_from_qa,
     build_tree_payload_from_corpus,
@@ -10,6 +11,7 @@ from .simple_tree import DocumentTree, TreeNode
 __all__ = [
     "DocumentTree",
     "TreeNode",
+    "build_corpus_and_qa_from_wiki_longdoc_samples",
     "build_doc_leaf_index_map",
     "build_navigation_samples_from_qa",
     "build_tree_payload_from_corpus",

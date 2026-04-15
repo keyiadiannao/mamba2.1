@@ -111,6 +111,12 @@ py "scripts\build_tree\build_tree_from_jsonl.py" --input "data\raw\your_corpus.j
 py "scripts\build_tree\build_navigation_inputs_from_jsonl.py" --corpus-input "data\raw\your_corpus.jsonl" --qa-input "data\raw\your_qa.jsonl" --tree-output "data\processed\real_corpus_tree_payload.json" --batch-output "data\processed\real_corpus_navigation_batch.json"
 ```
 
+把 wiki 风格长文档多跳样本先规整成 `corpus jsonl + qa jsonl`：
+
+```powershell
+py "scripts\build_tree\prepare_wiki_longdoc_subset.py" --input "data\raw\wiki_longdoc_samples.jsonl" --corpus-output "data\interim\wiki_longdoc_corpus.jsonl" --qa-output "data\interim\wiki_longdoc_qa.jsonl"
+```
+
 运行最小演示脚本：
 
 ```powershell
@@ -168,6 +174,18 @@ py -m unittest discover -s tests -p "test_*.py"
 - 主实验优先使用公开数据集或公开语料子集，不要用模型生成文本充当“真实语料”
 - 手写小样本只用于 smoke test、接口验证和本地快速调试
 - 先把公开数据规整成 `corpus jsonl + qa jsonl`，再统一走构建脚本，保证后续实验可复现
+- 如果原始样本更接近多页 Wikipedia / 多节长文档格式，先运行 `prepare_wiki_longdoc_subset.py`，再运行 `build_navigation_inputs_from_jsonl.py`
+
+`prepare_wiki_longdoc_subset.py` 输入样例：
+
+```json
+{"sample_id":"wiki_q1","question":"Where did the scientist work?","reference_answer":"At the Cavendish Laboratory.","supporting_page_ids":["page_scientist"],"pages":[{"page_id":"page_scientist","title":"Scientist","lead_text":"Scientist overview","sections":[{"section_id":"page_scientist__career","heading":"Career","paragraphs":["The scientist worked at the Cavendish Laboratory.","The scientist later taught at the university."]},{"section_id":"page_scientist__awards","heading":"Awards","paragraphs":["The scientist won a major prize."]}]}]}
+```
+
+这类样本会先被展开成：
+
+- `corpus jsonl`：每个 section 一条记录
+- `qa jsonl`：每个问题一条记录，正样本用 `supporting_section_ids` 或 `supporting_page_ids` 指定
 
 ## 双环境建议
 

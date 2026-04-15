@@ -36,6 +36,15 @@ def _chunk_text(text: str, max_chars: int) -> list[str]:
     return chunks
 
 
+def _first_non_empty(*values: object) -> str | None:
+    for value in values:
+        if isinstance(value, str):
+            stripped = value.strip()
+            if stripped:
+                return stripped
+    return None
+
+
 def load_corpus_jsonl(path: str | Path) -> list[dict[str, Any]]:
     corpus_path = Path(path)
     records: list[dict[str, Any]] = []
@@ -59,22 +68,36 @@ def build_doc_leaf_index_map(tree_payload: dict[str, Any]) -> dict[str, list[int
         raise ValueError("Tree payload must include a root object.")
 
     doc_leaf_index_map: dict[str, list[int]] = {}
-    for branch in root_payload.get("children", []):
-        if not isinstance(branch, dict):
-            continue
-        metadata = branch.get("metadata", {})
-        doc_id = metadata.get("doc_id") if isinstance(metadata, dict) else None
-        if not isinstance(doc_id, str) or not doc_id:
-            continue
+
+    def collect_leaf_indices(node: dict[str, Any]) -> list[int]:
+        children = node.get("children", [])
+        if not isinstance(children, list) or not children:
+            leaf_index = node.get("leaf_index")
+            if isinstance(leaf_index, int):
+                return [leaf_index]
+            metadata = node.get("metadata", {})
+            metadata_leaf_index = metadata.get("leaf_index") if isinstance(metadata, dict) else None
+            return [metadata_leaf_index] if isinstance(metadata_leaf_index, int) else []
 
         leaf_indices: list[int] = []
-        for child in branch.get("children", []):
-            if not isinstance(child, dict):
-                continue
-            leaf_index = child.get("leaf_index")
-            if isinstance(leaf_index, int):
-                leaf_indices.append(leaf_index)
-        doc_leaf_index_map[doc_id] = leaf_indices
+        for child in children:
+            if isinstance(child, dict):
+                leaf_indices.extend(collect_leaf_indices(child))
+        return leaf_indices
+
+    def walk(node: dict[str, Any]) -> None:
+        children = node.get("children", [])
+        metadata = node.get("metadata", {})
+        doc_id = metadata.get("doc_id") if isinstance(metadata, dict) else None
+        if isinstance(doc_id, str) and doc_id and isinstance(children, list) and children:
+            doc_leaf_index_map[doc_id] = sorted(set(collect_leaf_indices(node)))
+
+        if isinstance(children, list):
+            for child in children:
+                if isinstance(child, dict):
+                    walk(child)
+
+    walk(root_payload)
     return doc_leaf_index_map
 
 
@@ -117,6 +140,94 @@ def build_navigation_samples_from_qa(
     return {"samples": samples}
 
 
+def build_corpus_and_qa_from_wiki_longdoc_samples(
+    sample_records: list[dict[str, Any]],
+    *,
+    source_name: str = "wiki_longdoc_subset",
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    corpus_by_doc_id: dict[str, dict[str, Any]] = {}
+    qa_records: list[dict[str, Any]] = []
+
+    for sample_index, sample in enumerate(sample_records):
+        question = _first_non_empty(sample.get("question"))
+        if question is None:
+            raise ValueError(f"Sample {sample_index} is missing a question.")
+
+        sample_id = _first_non_empty(sample.get("sample_id")) or f"sample_{sample_index:03d}"
+        reference_answer = _first_non_empty(sample.get("reference_answer"), sample.get("answer"))
+        pages = sample.get("pages", [])
+        if not isinstance(pages, list) or not pages:
+            raise ValueError(f"Sample {sample_id} must provide a non-empty pages list.")
+
+        page_to_section_ids: dict[str, list[str]] = {}
+        for page_index, page in enumerate(pages):
+            if not isinstance(page, dict):
+                continue
+            page_title = _first_non_empty(page.get("title")) or f"page_{page_index:03d}"
+            page_id = _first_non_empty(page.get("page_id")) or _slugify(page_title)
+            lead_text = _first_non_empty(page.get("lead_text"), page.get("summary"), page_title) or page_title
+            sections = page.get("sections", [])
+            if not isinstance(sections, list):
+                continue
+
+            section_ids: list[str] = []
+            for section_index, section in enumerate(sections):
+                if not isinstance(section, dict):
+                    continue
+                heading = _first_non_empty(section.get("heading"), section.get("title")) or f"Section {section_index + 1}"
+                raw_section_id = _first_non_empty(section.get("section_id"))
+                section_id = raw_section_id or f"{page_id}__{_slugify(heading)}_{section_index:03d}"
+
+                paragraphs = section.get("paragraphs", [])
+                if not isinstance(paragraphs, list):
+                    continue
+                paragraph_texts = [paragraph.strip() for paragraph in paragraphs if isinstance(paragraph, str) and paragraph.strip()]
+                if not paragraph_texts:
+                    continue
+
+                record = {
+                    "doc_id": section_id,
+                    "group_id": page_id,
+                    "group_title": page_title,
+                    "group_text": lead_text,
+                    "title": f"{page_title} / {heading}",
+                    "summary": heading,
+                    "text": "\n\n".join(paragraph_texts),
+                    "source": source_name,
+                }
+
+                existing = corpus_by_doc_id.get(section_id)
+                if existing is not None and existing != record:
+                    raise ValueError(f"Conflicting section payload for doc_id: {section_id}")
+                corpus_by_doc_id[section_id] = record
+                section_ids.append(section_id)
+
+            page_to_section_ids[page_id] = section_ids
+
+        positive_doc_ids_raw = sample.get("supporting_section_ids")
+        positive_doc_ids: list[str] = []
+        if isinstance(positive_doc_ids_raw, list) and positive_doc_ids_raw:
+            positive_doc_ids = [doc_id for doc_id in positive_doc_ids_raw if isinstance(doc_id, str) and doc_id]
+        else:
+            supporting_page_ids = sample.get("supporting_page_ids", [])
+            if isinstance(supporting_page_ids, list):
+                for page_id in supporting_page_ids:
+                    if isinstance(page_id, str) and page_id:
+                        positive_doc_ids.extend(page_to_section_ids.get(page_id, []))
+
+        qa_record: dict[str, Any] = {
+            "sample_id": sample_id,
+            "question": question,
+            "positive_doc_ids": sorted(set(positive_doc_ids)),
+        }
+        if reference_answer is not None:
+            qa_record["reference_answer"] = reference_answer
+        qa_records.append(qa_record)
+
+    corpus_records = list(corpus_by_doc_id.values())
+    return corpus_records, qa_records
+
+
 def build_tree_payload_from_corpus(
     records: list[dict[str, Any]],
     *,
@@ -127,6 +238,7 @@ def build_tree_payload_from_corpus(
     max_chars_per_leaf: int = 400,
 ) -> dict[str, Any]:
     root_children: list[dict[str, Any]] = []
+    grouped_children: dict[str, dict[str, Any]] = {}
     leaf_index = 0
 
     for doc_index, record in enumerate(records):
@@ -155,18 +267,38 @@ def build_tree_payload_from_corpus(
         if not leaf_nodes:
             continue
 
-        root_children.append(
-            {
-                "node_id": f"branch_{doc_id}",
-                "text": str(record.get("summary") or title),
-                "metadata": {
-                    "doc_id": doc_id,
-                    "title": title,
-                    "source": record.get("source"),
-                },
-                "children": leaf_nodes,
-            }
-        )
+        branch_payload = {
+            "node_id": f"branch_{doc_id}",
+            "text": str(record.get("summary") or title),
+            "metadata": {
+                "doc_id": doc_id,
+                "title": title,
+                "source": record.get("source"),
+            },
+            "children": leaf_nodes,
+        }
+
+        group_id = record.get("group_id")
+        if isinstance(group_id, str) and group_id:
+            group_title = str(record.get("group_title") or group_id)
+            group_text = str(record.get("group_text") or record.get("group_summary") or group_title)
+            group_node = grouped_children.get(group_id)
+            if group_node is None:
+                group_node = {
+                    "node_id": f"group_{group_id}",
+                    "text": group_text,
+                    "metadata": {
+                        "group_id": group_id,
+                        "title": group_title,
+                        "source": record.get("source"),
+                    },
+                    "children": [],
+                }
+                grouped_children[group_id] = group_node
+                root_children.append(group_node)
+            group_node["children"].append(branch_payload)
+        else:
+            root_children.append(branch_payload)
 
     if not root_children:
         raise ValueError("No valid documents with text were found in the corpus.")
