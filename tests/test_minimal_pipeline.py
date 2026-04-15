@@ -58,6 +58,7 @@ class MinimalPipelineTest(unittest.TestCase):
         self.assertTrue(trace.nav_success)
         self.assertGreaterEqual(len(trace.evidence_texts), 1)
         self.assertIn("Einstein", prompt)
+        self.assertIn("Return only the shortest final answer phrase.", prompt)
         self.assertGreaterEqual(len(trace.event_log), 1)
         self.assertGreaterEqual(len(trace.route_decisions), 1)
         self.assertIn("leaf_relativity_1", trace.evidence_node_ids)

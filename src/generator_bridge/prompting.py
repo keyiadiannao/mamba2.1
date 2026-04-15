@@ -8,7 +8,11 @@ def build_generator_prompt(question: str, evidence_texts: list[str]) -> str:
 
     joined_evidence = "\n".join(evidence_blocks) if evidence_blocks else "[no evidence found]"
     return (
-        "Please answer the question with the provided evidence only.\n"
+        "Answer the question using only the provided evidence.\n"
+        "Return only the shortest final answer phrase.\n"
+        "Do not explain your reasoning.\n"
+        "Do not restate the question or quote the evidence.\n"
+        "For yes/no questions, answer with only yes or no.\n"
         f"Question: {question}\n"
         f"Evidence:\n{joined_evidence}\n"
         "Answer:"
