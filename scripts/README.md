@@ -6,3 +6,8 @@
 - `utils/`: 数据搬运、检查、转换等辅助脚本
 
 建议把“可重复执行的流程”写成脚本放这里，不要把一次性命令长期留在终端历史里。
+
+当前 `run_eval/` 目录中的第二阶段核心入口：
+
+- `run_end_to_end_batch.py`: 运行固定生成器的端到端 batch 评测
+- `compare_end_to_end_reports.py`: 汇总端到端 `EM / F1 / ROUGE-L` 与导航过程指标

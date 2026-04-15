@@ -20,6 +20,7 @@ FROZEN_TRACE_FIELDS = [
     "nav_wall_time_ms",
     "context_build_error",
     "exact_match",
+    "answer_f1",
     "rouge_l_f1",
 ]
 
@@ -42,7 +43,12 @@ class TraceRecord:
     nav_wall_time_ms: float | None = None
     context_build_error: str | None = None
     exact_match: int | None = None
+    answer_f1: float | None = None
     rouge_l_f1: float | None = None
+    generated_answer: str | None = None
+    generation_error: str | None = None
+    context_texts: list[str] = field(default_factory=list)
+    context_node_ids: list[str] = field(default_factory=list)
     evidence_texts: list[str] = field(default_factory=list)
     evidence_node_ids: list[str] = field(default_factory=list)
     visited_node_ids: list[str] = field(default_factory=list)

@@ -34,10 +34,13 @@ class RegistryOutputsTest(unittest.TestCase):
                 "snapshot_push_count": 2,
                 "snapshot_restore_count": 2,
                 "nav_wall_time_ms": 12.5,
+                "context_texts": ["Einstein proposed relativity."],
                 "visited_leaf_indices_deduped": [1, 2],
                 "evidence_texts": ["Einstein proposed relativity."],
                 "exact_match": 1,
+                "answer_f1": 0.75,
                 "rouge_l_f1": None,
+                "generation_error": None,
             },
         }
 
@@ -50,7 +53,9 @@ class RegistryOutputsTest(unittest.TestCase):
         self.assertEqual(row["generator_model_name"], "qwen")
         self.assertEqual(row["visited_leaf_count"], 2)
         self.assertEqual(row["evidence_count"], 1)
+        self.assertEqual(row["context_item_count"], 1)
         self.assertEqual(row["exact_match"], 1)
+        self.assertEqual(row["answer_f1"], 0.75)
 
     def test_append_jsonl_writes_line_delimited_registry(self) -> None:
         temp_dir = Path(tempfile.mkdtemp())
@@ -73,6 +78,7 @@ class RegistryOutputsTest(unittest.TestCase):
                 "failure_attribution": None,
                 "visited_node_ids": ["root", "branch_relativity"],
                 "visited_leaf_indices_deduped": [1],
+                "context_texts": ["text"],
                 "evidence_texts": ["Einstein proposed relativity."],
                 "rollback_count": 1,
                 "snapshot_stack_max_depth": 2,
@@ -80,7 +86,12 @@ class RegistryOutputsTest(unittest.TestCase):
                 "snapshot_restore_count": 1,
                 "nav_wall_time_ms": 5.0,
                 "context_build_error": None,
+                "exact_match": 1,
+                "answer_f1": 0.5,
+                "rouge_l_f1": 0.6,
+                "generation_error": None,
                 "evidence_node_ids": ["leaf_relativity_1"],
+                "context_node_ids": ["leaf_relativity_1"],
             },
         }
         summary = build_navigation_summary(payload)
@@ -88,6 +99,8 @@ class RegistryOutputsTest(unittest.TestCase):
         self.assertEqual(summary["navigator_type"], "mock")
         self.assertEqual(summary["visited_node_count"], 2)
         self.assertEqual(summary["evidence_node_ids"], ["leaf_relativity_1"])
+        self.assertEqual(summary["context_item_count"], 1)
+        self.assertEqual(summary["answer_f1"], 0.5)
 
 
 if __name__ == "__main__":

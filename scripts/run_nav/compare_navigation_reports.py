@@ -70,12 +70,18 @@ def main() -> None:
     for routing_mode, mode_rows in grouped.items():
         sample_count = len(mode_rows)
         nav_successes = sum(1 for row in mode_rows if row.get("nav_success"))
+        exact_match_hits = sum(1 for row in mode_rows if row.get("exact_match") == 1)
         total_nav_time = sum(float(row.get("nav_wall_time_ms") or 0.0) for row in mode_rows)
         total_rollbacks = sum(int(row.get("rollback_count") or 0) for row in mode_rows)
         total_evidence = sum(int(row.get("evidence_count") or 0) for row in mode_rows)
+        answer_f1_values = [float(row["answer_f1"]) for row in mode_rows if row.get("answer_f1") is not None]
+        rouge_l_values = [float(row["rouge_l_f1"]) for row in mode_rows if row.get("rouge_l_f1") is not None]
         comparison[routing_mode] = {
             "sample_count": sample_count,
             "nav_success_rate": (nav_successes / sample_count) if sample_count else 0.0,
+            "exact_match_rate": (exact_match_hits / sample_count) if sample_count else 0.0,
+            "avg_answer_f1": (sum(answer_f1_values) / len(answer_f1_values)) if answer_f1_values else 0.0,
+            "avg_rouge_l_f1": (sum(rouge_l_values) / len(rouge_l_values)) if rouge_l_values else 0.0,
             "avg_nav_wall_time_ms": (total_nav_time / sample_count) if sample_count else 0.0,
             "avg_rollback_count": (total_rollbacks / sample_count) if sample_count else 0.0,
             "avg_evidence_count": (total_evidence / sample_count) if sample_count else 0.0,

@@ -42,6 +42,7 @@ class MinimalPipelineTest(unittest.TestCase):
             "snapshot_push_count",
             "snapshot_restore_count",
             "nav_wall_time_ms",
+            "answer_f1",
         ]:
             self.assertIn(field_name, FROZEN_TRACE_FIELDS)
 

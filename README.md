@@ -13,6 +13,7 @@
 详细研究说明见：
 
 - `docs/research/SSGS_Research_Framework_CN.md`
+- `docs/research/Navigation_Experiment_Record_CN.md`
 - `docs/notes/Environment_Setup_CN.md`
 
 ## 推荐目录结构
@@ -75,6 +76,18 @@ py "scripts\run_nav\run_phase_a_pipeline.py"
 py "scripts\run_nav\run_navigation_batch.py"
 ```
 
+运行端到端 batch 评测：
+
+```powershell
+py "scripts\run_eval\run_end_to_end_batch.py" --config "configs\experiment\end_to_end_batch_real_corpus_template.example.json"
+```
+
+比较端到端评测结果：
+
+```powershell
+py "scripts\run_eval\compare_end_to_end_reports.py"
+```
+
 比较导航汇总结果：
 
 ```powershell
@@ -85,6 +98,12 @@ py "scripts\run_nav\compare_navigation_reports.py"
 
 ```powershell
 py "scripts\run_nav\compare_navigation_reports.py" --batch-id "your_batch_id"
+```
+
+按多个 `batch_id` 比较端到端结果：
+
+```powershell
+py "scripts\run_eval\compare_end_to_end_reports.py" --batch-id "batch_a" --batch-id "batch_b"
 ```
 
 导出 learned router 训练数据：
@@ -178,6 +197,7 @@ py -m unittest discover -s tests -p "test_*.py"
 - `outputs/reports/run_registry.jsonl`
 - `outputs/reports/navigation_summary.jsonl`
 - `outputs/reports/batches/<batch_id>/batch_summary.json`
+- `outputs/reports/end_to_end_batches/<batch_id>/batch_summary.json`
 
 真实语料最小输入格式示例：
 
@@ -251,5 +271,42 @@ py -m unittest discover -s tests -p "test_*.py"
 - `configs\experiment\navigation_batch_real_corpus_server_mamba_370m_qwen_rule.example.json`
 - `configs\experiment\navigation_batch_real_corpus_server_mamba_370m_qwen_cosine_probe.example.json`
 - `configs\experiment\navigation_batch_real_corpus_server_mamba_370m_qwen_learned_classifier.example.json`
+- `configs\experiment\end_to_end_batch_real_corpus_template.example.json`
 - `configs\model\mamba2_370m.example.json`
 - `configs\model\mamba2_1p4b.example.json`
+
+第二阶段端到端评测补充说明：
+
+- 只有在配置中设置 `run_generator = true` 时，系统才会真正执行生成器推理
+- 若要调用真实 Qwen/HF 模型，请提供 `generator_hf_model_name` 或 `generator_model_path`
+- 当前已实现的 `context_source` 包括：`t1_visited_leaves_ordered`、`oracle_item_leaves`、`flat_leaf_concat`
+- 若未解除 evidence budget 饱和，不要把 `avg_evidence_count` 当作主结论
+
+服务器 `7B` 端到端第一轮建议主臂：
+
+- `configs\experiment\end_to_end_batch_real_corpus_server_mamba_370m_qwen7b_rule.example.json`
+- `configs\experiment\end_to_end_batch_real_corpus_server_mamba_370m_qwen7b_cosine_probe.example.json`
+- `configs\experiment\end_to_end_batch_real_corpus_server_mamba_370m_qwen7b_oracle_item_leaves.example.json`
+- `configs\experiment\end_to_end_batch_real_corpus_server_mamba_370m_qwen7b_flat_leaf_concat.example.json`
+
+服务器推荐运行顺序：
+
+1. 先复制一份配置，把 `samples_path` 指向你的 `100-200` 条真实子集 batch 文件
+2. 确认 `generator_hf_model_name` 与服务器实际可用的 `7B` 模型一致
+3. 依次运行四个 arm
+4. 用 `compare_end_to_end_reports.py` 汇总 `exact_match_rate / avg_answer_f1 / avg_rouge_l_f1`
+
+服务器端到端运行示例：
+
+```powershell
+py "scripts\run_eval\run_end_to_end_batch.py" --config "configs\experiment\end_to_end_batch_real_corpus_server_mamba_370m_qwen7b_rule.example.json"
+py "scripts\run_eval\run_end_to_end_batch.py" --config "configs\experiment\end_to_end_batch_real_corpus_server_mamba_370m_qwen7b_cosine_probe.example.json"
+py "scripts\run_eval\run_end_to_end_batch.py" --config "configs\experiment\end_to_end_batch_real_corpus_server_mamba_370m_qwen7b_oracle_item_leaves.example.json"
+py "scripts\run_eval\run_end_to_end_batch.py" --config "configs\experiment\end_to_end_batch_real_corpus_server_mamba_370m_qwen7b_flat_leaf_concat.example.json"
+```
+
+服务器端到端对比示例：
+
+```powershell
+py "scripts\run_eval\compare_end_to_end_reports.py" --batch-id-contains "end_to_end_real_corpus_370m_qwen7b"
+```

@@ -30,8 +30,11 @@ def build_registry_row(payload: dict[str, Any]) -> dict[str, Any]:
         "nav_wall_time_ms": trace.get("nav_wall_time_ms"),
         "visited_leaf_count": len(trace.get("visited_leaf_indices_deduped") or []),
         "evidence_count": len(evidence_texts),
+        "context_item_count": len(trace.get("context_texts") or []),
         "exact_match": trace.get("exact_match"),
+        "answer_f1": trace.get("answer_f1"),
         "rouge_l_f1": trace.get("rouge_l_f1"),
+        "generation_error": trace.get("generation_error"),
         "output_run_dir": payload.get("output_run_dir"),
     }
 
