@@ -123,6 +123,12 @@ py "scripts\build_tree\prepare_wiki_longdoc_subset.py" --input "data\raw\wiki_lo
 py "scripts\build_tree\prepare_2wiki_subset.py" --input "data\raw\2wiki_subset.jsonl" --output "data\interim\2wiki_longdoc_samples.jsonl"
 ```
 
+从更大的 `2WikiMultiHopQA` 原始文件里先抽一个可复现实验子集：
+
+```powershell
+py "scripts\build_tree\extract_2wiki_subset.py" --input "data\raw\2wiki_full.jsonl" --output "data\raw\2wiki_subset.jsonl" --limit 20 --min-context-pages 2 --min-supporting-facts 2 --seed 42
+```
+
 运行最小演示脚本：
 
 ```powershell
@@ -182,6 +188,7 @@ py -m unittest discover -s tests -p "test_*.py"
 - 先把公开数据规整成 `corpus jsonl + qa jsonl`，再统一走构建脚本，保证后续实验可复现
 - 如果原始样本更接近多页 Wikipedia / 多节长文档格式，先运行 `prepare_wiki_longdoc_subset.py`，再运行 `build_navigation_inputs_from_jsonl.py`
 - 如果原始样本来自 `2WikiMultiHopQA`，推荐顺序是：`prepare_2wiki_subset.py -> prepare_wiki_longdoc_subset.py -> build_navigation_inputs_from_jsonl.py`
+- 如果手头是完整 `2Wiki` 文件，先运行 `extract_2wiki_subset.py` 抽出一个 20-50 条的小子集，再走后续预处理链
 
 `prepare_wiki_longdoc_subset.py` 输入样例：
 

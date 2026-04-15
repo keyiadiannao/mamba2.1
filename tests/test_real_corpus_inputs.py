@@ -3,6 +3,7 @@ from __future__ import annotations
 import unittest
 
 from src.tree_builder import (
+    build_2wiki_subset,
     build_corpus_and_qa_from_wiki_longdoc_samples,
     build_doc_leaf_index_map,
     build_navigation_samples_from_qa,
@@ -12,6 +13,46 @@ from src.tree_builder import (
 
 
 class RealCorpusInputsTest(unittest.TestCase):
+    def test_build_2wiki_subset_filters_and_limits_samples(self) -> None:
+        subset = build_2wiki_subset(
+            [
+                {
+                    "_id": "keep_me",
+                    "question": "Where did the scientist work?",
+                    "answer": "At the Cavendish Laboratory.",
+                    "context": [
+                        ["Scientist", ["Sentence 1", "Sentence 2"]],
+                        ["Laboratory", ["Sentence 1", "Sentence 2"]],
+                    ],
+                    "supporting_facts": [["Scientist", 1], ["Laboratory", 0]],
+                },
+                {
+                    "_id": "drop_for_context",
+                    "question": "Too few pages?",
+                    "answer": "yes",
+                    "context": [["Only One", ["Sentence 1", "Sentence 2"]]],
+                    "supporting_facts": [["Only One", 0], ["Only One", 1]],
+                },
+                {
+                    "_id": "drop_for_facts",
+                    "question": "Too few facts?",
+                    "answer": "yes",
+                    "context": [
+                        ["Page A", ["Sentence 1", "Sentence 2"]],
+                        ["Page B", ["Sentence 1", "Sentence 2"]],
+                    ],
+                    "supporting_facts": [["Page A", 0]],
+                },
+            ],
+            limit=2,
+            min_context_pages=2,
+            min_supporting_facts=2,
+            seed=7,
+        )
+
+        self.assertEqual(len(subset), 1)
+        self.assertEqual(subset[0]["_id"], "keep_me")
+
     def test_build_doc_leaf_index_map_collects_leaf_indices(self) -> None:
         tree_payload = build_tree_payload_from_corpus(
             [

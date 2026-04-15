@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import random
 import re
 from pathlib import Path
 from typing import Any
@@ -105,6 +106,48 @@ def _normalize_2wiki_supporting_facts(example: dict[str, Any]) -> list[dict[str,
         return normalized
 
     return normalized
+
+
+def build_2wiki_subset(
+    sample_records: list[dict[str, Any]],
+    *,
+    limit: int,
+    min_context_pages: int = 2,
+    min_supporting_facts: int = 2,
+    require_answer: bool = True,
+    seed: int = 42,
+) -> list[dict[str, Any]]:
+    if limit <= 0:
+        raise ValueError("limit must be positive.")
+
+    filtered: list[dict[str, Any]] = []
+    for sample_index, example in enumerate(sample_records):
+        question = _first_non_empty(example.get("question"))
+        if question is None:
+            continue
+        if require_answer and _first_non_empty(example.get("answer")) is None:
+            continue
+
+        try:
+            context_pages = _normalize_2wiki_context(example)
+        except ValueError:
+            continue
+        supporting_facts = _normalize_2wiki_supporting_facts(example)
+
+        if len(context_pages) < min_context_pages:
+            continue
+        if len(supporting_facts) < min_supporting_facts:
+            continue
+
+        sample_id = _first_non_empty(example.get("_id"), example.get("id")) or f"two_wiki_{sample_index:06d}"
+        copied = dict(example)
+        if "_id" not in copied and "id" not in copied:
+            copied["_id"] = sample_id
+        filtered.append(copied)
+
+    rng = random.Random(seed)
+    rng.shuffle(filtered)
+    return filtered[:limit]
 
 
 def build_wiki_longdoc_samples_from_2wiki(
