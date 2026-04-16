@@ -44,11 +44,30 @@
 - **解决方案**：  
   1. 本机打包前执行 `git rev-parse HEAD`，在实验记录或 `run_registry` 旁注记**提交哈希**。  
   2. 大目录从旧工作区拷入新解压目录，避免重复下载数据。  
-  3. 若仅需同步少数文件，可用 **GitHub raw** 单文件覆盖（**不限于 `src/`**，`scripts/`、`tests/` 等同理）；网络不稳时可在 URL 前加**你环境允许**的 raw 代理前缀（例如 `ghproxy` 类服务，**以合规与可用性为准**）。示例（将 `REL_PATH` 换成仓库内相对路径，如 `src/pipeline/phase_a_runner.py`）：  
-     - 直连：`https://raw.githubusercontent.com/keyiadiannao/mamba2.1/main/<REL_PATH>`  
-     - 代理：`https://ghproxy.com/https://raw.githubusercontent.com/keyiadiannao/mamba2.1/main/<REL_PATH>`（前缀域名可按需替换；若 404 或证书问题则换镜像或改走 ZIP）。  
-     - 下载覆盖（在服务器解压目录根执行，先备份）：`curl -fsSL -o '<REL_PATH>' '<上述完整 URL>'`（或 `wget -O '<REL_PATH>' '...'`）。  
-  4. 实操口径：先尝试常规拉取；若因本地改动冲突导致拉取中止，则切换到“**容错拉取 + 关键文件定点覆盖 + 关键字校验**”流程，保证最小改动恢复到目标提交行为。  
+  3. 若仅需同步少数文件，可用 **GitHub raw** 单文件覆盖（**不限于 `src/`**，`scripts/`、`tests/` 等同理）；URL 形如 `https://raw.githubusercontent.com/keyiadiannao/mamba2.1/main/<REL_PATH>`；网络不稳时在整段 URL 前加**你环境允许**的代理前缀（如 `https://ghproxy.net/https://raw.githubusercontent.com/...`，**域名以你侧可用与合规为准**）。  
+  4. **推荐：容错拉取 + 定点覆盖 + 关键字校验**（与下面片段一致）：先 `git pull`（失败不退出），再对关键路径 `wget -O` 覆盖，最后用 `grep -n` 确认期望符号仍在。  
+  5. 实操口径：若 `git pull` 因本地改动冲突中止，直接依赖 **3 + 4** 亦可把单文件对齐到远端 `main`；大目录仍用 **1 / 2** 与 ZIP，避免整仓 raw。  
+
+**可复制片段示例**（路径、代理前缀、`main` 请按环境修改；在**仓库根**执行）：
+
+```bash
+cd ~/autodl-tmp/mamba2.1
+
+git pull origin main || true
+
+RAW_BASE='https://ghproxy.net/https://raw.githubusercontent.com/keyiadiannao/mamba2.1/main'
+
+wget -O src/pipeline/phase_a_runner.py \
+  "${RAW_BASE}/src/pipeline/phase_a_runner.py"
+wget -O tests/test_phase_a_runner.py \
+  "${RAW_BASE}/tests/test_phase_a_runner.py"
+
+grep -n "question_overlap_topk" src/pipeline/phase_a_runner.py
+grep -n "_select_context_items" src/pipeline/phase_a_runner.py
+```
+
+按需追加其它 `REL_PATH`（同一 `RAW_BASE` 规则），例如诊断脚本：`wget -O scripts/diagnostics/analyze_evidence_saturation.py "${RAW_BASE}/scripts/diagnostics/analyze_evidence_saturation.py"`。  
+
 - **验证**：服务器上关键文件与提交内容一致（哈希或 diff）；实验复跑与本地同提交结果可对照。
 
 ---
