@@ -23,7 +23,7 @@ import json
 import sys
 from collections import Counter
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, TextIO
 
 
 def _extract_entity_key(node_id: str) -> str:
@@ -153,23 +153,53 @@ def _iter_payload_paths_from_glob(root: Path, pattern: str) -> list[Path]:
     return [p for p in paths if p.is_file()]
 
 
+def _batch_row_matches(
+    batch_id: str | None,
+    batch_id_substring: str | None,
+    row_batch_id: Any,
+) -> bool:
+    bid = str(row_batch_id or "")
+    if batch_id is not None:
+        return bid == batch_id
+    if batch_id_substring is not None:
+        return batch_id_substring in bid
+    return True
+
+
 def _iter_payload_paths_from_registry(
     root: Path,
     registry_path: Path,
     batch_id: str | None,
+    batch_id_substring: str | None,
     limit: int | None,
-) -> list[Path]:
+) -> tuple[list[Path], dict[str, Any]]:
     rows_out: list[Path] = []
+    stats: dict[str, Any] = {
+        "registry_lines": 0,
+        "rows_json_error": 0,
+        "rows_batch_filter_match": 0,
+        "rows_missing_output_run_dir": 0,
+        "rows_payload_file_missing": 0,
+        "example_missing_payload": [],
+    }
+
     with registry_path.open("r", encoding="utf-8") as handle:
         for line in handle:
             line = line.strip()
             if not line:
                 continue
-            row = json.loads(line)
-            if batch_id and row.get("batch_id") != batch_id:
+            stats["registry_lines"] += 1
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError:
+                stats["rows_json_error"] += 1
                 continue
+            if not _batch_row_matches(batch_id, batch_id_substring, row.get("batch_id")):
+                continue
+            stats["rows_batch_filter_match"] += 1
             out_dir = row.get("output_run_dir")
             if not out_dir:
+                stats["rows_missing_output_run_dir"] += 1
                 continue
             p = Path(out_dir)
             if not p.is_absolute():
@@ -177,29 +207,74 @@ def _iter_payload_paths_from_registry(
             candidate = p / "run_payload.json"
             if candidate.is_file():
                 rows_out.append(candidate)
+            else:
+                stats["rows_payload_file_missing"] += 1
+                if len(stats["example_missing_payload"]) < 5:
+                    stats["example_missing_payload"].append(str(candidate))
             if limit is not None and len(rows_out) >= limit:
                 break
-    return rows_out
+    return rows_out, stats
+
+
+def list_batch_ids_from_registry(registry_path: Path, *, out: TextIO, limit_lines: int | None = None) -> None:
+    """Print batch_id counts (and one example output_run_dir) to help find typos."""
+    counts: Counter[str] = Counter()
+    example_dir: dict[str, str] = {}
+    n = 0
+    with registry_path.open("r", encoding="utf-8") as handle:
+        for line in handle:
+            line = line.strip()
+            if not line:
+                continue
+            n += 1
+            if limit_lines is not None and n > limit_lines:
+                break
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            bid = str(row.get("batch_id") or "")
+            counts[bid] += 1
+            od = row.get("output_run_dir")
+            if bid and bid not in example_dir and od:
+                example_dir[bid] = str(od)
+
+    print(f"Unique batch_id values: {len(counts)} (from {n} non-empty lines)", file=out)
+    for bid, cnt in counts.most_common():
+        ex = example_dir.get(bid, "")
+        print(f"{cnt}\t{bid}\t{ex}", file=out)
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    src = parser.add_mutually_exclusive_group(required=True)
-    src.add_argument(
+    parser.add_argument(
         "--glob",
         dest="glob_pattern",
+        default=None,
         help="Glob relative to --root, e.g. outputs/runs/*/run_payload.json",
     )
-    src.add_argument(
+    parser.add_argument(
         "--registry-jsonl",
         type=str,
+        default=None,
         help="run_registry.jsonl: load run_payload.json from each row's output_run_dir",
+    )
+    parser.add_argument(
+        "--list-batch-ids",
+        action="store_true",
+        help="List batch_id counts from registry (requires --registry-jsonl); then exit",
     )
     parser.add_argument(
         "--batch-id",
         type=str,
         default=None,
-        help="When using --registry-jsonl, only rows with this batch_id",
+        help="When using --registry-jsonl, exact match on batch_id",
+    )
+    parser.add_argument(
+        "--batch-id-substring",
+        type=str,
+        default=None,
+        help="When using --registry-jsonl, keep rows whose batch_id contains this string (ignored if --batch-id set)",
     )
     parser.add_argument(
         "--limit",
@@ -225,23 +300,60 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=None,
         help="Optional CSV path for per-sample metrics",
     )
-    return parser.parse_args(argv)
+    ns = parser.parse_args(argv)
+    if not ns.glob_pattern and not ns.registry_jsonl:
+        parser.error("Provide --glob or --registry-jsonl")
+    if ns.list_batch_ids and not ns.registry_jsonl:
+        parser.error("--list-batch-ids requires --registry-jsonl")
+    if ns.batch_id and ns.batch_id_substring:
+        parser.error("Use only one of --batch-id or --batch-id-substring")
+    if (
+        ns.registry_jsonl
+        and not ns.list_batch_ids
+        and not ns.glob_pattern
+        and not ns.batch_id
+        and not ns.batch_id_substring
+    ):
+        parser.error("With --registry-jsonl, provide --batch-id or --batch-id-substring (or use --list-batch-ids)")
+    return ns
 
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     root = Path(args.root).resolve()
 
+    if args.registry_jsonl:
+        reg = Path(args.registry_jsonl)
+        if not reg.is_absolute():
+            reg = root / reg
+        if args.list_batch_ids:
+            list_batch_ids_from_registry(reg, out=sys.stdout)
+            return 0
+
     if args.glob_pattern:
         paths = _iter_payload_paths_from_glob(root, args.glob_pattern)
+        reg_stats: dict[str, Any] | None = None
     else:
         reg = Path(args.registry_jsonl)
         if not reg.is_absolute():
             reg = root / reg
-        paths = _iter_payload_paths_from_registry(root, reg, args.batch_id, args.limit)
+        paths, reg_stats = _iter_payload_paths_from_registry(
+            root,
+            reg,
+            args.batch_id,
+            args.batch_id_substring,
+            args.limit,
+        )
 
     if not paths:
         print("No run_payload.json files matched.", file=sys.stderr)
+        if reg_stats is not None:
+            print(json.dumps({"registry_debug": reg_stats}, indent=2, ensure_ascii=False), file=sys.stderr)
+            print(
+                "Hint: run with --list-batch-ids to see exact batch_id strings, "
+                "or use --batch-id-substring 'entityalpha_0.3' instead of a full id.",
+                file=sys.stderr,
+            )
         return 2
 
     per_sample: list[dict[str, Any]] = []
@@ -264,7 +376,9 @@ def main(argv: list[str] | None = None) -> int:
             "glob": args.glob_pattern,
             "registry_jsonl": args.registry_jsonl,
             "batch_id": args.batch_id,
+            "batch_id_substring": args.batch_id_substring,
             "payload_count": len(paths),
+            "registry_debug": reg_stats,
         },
     }
 

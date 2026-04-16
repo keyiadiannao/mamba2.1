@@ -118,6 +118,27 @@ class EvidenceSaturationDiagnosticsTest(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertTrue(out_json.exists())
 
+    def test_list_batch_ids_runs(self) -> None:
+        temp_dir = Path(tempfile.mkdtemp())
+        self.addCleanup(lambda: __import__("shutil").rmtree(temp_dir, ignore_errors=True))
+
+        reg_path = temp_dir / "run_registry.jsonl"
+        reg_path.write_text(
+            json.dumps({"batch_id": "batch_a", "output_run_dir": "/tmp/x"}, ensure_ascii=False) + "\n"
+            + json.dumps({"batch_id": "batch_b", "output_run_dir": "/tmp/y"}, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+        code = main(
+            [
+                "--registry-jsonl",
+                str(reg_path.relative_to(temp_dir)),
+                "--root",
+                str(temp_dir),
+                "--list-batch-ids",
+            ]
+        )
+        self.assertEqual(code, 0)
+
 
 if __name__ == "__main__":
     unittest.main()
