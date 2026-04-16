@@ -396,6 +396,29 @@
 2. **`alpha=0.3` 与 `0.5` 指标完全一致**：需在 trace 上核对实体 boost 是否实际改变过排序（例如 `route_decisions` 里 `raw_router_score` vs 最终 `score`、`entity_hit_rate`）；若从未触达决策边界，则继续扫 `alpha` 收益有限。
 3. 单独 5 条级的 `smoke` 批（如 `smoke5_entityalpha_*`）EM 全零属于**烟测口径/子集**，不与上表 500 条主结论混写。
 
+### 9.10 Readout 优先诊断与判停（2026-04）
+
+在同一 `500` 样本上，围绕「导航参数 vs 证据消费」做了连续诊断，核心观察如下：
+
+1. **Oracle 与 Rule 的 ctx-gold 差距极大**  
+- `oracle` 的 `mean_frac_gold_leaf_texts_in_generator_context ≈ 0.999`，`all_gold ≈ 0.994`  
+- `rule` 仅在 `0.128~0.158` 区间，说明主问题仍是“生成器看到的证据质量”。
+
+2. **参数提升出现 recall-readout trade-off**  
+- 例如 `pem3 + overlap_off + mrs2.0`：过程指标（访问/接受 gold）有提升，但 `500` 条端到端 `EM/F1` 下降到 `0.148 / 0.168`。  
+- 样本级分桶：`A(ctx↑,F1↑)=0.6%`、`B(ctx↑,F1↓)=0.8%`、`C(ctx≈,F1↓)=7.4%`、`D=91.2%`，正向收益明显不足。
+
+3. **退化样本机制已定位**  
+- 在大量 worst 样本中，`n_context` 从 `3~5` 扩到 `8` 后出现 `F1 1.0 -> 0.0`。  
+- 这更符合“上下文噪声/顺序效应”而不是“参数未扫到位”。
+
+4. **网络失效批次已单独隔离**  
+- 曾出现 `hf-mirror` 不可达导致 `generation_error=500/500` 的无效批次。  
+- 该类批次不进入模型对比结论，只用于运维排障记录。
+
+本节结论（可复用写法）：  
+> 当前阶段应停止盲目扫 `mrs/pem`，先修复 evidence-to-generation 的消费链路；否则 recall 的小幅提升会被 readout 退化抵消。
+
 ---
 
 ## 10. 当前建议与下一步（2026-04 更新）
@@ -426,7 +449,29 @@ python scripts/diagnostics/analyze_evidence_saturation.py \
 2. **实体 boost**：在 10.1 有 trace 证据前，不把 `alpha` 超参扫作为主工作量。
 3. **生成与评测口径**：端到端配置中已支持 `eval_mode`、`report_dir` 等字段；新跑批次应在 `run_registry.jsonl` 中可追溯，便于与诊断脚本联动。
 
-### 10.3 服务器代码更新（GitHub 不稳定时）
+### 10.3 批判性接收（RAPTOR / IRCoT 启发）
+
+本轮对外部方法的接收原则：
+
+1. **直接采纳**：`collapsed-tree` 思路对应“排序优先于访问顺序”  
+- 以 `context_select_mode` 后处理做最小实现，先验证 readout 假设，不改 Controller 主逻辑。
+
+2. **部分采纳**：IRCoT 的逐跳检索启发  
+- 当前仅考虑“轻量 query hint（已访问实体）”作为后续方向；不引入完整 CoT-检索循环，避免变量爆炸。
+
+3. **暂不采纳**：重型离线聚类摘要树重构  
+- RAPTOR 式 GMM+LLM 摘要构树成本高、变量多，留到后续阶段；当前先榨干现有树结构与 readout 改进空间。
+
+### 10.4 当前冻结策略（防盲扫）
+
+1. 冻结导航阈值主轴（不再继续 `mrs/pem` 细扫）。  
+2. 以 `context_select_mode` 为单变量主线（`off` / `first_k` / `question_overlap_topk`）。  
+3. 每轮必须同时报告：  
+- 终点指标：`EM/F1/ROUGE-L`  
+- 过程指标：`ctx-gold`、`gold visited/accepted`、A/B/C/D 分桶  
+4. 若出现 “过程指标升但终点指标降”，按判停规则立即止损，不进入主表。
+
+### 10.5 服务器代码更新（GitHub 不稳定时）
 
 若容器内 `git clone` / `git pull` 频繁超时，可采用：**本机下载 GitHub `main` 分支 ZIP → 上传服务器解压 → 将 `data/`、`outputs/` 拷入新目录**。解压目录**默认不含 `.git`**，版本以压缩包对应提交或本机 `git rev-parse HEAD` 为准。
 

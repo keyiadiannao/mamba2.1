@@ -772,6 +772,24 @@ mamba2.1/
 **诊断脚本**
 
 - `scripts/diagnostics/analyze_evidence_saturation.py`：从 `run_registry.jsonl`（按 `batch_id`）或 `glob` 加载 `run_payload.json`，输出证据预算饱和率、证据内实体多样性、金叶子访问与接受情况（依赖 batch 传入 `positive_leaf_indices` → trace `leaf_indices_required`）。
+- 增强项：支持 `--with-context-gold-metrics`，可对 `generator_evidence_texts/context_texts` 计算 gold 文本覆盖率，用于区分“导航拿到证据”与“生成器实际看到证据”。
+
+**Readout-first 决策（本轮新增）**
+
+- 观察到 `ctx-gold` 提升并不自动带来 `EM/F1` 提升，存在明显 recall-readout trade-off。  
+- 因此当前阶段冻结 `mrs/pem` 主轴，不继续盲扫，优先优化证据消费（排序/截断）。  
+- 已在 `phase_a_runner` 加入 `context_select_mode/context_select_k`：  
+  - `off`（默认）  
+  - `first_k`  
+  - `dedupe_entity_then_k`  
+  - `question_overlap_topk`（按问题词重叠重排后截断）  
+- 该改动保持 Controller 不变，满足“最小侵入 + 可审计 + 可回滚”。
+
+**判停规则（避免过拟合式调参）**
+
+- 每轮实验必须同时看终点指标（`EM/F1`）和过程指标（`ctx-gold`、`gold visited/accepted`、A/B/C/D 分桶）。  
+- 当出现“过程指标升、终点指标降”时，按失败路线处理，不进入主线主表。  
+- 网络/依赖故障导致的 `generation_error` 批次单独标记为无效批次，不进入配置优劣比较。
 
 **服务器同步**
 
