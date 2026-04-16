@@ -441,6 +441,18 @@
 
 **仓库默认（2026-04-16，2026-04-17，2026-04-18）**：`configs/experiment/` 下凡 `context_source` 为 `t1_visited_leaves_ordered` 或 `flat_leaf_concat`、且为 **`question_overlap_topk`** 的模版，**`context_select_k` 已 bump 为 `4`**（与 **表 B** 全量 500 结论一致）；**`first_k3` / `dedupe_k3` 例题**仍为 `context_select_k=3`（与臂名一致）。**`oracle_item_leaves` 臂**显式 `context_select_mode=off`。复现 **表 A** 请仍使用 `k=3` 的历史 `batch_id` 或自建配置，勿与默认模版混读。
 
+### 9.12 B 链：routing 对照（500，本机 Qwen，`context_select` 已对齐）
+
+同一 **`sample_count=500`**、**`370m` + 本机 `Qwen2.5-7B`**、**`nav_success=1.0`**；**rule / cosine** 为 **`t1_visited_leaves_ordered` + `question_overlap_topk` + `k=4`**，**Oracle** 为 **`oracle_item_leaves` + `context_select off`**（与 `end_to_end_batch_real_corpus_server_mamba_370m_qwen7b_*.example.json` 一致）。
+
+| 臂 | `batch_id` | EM | F1 / ROUGE-L | `nav_success` |
+|---|---|---:|---:|---:|
+| `rule`（`overlap_k4` 主表） | `end_to_end_real_corpus_370m_qwen7b_rule_ctxsel_overlap_k4_20260416_140204Z` | `0.212` | `0.2337` | `1.0` |
+| `cosine_probe` | `end_to_end_real_corpus_370m_qwen7b_cosine_probe_20260416_153243Z` | `0.168` | `0.1847` | `1.0` |
+| `oracle_item_leaves` | （运行结束后补 `batch_id`） | — | — | — |
+
+**与 `rule` 对照（cosine − rule）**：`EM -0.044`（相对约 **−20.8%**），`F1 -0.0490`（相对约 **−21.0%**）。**Oracle 行补齐前**不写最终叙事；若 **Oracle EM 显著高于 `rule`** 而 **cosine 仍明显低于 `rule`**，则优先怀疑 **`cosine_probe` 路由伤害证据发现**；若 **Oracle 与 `rule` 接近**，再怀疑 **生成 / readout** 为主瓶颈（与 **9.11 诊断** 一致）。
+
 ---
 
 ## 10. 当前建议与下一步（2026-04 更新）
@@ -475,7 +487,7 @@
 6. **P0-B（第二阶段三连跑，B 链 500）**：在固定 **`context_select`**（**rule / cosine** 为 **`overlap_topk` + `k=4`**，**Oracle** 为 **`off`**）下，用仓库脚本依次跑 **rule → `cosine_probe` → `oracle_item_leaves`**，注入本机 Qwen 目录：  
    - `python scripts/run_eval/run_b_chain_phase2_three_arm.py --generator-hf-model-name '<本机Qwen目录>'`  
    - 可选先 `--dry-run` 检查生成的 `outputs/reports/tmp_phase2_configs/phase2_patch_*.json`。  
-   - 跑完将三条 **`batch_id`** 与 EM/F1 写入本节或 **9.x 主表**（与 **9.11** 区分口径即可）。  
+   - 跑完将三条 **`batch_id`** 与 EM/F1 写入 **9.12**（**cosine** 已记入；**Oracle** 待补）。  
    - **生成端须指本机 Qwen**（**MI-001**）；`git pull` 不通时用 **MI-002** 单文件 / ZIP 同步脚本与配置。  
    - 若批跑到一半报 **`OSError: 28`（磁盘满）**，见专档 **MI-007**；清空间后从失败臂重跑（串联脚本会从 **rule** 再跑一遍，可接受重复或改用手动两条配置只跑 **cosine / oracle**）。
 
