@@ -117,8 +117,13 @@ def _compute_generator_context_gold_metrics(
         "n_gold_leaf_texts_resolvable": None,
         "all_gold_texts_in_generator_context": None,
         "context_gold_metrics_available": False,
+        "leaf_map_unavailable_reason": None,
     }
-    if not gold or not leaf_index_to_text:
+    if not gold:
+        return out
+    # Important: use `is None` only — `not {}` is True and would skip valid empty maps.
+    if leaf_index_to_text is None:
+        out["leaf_map_unavailable_reason"] = "tree_not_loaded"
         return out
 
     matched = 0
@@ -134,6 +139,10 @@ def _compute_generator_context_gold_metrics(
     out["context_gold_metrics_available"] = resolvable > 0
     out["n_gold_leaf_texts_resolvable"] = resolvable
     out["n_gold_leaf_texts_matched_in_generator_context"] = matched
+    if resolvable == 0 and leaf_index_to_text is not None and len(leaf_index_to_text) == 0:
+        out["leaf_map_unavailable_reason"] = "tree_loaded_but_no_leaf_index_metadata"
+    elif resolvable == 0 and leaf_index_to_text:
+        out["leaf_map_unavailable_reason"] = "gold_leaf_indices_not_in_tree_map"
     if resolvable > 0:
         out["frac_gold_leaf_texts_in_generator_context"] = float(matched) / float(resolvable)
         out["all_gold_texts_in_generator_context"] = matched == resolvable
@@ -493,14 +502,36 @@ def main(argv: list[str] | None = None) -> int:
                 tp = payload.get("tree_path")
                 if isinstance(tp, str):
                     leaf_map = _get_leaf_index_to_text_cached(root, tp, leaf_map_cache)
-            row = analyze_payload(payload, leaf_index_to_text=leaf_map)
+                row = analyze_payload(payload, leaf_index_to_text=leaf_map)
+                row["leaf_map_loaded"] = leaf_map is not None
+                row["tree_path"] = payload.get("tree_path")
+            else:
+                row = analyze_payload(payload, leaf_index_to_text=None)
             row["source_path"] = str(path)
             per_sample.append(row)
         except (OSError, json.JSONDecodeError, ValueError) as exc:
             errors.append(f"{path}: {exc}")
 
+    summary = _summarize(per_sample)
+    if args.with_context_gold_metrics and per_sample:
+        summary["diag_leaf_map_loaded_count"] = sum(1 for r in per_sample if r.get("leaf_map_loaded") is True)
+        summary["diag_leaf_map_failed_count"] = sum(1 for r in per_sample if r.get("leaf_map_loaded") is False)
+        summary["diag_context_gold_metrics_available_count"] = sum(
+            1 for r in per_sample if r.get("context_gold_metrics_available")
+        )
+        if summary["diag_leaf_map_failed_count"] == len(per_sample):
+            summary["diag_note"] = (
+                "No tree JSON loaded for any sample; check that `tree_path` exists under --root "
+                "(e.g. data/processed/*.json) and that copies match the run machine paths."
+            )
+        elif summary.get("diag_context_gold_metrics_available_count") == 0:
+            summary["diag_note"] = (
+                "Trees loaded but no sample had resolvable gold leaf text in the map "
+                "(leaf_index in tree metadata vs leaf_indices_required)."
+            )
+
     report = {
-        "summary": _summarize(per_sample),
+        "summary": summary,
         "per_sample": per_sample,
         "errors": errors,
         "inputs": {
