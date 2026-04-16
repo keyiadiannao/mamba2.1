@@ -415,8 +415,9 @@
 |---|---|---:|---:|---:|
 | `first_k`, `context_select_k=3` | `end_to_end_real_corpus_370m_qwen7b_rule_ctxsel_first_k3_20260416_115156Z` | `0.176` | `0.1910` | `1.0` |
 | `dedupe_entity_then_k`, `context_select_k=3` | `end_to_end_real_corpus_370m_qwen7b_rule_ctxsel_dedupe_k3_20260416_121223Z` | `0.192` | `0.2030` | `1.0` |
+| `question_overlap_topk`, `context_select_k=3` | `end_to_end_real_corpus_370m_qwen7b_rule_ctxsel_overlap_k3_20260416_124233Z` | `0.208` | `0.2272` | `1.0` |
 
-**说明**：**A 与 B 生成端与环境不同，不得跨块比较绝对 EM 高低**；仅在各自块内读结论。B 内：`dedupe_k3` 相对 `first_k3` 为 `EM +0.016`、`F1 +0.012`；仍低于 A 中 `overlap3` 的表观 EM，但不据此推断「dedupe 弱于 overlap」，因非同一评测链。
+**说明**：**A 与 B 生成端与环境不同，不得跨块比较绝对 EM 高低**；仅在各自块内读结论。**B 内**（同链路与 `k=3`）：`overlap_topk` 优于 `dedupe`（`EM +0.016`、`F1 +0.0242`），优于 `first_k`（`EM +0.032`、`F1 +0.0362`）；与 A 中「overlap 优于 off」方向一致，但 A/B 数值不可直接对齐。
 
 **A 内结论**：`overlap_topk(k=3)` 相对 `off` 为 `EM +0.024`、`F1 +0.0201`。问题归因、判停口径与策略解释仅见专档 [`docs/Major_Issues_And_Resolutions_CN.md`](../Major_Issues_And_Resolutions_CN.md)（MI-004/005/006）。
 
@@ -443,7 +444,7 @@
 1. **主表**：继续以 **500 条** `rule + anti_collapse` / `cosine + anti_collapse` vs **Oracle** 为锚；小样本仅作消融提示，不写主结论。
 2. **实体 boost**：在 10.1 有 trace 证据前，不把 `alpha` 超参扫作为主工作量。
 3. **生成与评测口径**：端到端配置中已支持 `eval_mode`、`report_dir` 等字段；新跑批次应在 `run_registry.jsonl` 中可追溯，便于与诊断脚本联动。
-4. **`context_select` 消融队列**：服务器上 `first_k3` / `dedupe_k3` 已跑完并记入 **9.11 表 B**（须将 `generator_hf_model_name` 指到本机 Qwen 快照，见 MI-001）。下一步在同一 **B 环境**下补跑 `question_overlap_topk` 的 `k=3`（及轻扫 `k=2/4/5`）方可与 `first_k`/`dedupe` 公平对照；每轮仍同时报终点与过程指标，异常按专档判停。
+4. **`context_select` 消融队列**：服务器 **B** 上 `first_k3` / `dedupe_k3` / **`overlap_k3`（500）** 已齐（见 **9.11 表 B**；生成端须指本机 Qwen，见 MI-001）。`k=2/4/5` 建议先用小样本筛方向，再对候选 `k` 开 500 主表；每轮仍同时报终点与过程指标，异常按专档判停。
 
 ### 10.3 批判性接收（RAPTOR / IRCoT 启发）
 
