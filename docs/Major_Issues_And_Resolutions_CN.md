@@ -99,7 +99,7 @@
   - `first_k`：按当前顺序截断前 `k` 条。  
   - `dedupe_entity_then_k`：按实体键去重后取前 `k` 条。  
   - `question_overlap_topk`：按问题词与证据文本词重叠数降序，稳定 tie-break 后取 top `k`。  
-- **仓库模版默认（2026-04-16）**：`configs/experiment/` 下含 `t1_visited_leaves_ordered` / `flat_leaf_concat` 的 JSON 已写入 `question_overlap_topk` + `context_select_k=3`；`oracle_item_leaves` 例题显式 `context_select_mode=off`，避免动 Oracle 顺序。  
+- **仓库模版默认（2026-04-16，2026-04-18）**：`configs/experiment/` 下 **`question_overlap_topk`** 与 `t1_visited_leaves_ordered` / `flat_leaf_concat` 组合时 **`context_select_k=4`**（`first_k3`/`dedupe_k3` 例题仍为 `3`）；`oracle_item_leaves` 例题显式 `context_select_mode=off`。  
 - **验证**：单元测试 `tests/test_phase_a_runner.py`；端到端小批 `generation_error` 为零的对照与 A/B 批。
 
 ### MI-006 验证更新（2026-04-16，500 样本主表）
@@ -125,3 +125,4 @@
 | 2026-04-16 | `configs/experiment/` 主流模版写入 `context_select_mode` 默认值；Oracle 臂为 `off`。 |
 | 2026-04-16 | MI-002 补充：记录 `git pull` 被本地改动阻塞时的容错同步口径与典型冲突文件。 |
 | 2026-04-16 | MI-001 补充：`generator_hf_model_name` 指向本机模型目录以绕过失效 `hf-mirror`。 |
+| 2026-04-18 | MI-006：仓库 overlap 默认 `context_select_k` bump 至 `4`；增加 demo 烟测配置与 `tests/test_demo_ctxsel_k_smoke_batch.py`。 |

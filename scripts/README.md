@@ -9,6 +9,7 @@
 
 当前 `run_eval/` 目录中的第二阶段核心入口：
 
-- `run_end_to_end_batch.py`: 运行固定生成器的端到端 batch 评测
+- `run_end_to_end_batch.py`: 运行固定生成器的端到端 batch 评测  
+- **烟测（mock、无 GPU）**：`configs/experiment/end_to_end_batch_demo_smoke_ctxsel_overlap_k3.json` 与 `..._k4.json`，由 `tests/test_demo_ctxsel_k_smoke_batch.py` 覆盖，用于在 bump 默认 `context_select_k` 前确认 `k=3`/`k=4` 路径无 `generation_error`。
 - `compare_end_to_end_reports.py`: 汇总端到端 `EM / F1 / ROUGE-L` 与导航过程指标
 - `export_end_to_end_diagnostics.py`: 从多个 batch 中导出对齐样本，便于人工诊断 `prompt / context / answer`

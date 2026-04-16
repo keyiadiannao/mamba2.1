@@ -763,7 +763,7 @@ mamba2.1/
 - 树 JSON **单次读取**：`load_tree_payload` + `load_tree_from_payload`，避免重复 I/O；叶子索引映射单次构建、上下文构建复用。
 - **上下文构建失败**时跳过生成器调用，并写入明确 `generation_error`，避免空上下文仍走生成。
 - **`eval_mode`**（`generation` / `retrieval`）与 **`report_dir`** 写入 payload 与 `run_registry.jsonl`，便于区分打分对象与多实验目录隔离。
-- **实验模版默认值**：`configs/experiment/` 下真实语料相关 JSON 对 `t1_visited_leaves_ordered` / `flat_leaf_concat` 已写入 `context_select_mode=question_overlap_topk`、`context_select_k=3`；`oracle_item_leaves` 例题为 `context_select_mode=off`（代码层未传键时仍为 `off`，见专档 MI-006）。
+- **实验模版默认值**：`configs/experiment/` 下真实语料相关 JSON 对 `t1_visited_leaves_ordered` / `flat_leaf_concat` 已写入 `context_select_mode=question_overlap_topk`、`context_select_k=4`（2026-04-18 bump，与服务器 B 全量结论一致）；`oracle_item_leaves` 例题为 `context_select_mode=off`（代码层未传键时仍为 `off`，见专档 MI-006）。
 
 **Navigator（`Mamba2Navigator`）**
 

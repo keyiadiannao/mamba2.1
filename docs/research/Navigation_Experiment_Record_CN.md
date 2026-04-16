@@ -430,7 +430,7 @@
 | `6` | `pilot200_370m_rule_overlap_k6_20260416_134138Z` | `0.235` | `0.2598` | `1.0` |
 | `8` | `pilot200_370m_rule_overlap_k8_20260416_135043Z` | `0.240` | `0.2656` | `1.0` |
 
-**C 内粗结论**：`k=4` 在 pilot 上 EM/F1 最高；`k=8` 次之。**全量 500** 上 **`overlap_k4` 已跑完**（见 **表 B** 末行），与 **`k=3`** 对照略优。是否将仓库模版默认 `context_select_k` 从 `3` 改为 `4`，建议待 **A 链/local 烟测** 同口径确认后再改，以免与已记录的 A 表 `k=3` 结论混用口径。
+**C 内粗结论**：`k=4` 在 pilot 上 EM/F1 最高；`k=8` 次之。**全量 500** 上 **`overlap_k4` 已跑完**（见 **表 B** 末行），与 **`k=3`** 对照略优。**仓库 gate**：CI 侧已增加 `demo_navigation_batch` + mock 的 **`end_to_end_batch_demo_smoke_ctxsel_overlap_k{3,4}.json`** 烟测（`tests/test_demo_ctxsel_k_smoke_batch.py`），保证 `k=3`/`k=4` 路径无 `generation_error`；**表 A 仍为历史 `k=3` 跑数**，与模版默认 `k=4` 并存时以 `batch_id`/配置字段为准。
 
 **A 内结论**：`overlap_topk(k=3)` 相对 `off` 为 `EM +0.024`、`F1 +0.0201`。问题归因、判停口径与策略解释仅见专档 [`docs/Major_Issues_And_Resolutions_CN.md`](../Major_Issues_And_Resolutions_CN.md)（MI-004/005/006）。
 
@@ -438,7 +438,7 @@
 - **表 A、`off` vs `overlap3`（500）**（`analyze_evidence_saturation.py` + `--with-context-gold-metrics`）：导航侧两批一致（`frac_evidence_budget_saturated=1.0`、`frac_gold_leaf_ever_visited_deduped≈0.358` 等），符合「仅后处理 context、不改 trace」。生成器 context：`off` 为 `mean_n_generator_context_items≈6.89`、`mean_frac_gold_leaf_texts_in_generator_context≈0.151`；`overlap3` 为 `≈3.0`、`≈0.119`，`frac_samples_all_gold_texts_in_generator_context` 由 `≈0.012` 降至 `≈0.004`，与终点 EM 仍升并存，属 readout / 噪声与「ctx-gold 均值」非单调关系（见 MI-004）。  
 - **表 B、`overlap_k3`（500）**（`batch_id=end_to_end_real_corpus_370m_qwen7b_rule_ctxsel_overlap_k3_20260416_124233Z`）：`mean_n_generator_context_items=3.0`，`mean_frac_gold_leaf_texts_in_generator_context≈0.1162`，`frac_samples_all_gold_texts_in_generator_context=0.002`；与 A 中「overlap 后 ctx-gold 均值不高」同向。完整 JSON/CSV：`outputs/reports/evidence_saturation_B_overlap_k3.json`、`.csv`。
 
-**仓库默认（2026-04-16，2026-04-17 增补）**：`configs/experiment/` 下凡 `context_source` 为 `t1_visited_leaves_ordered` 或 `flat_leaf_concat` 的模版，当前仍为 `context_select_mode=question_overlap_topk`、`context_select_k=3`；**表 B 已显示同链路上 `k=4` 略优于 `k=3`**，是否 bump 默认 `k` 见上段。**`oracle_item_leaves` 臂**显式 `context_select_mode=off`，避免改写 Oracle 金证据顺序。
+**仓库默认（2026-04-16，2026-04-17，2026-04-18）**：`configs/experiment/` 下凡 `context_source` 为 `t1_visited_leaves_ordered` 或 `flat_leaf_concat`、且为 **`question_overlap_topk`** 的模版，**`context_select_k` 已 bump 为 `4`**（与 **表 B** 全量 500 结论一致）；**`first_k3` / `dedupe_k3` 例题**仍为 `context_select_k=3`（与臂名一致）。**`oracle_item_leaves` 臂**显式 `context_select_mode=off`。复现 **表 A** 请仍使用 `k=3` 的历史 `batch_id` 或自建配置，勿与默认模版混读。
 
 ---
 

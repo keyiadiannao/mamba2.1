@@ -23,7 +23,7 @@
   "routing_mode": "rule",
   "context_source": "t1_visited_leaves_ordered",
   "context_select_mode": "question_overlap_topk",
-  "context_select_k": 3,
+  "context_select_k": 4,
   "max_evidence": 3,
   "min_relevance_score": 1.0,
   "max_depth": 8,
