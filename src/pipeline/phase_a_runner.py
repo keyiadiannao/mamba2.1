@@ -246,6 +246,7 @@ def _build_context_from_trace(
 def _select_context_items(
     context_texts: list[str],
     context_node_ids: list[str],
+    question: str,
     config: dict[str, Any],
 ) -> tuple[list[str], list[str]]:
     mode = str(config.get("context_select_mode", "off")).strip().lower()
@@ -273,6 +274,20 @@ def _select_context_items(
             if len(deduped) >= select_k:
                 break
         return [text for text, _ in deduped], [node_id for _, node_id in deduped]
+
+    if mode == "question_overlap_topk":
+        question_tokens = _tokenize_content(question)
+        ranked: list[tuple[float, int, str, str]] = []
+        for idx, (text, node_id) in enumerate(paired):
+            overlap = 0.0
+            if question_tokens:
+                overlap = float(len(_tokenize_content(text).intersection(question_tokens)))
+            # Keep stable ordering by original index for exact ties.
+            ranked.append((overlap, -idx, text, node_id))
+
+        ranked.sort(key=lambda item: (item[0], item[1]), reverse=True)
+        selected = ranked[:select_k]
+        return [text for _, _, text, _ in selected], [node_id for _, _, _, node_id in selected]
 
     return context_texts, context_node_ids
 
@@ -344,7 +359,12 @@ def run_navigation_sample(
         leaf_nodes=leaf_nodes,
         leaf_index_map=leaf_index_map,
     )
-    context_texts, context_node_ids = _select_context_items(context_texts, context_node_ids, config)
+    context_texts, context_node_ids = _select_context_items(
+        context_texts,
+        context_node_ids,
+        final_question,
+        config,
+    )
     trace.context_texts = context_texts
     trace.context_node_ids = context_node_ids
     if context_error:
