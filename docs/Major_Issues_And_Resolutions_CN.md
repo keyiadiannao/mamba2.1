@@ -68,6 +68,21 @@ grep -n "_select_context_items" src/pipeline/phase_a_runner.py
 
 按需追加其它 `REL_PATH`（同一 `RAW_BASE` 规则），例如诊断脚本：`wget -O scripts/diagnostics/analyze_evidence_saturation.py "${RAW_BASE}/scripts/diagnostics/analyze_evidence_saturation.py"`。  
 
+6. **能否把 ghproxy 当作「GitHub 镜像」以后只 `git pull`？**——**可以试，但不是 raw 那条链**：`wget` 用的是 **`raw.githubusercontent.com`**；`git pull` 走的是 **`github.com/.../.git`** 的 Git HTTP(S)。许多代理站支持把 **clone/fetch URL** 写成 **`https://<代理>/https://github.com/<org>/<repo>.git`**，从而 **`git pull` 走代理**。与单文件 `wget` **二选一或并存**即可：整仓能拉就用 **6**；拉不动或冲突仍用上面 **4** 的片段。  
+
+**整仓 `origin` 走代理（示例，按需改域名与路径）**：
+
+```bash
+cd ~/autodl-tmp/mamba2.1
+
+git remote -v
+git remote set-url origin 'https://ghproxy.net/https://github.com/keyiadiannao/mamba2.1.git'
+git fetch origin
+git pull origin main
+```
+
+**注意**：第三方代理有**可用性 / 合规 / 单点故障**；部分环境 **`git push`** 经代理会失败，需改回 **`git@github.com:...`** 或直连 `https://github.com/...`；**LFS / submodule** 可能需额外配置。代理不可用时仍回到 **4** 的 `wget` 定点覆盖。  
+
 - **验证**：服务器上关键文件与提交内容一致（哈希或 diff）；实验复跑与本地同提交结果可对照。
 
 ---
