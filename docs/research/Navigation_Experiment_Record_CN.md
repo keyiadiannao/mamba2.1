@@ -455,12 +455,28 @@
 
 关注摘要中的 **`frac_evidence_budget_saturated`**、**`mean_unique_entities_in_evidence`**，以及在 batch 传入 `positive_leaf_indices` 时的 **`frac_gold_leaf_ever_visited_deduped`** 与 **`frac_gold_in_accepted_evidence`**，再决定是加强 **anti-collapse / 多样性** 还是动 **接受阈值与探索顺序**。
 
+#### 10.1.1 决策检查清单（锚定 **B、`overlap_k4`（500）** 已跑诊断）
+
+以下数字来自 **9.11 诊断摘要** 中 **`overlap_k4`** 与导航侧一致项，用作「下一刀」优先级，而非再扫 `context_select`：
+
+1. **`frac_evidence_budget_saturated = 1.0` 且 `mean_n_evidence = mean_max_evidence = 8`**：优先审视 **证据同质 / anti-collapse** 与 **接受后是否仍挤满同质叶子**，而不是单纯加 `max_evidence`。  
+2. **`sample_count_gold_missing_from_evidence = 322`（500 中）且 `frac_saturated_among_gold_missing = 1.0`**：主矛盾在 **金叶子未进 accepted evidence**；优先动 **探索顺序 / 接受阈值 / router 与实体多样性**，使金叶子更可能进入 evidence。  
+3. **`mean_evidence_same_entity_as_first` 较高**（与 **`mean_unique_entities_in_evidence`** 对照）：若「同实体重复」突出，与 **anti-collapse / 去重接受** 联动设计实验臂。  
+4. **`frac_gold_leaf_ever_visited_deduped` 与 `frac_gold_in_accepted_evidence` 仍偏低**：若 visited 尚可但 accepted 差，动 **接受**；若 visited 即差，动 **导航探索与 routing**。  
+5. 每轮改参仍须同时报 **终点 + 过程**；若出现 **过程升、终点降**，按专档 **MI-004 / MI-005** 判停。
+
 ### 10.2 与第二阶段叙事对齐
 
 1. **主表**：继续以 **500 条** `rule + anti_collapse` / `cosine + anti_collapse` vs **Oracle** 为锚；小样本仅作消融提示，不写主结论。
 2. **实体 boost**：在 10.1 有 trace 证据前，不把 `alpha` 超参扫作为主工作量。
 3. **生成与评测口径**：端到端配置中已支持 `eval_mode`、`report_dir` 等字段；新跑批次应在 `run_registry.jsonl` 中可追溯，便于与诊断脚本联动。
-4. **`context_select` 消融队列**：服务器 **B** 上 `first_k3` / `dedupe_k3` / **`overlap_k3` / `overlap_k4`（500）** 已齐（**9.11 表 B**）；`overlap` 的 **`k` pilot200** 已齐（**9.11 表 C**）；**`overlap_k4`（500）** 的 **`analyze_evidence_saturation` + `--with-context-gold-metrics`** 已记入 **9.11 诊断摘要**（与 **`overlap_k3`** 对照）。下一步主工作量转入 **10.1**（预算饱和 + 金叶子缺失 322 样本）与 **`cosine_probe` vs `rule`（500）`**；可选再跑 **`k=8` 全量 500**（ROI 低）。生成端须指本机 Qwen（MI-001）。
+4. **`context_select` 消融队列（已闭合）**：服务器 **B** 上三模式 + **`overlap_k3`/`k4`（500）** 与 **pilot200**、**`overlap_k4` 诊断** 已齐（**9.11**）。**`k=8` 全量 500** 仅作备选（ROI 低）。
+5. **P0-A（证据 / 导航）**：按 **10.1.1** 从 **`gold_missing` + 饱和 + 实体重复`** 定下一组可审计实验臂（anti-collapse / 接受 / 探索），冻结 **`mrs/pem` 盲扫**。  
+6. **P0-B（第二阶段三连跑，B 链 500）**：在固定 **`context_select`**（**rule / cosine** 为 **`overlap_topk` + `k=4`**，**Oracle** 为 **`off`**）下，用仓库脚本依次跑 **rule → `cosine_probe` → `oracle_item_leaves`**，注入本机 Qwen 目录：  
+   - `python scripts/run_eval/run_b_chain_phase2_three_arm.py --generator-hf-model-name '<本机Qwen目录>'`  
+   - 可选先 `--dry-run` 检查生成的 `outputs/reports/tmp_phase2_configs/phase2_patch_*.json`。  
+   - 跑完将三条 **`batch_id`** 与 EM/F1 写入本节或 **9.x 主表**（与 **9.11** 区分口径即可）。  
+   - **生成端须指本机 Qwen**（**MI-001**）；`git pull` 不通时用 **MI-002** 单文件 / ZIP 同步脚本与配置。
 
 ### 10.3 批判性接收（RAPTOR / IRCoT 启发）
 
