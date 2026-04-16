@@ -44,7 +44,10 @@
 - **解决方案**：  
   1. 本机打包前执行 `git rev-parse HEAD`，在实验记录或 `run_registry` 旁注记**提交哈希**。  
   2. 大目录从旧工作区拷入新解压目录，避免重复下载数据。  
-  3. 若仅需同步少数文件，可用稳定代理拉取单文件 raw（例如 `ghproxy` 等，以你环境合规性为准）覆盖 `src/` 下对应路径。  
+  3. 若仅需同步少数文件，可用 **GitHub raw** 单文件覆盖（**不限于 `src/`**，`scripts/`、`tests/` 等同理）；网络不稳时可在 URL 前加**你环境允许**的 raw 代理前缀（例如 `ghproxy` 类服务，**以合规与可用性为准**）。示例（将 `REL_PATH` 换成仓库内相对路径，如 `src/pipeline/phase_a_runner.py`）：  
+     - 直连：`https://raw.githubusercontent.com/keyiadiannao/mamba2.1/main/<REL_PATH>`  
+     - 代理：`https://ghproxy.com/https://raw.githubusercontent.com/keyiadiannao/mamba2.1/main/<REL_PATH>`（前缀域名可按需替换；若 404 或证书问题则换镜像或改走 ZIP）。  
+     - 下载覆盖（在服务器解压目录根执行，先备份）：`curl -fsSL -o '<REL_PATH>' '<上述完整 URL>'`（或 `wget -O '<REL_PATH>' '...'`）。  
   4. 实操口径：先尝试常规拉取；若因本地改动冲突导致拉取中止，则切换到“**容错拉取 + 关键文件定点覆盖 + 关键字校验**”流程，保证最小改动恢复到目标提交行为。  
 - **验证**：服务器上关键文件与提交内容一致（哈希或 diff）；实验复跑与本地同提交结果可对照。
 
