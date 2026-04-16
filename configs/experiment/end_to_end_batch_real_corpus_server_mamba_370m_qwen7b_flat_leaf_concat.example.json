@@ -29,6 +29,8 @@
   "run_generator": true,
   "routing_mode": "rule",
   "context_source": "flat_leaf_concat",
+  "context_select_mode": "question_overlap_topk",
+  "context_select_k": 3,
   "context_max_items": 8,
   "max_evidence": 8,
   "min_relevance_score": 1.0,

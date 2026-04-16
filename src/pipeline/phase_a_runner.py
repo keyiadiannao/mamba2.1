@@ -315,6 +315,11 @@ def run_navigation_sample(
     leaf_indices_required: list[int] | None = None,
     controller: SSGSController | None = None,
 ) -> dict[str, Any]:
+    """单样本 Phase A：导航 → 构建 context → 可选生成与打分。
+
+    在写入 trace 的 context 之前，可按 ``context_select_mode`` / ``context_select_k`` 对证据列表做后处理
+   （``off`` / ``first_k`` / ``dedupe_entity_then_k`` / ``question_overlap_topk``）；行为说明见 ``docs/Major_Issues_And_Resolutions_CN.md``（MI-006）。
+    """
     resolved_tree_path = root_dir / tree_path
     tree_payload = load_tree_payload(resolved_tree_path)
     tree = load_tree_from_payload(tree_payload)

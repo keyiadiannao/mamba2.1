@@ -19,6 +19,8 @@
   "generator_model_name": "qwen",
   "routing_mode": "cosine_probe",
   "context_source": "t1_visited_leaves_ordered",
+  "context_select_mode": "question_overlap_topk",
+  "context_select_k": 3,
   "max_evidence": 3,
   "min_relevance_score": 1.0,
   "max_depth": 8,

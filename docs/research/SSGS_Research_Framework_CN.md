@@ -763,6 +763,7 @@ mamba2.1/
 - 树 JSON **单次读取**：`load_tree_payload` + `load_tree_from_payload`，避免重复 I/O；叶子索引映射单次构建、上下文构建复用。
 - **上下文构建失败**时跳过生成器调用，并写入明确 `generation_error`，避免空上下文仍走生成。
 - **`eval_mode`**（`generation` / `retrieval`）与 **`report_dir`** 写入 payload 与 `run_registry.jsonl`，便于区分打分对象与多实验目录隔离。
+- **实验模版默认值**：`configs/experiment/` 下真实语料相关 JSON 对 `t1_visited_leaves_ordered` / `flat_leaf_concat` 已写入 `context_select_mode=question_overlap_topk`、`context_select_k=3`；`oracle_item_leaves` 例题为 `context_select_mode=off`（代码层未传键时仍为 `off`，见专档 MI-006）。
 
 **Navigator（`Mamba2Navigator`）**
 
@@ -774,26 +775,9 @@ mamba2.1/
 - `scripts/diagnostics/analyze_evidence_saturation.py`：从 `run_registry.jsonl`（按 `batch_id`）或 `glob` 加载 `run_payload.json`，输出证据预算饱和率、证据内实体多样性、金叶子访问与接受情况（依赖 batch 传入 `positive_leaf_indices` → trace `leaf_indices_required`）。
 - 增强项：支持 `--with-context-gold-metrics`，可对 `generator_evidence_texts/context_texts` 计算 gold 文本覆盖率，用于区分“导航拿到证据”与“生成器实际看到证据”。
 
-**Readout-first 决策（本轮新增）**
+**Readout-first、判停规则、服务器同步与 `context_select_mode` 开关的完整说明**
 
-- 观察到 `ctx-gold` 提升并不自动带来 `EM/F1` 提升，存在明显 recall-readout trade-off。  
-- 因此当前阶段冻结 `mrs/pem` 主轴，不继续盲扫，优先优化证据消费（排序/截断）。  
-- 已在 `phase_a_runner` 加入 `context_select_mode/context_select_k`：  
-  - `off`（默认）  
-  - `first_k`  
-  - `dedupe_entity_then_k`  
-  - `question_overlap_topk`（按问题词重叠重排后截断）  
-- 该改动保持 Controller 不变，满足“最小侵入 + 可审计 + 可回滚”。
-
-**判停规则（避免过拟合式调参）**
-
-- 每轮实验必须同时看终点指标（`EM/F1`）和过程指标（`ctx-gold`、`gold visited/accepted`、A/B/C/D 分桶）。  
-- 当出现“过程指标升、终点指标降”时，按失败路线处理，不进入主线主表。  
-- 网络/依赖故障导致的 `generation_error` 批次单独标记为无效批次，不进入配置优劣比较。
-
-**服务器同步**
-
-- AutoDL 等对 GitHub 不稳定时，可用 **`main` 分支 ZIP 上传解压** 替代 `git pull`；大目录 **`data/`、`outputs/`** 与代码分离拷贝。无 `.git` 时以 ZIP 对应提交或本机 `git rev-parse HEAD` 登记版本。
+- 上述主题的**现象、根因与处置**仅维护于 [`docs/Major_Issues_And_Resolutions_CN.md`](../Major_Issues_And_Resolutions_CN.md)（**MI-004 ~ MI-006、MI-002**）。本节其余条目仍为组件级能力说明，不与专档重复。
 
 ---
 

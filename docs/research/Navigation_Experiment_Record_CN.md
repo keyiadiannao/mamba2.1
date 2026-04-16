@@ -398,26 +398,22 @@
 
 ### 9.10 Readout 优先诊断与判停（2026-04）
 
-在同一 `500` 样本上，围绕「导航参数 vs 证据消费」做了连续诊断，核心观察如下：
+本节所涉「500 样本定量摘要、recall–readout trade-off、worst 样本中 `n_context` 扩张与 F1 塌陷、整批 `generation_error` 无效批次隔离、以及判停 / 冻结策略的完整叙述」**仅维护于** [`docs/Major_Issues_And_Resolutions_CN.md`](../Major_Issues_And_Resolutions_CN.md)（**MI-004、MI-005、MI-001**）。实验记录表与 batch 级指标仍保留于上文各节；此处不重复展开，避免双处维护。
 
-1. **Oracle 与 Rule 的 ctx-gold 差距极大**  
-- `oracle` 的 `mean_frac_gold_leaf_texts_in_generator_context ≈ 0.999`，`all_gold ≈ 0.994`  
-- `rule` 仅在 `0.128~0.158` 区间，说明主问题仍是“生成器看到的证据质量”。
+### 9.11 500 样本 A/B：`context_select_mode`（2026-04-16）
 
-2. **参数提升出现 recall-readout trade-off**  
-- 例如 `pem3 + overlap_off + mrs2.0`：过程指标（访问/接受 gold）有提升，但 `500` 条端到端 `EM/F1` 下降到 `0.148 / 0.168`。  
-- 样本级分桶：`A(ctx↑,F1↑)=0.6%`、`B(ctx↑,F1↓)=0.8%`、`C(ctx≈,F1↓)=7.4%`、`D=91.2%`，正向收益明显不足。
+同一 `sample_count=500`、`localqwen` 且两组均 `generation_error=0/500`：
 
-3. **退化样本机制已定位**  
-- 在大量 worst 样本中，`n_context` 从 `3~5` 扩到 `8` 后出现 `F1 1.0 -> 0.0`。  
-- 这更符合“上下文噪声/顺序效应”而不是“参数未扫到位”。
+| 配置 | `batch_id` | EM | F1 / ROUGE-L | `nav_success` |
+|---|---|---:|---:|---:|
+| `context_select_mode=off` | `ab500_ctxsel_off_localqwen_v2_20260416_101040Z` | `0.170` | `0.1916` | `1.0` |
+| `context_select_mode=question_overlap_topk`, `context_select_k=3` | `ab500_ctxsel_overlap3_localqwen_20260416_103201Z` | `0.194` | `0.2116` | `1.0` |
 
-4. **网络失效批次已单独隔离**  
-- 曾出现 `hf-mirror` 不可达导致 `generation_error=500/500` 的无效批次。  
-- 该类批次不进入模型对比结论，只用于运维排障记录。
+本轮结论：`overlap_topk(k=3)` 相对 `off` 提升 `EM +0.024`、`F1 +0.0201`。问题归因、判停口径与策略解释仅见专档 [`docs/Major_Issues_And_Resolutions_CN.md`](../Major_Issues_And_Resolutions_CN.md)（MI-004/005/006）。
 
-本节结论（可复用写法）：  
-> 当前阶段应停止盲目扫 `mrs/pem`，先修复 evidence-to-generation 的消费链路；否则 recall 的小幅提升会被 readout 退化抵消。
+**诊断摘要（9.11 两批，`analyze_evidence_saturation.py` + `--with-context-gold-metrics`）**：导航侧指标两批一致（`frac_evidence_budget_saturated=1.0`、`frac_gold_leaf_ever_visited_deduped≈0.358` 等），符合「仅后处理 context、不改 trace」。生成器 context：`off` 为 `mean_n_generator_context_items≈6.89`、`mean_frac_gold_leaf_texts_in_generator_context≈0.151`；`overlap3` 为 `≈3.0`、`≈0.119`，`frac_samples_all_gold_texts_in_generator_context` 由 `≈0.012` 降至 `≈0.004`，与终点 EM 仍升并存，属 readout / 噪声与「ctx-gold 均值」非单调关系（见 MI-004）。
+
+**仓库默认（2026-04-16）**：`configs/experiment/` 下凡 `context_source` 为 `t1_visited_leaves_ordered` 或 `flat_leaf_concat` 的模版，已写入 `context_select_mode=question_overlap_topk`、`context_select_k=3`；`oracle_item_leaves` 臂显式 `context_select_mode=off`，避免改写 Oracle 金证据顺序。
 
 ---
 
@@ -429,17 +425,7 @@
 
 单纯把 `max_evidence` / `context_max_items` 提到 `16` 仍无法解决时，应默认怀疑 **同质证据顶满预算** 或 **探索路径从未靠近金叶子**，而不是「槽位不够」。
 
-仓库内已提供离线汇总脚本（读每条 `outputs/runs/<run_id>/run_payload.json`）：
-
-```bash
-cd <REPO_ROOT>
-python scripts/diagnostics/analyze_evidence_saturation.py \
-  --registry-jsonl outputs/reports/run_registry.jsonl \
-  --batch-id '<你的_rule_500_batch_id>' \
-  --root . \
-  --out-json outputs/reports/evidence_saturation_rule500.json \
-  --per-sample-csv outputs/reports/evidence_saturation_rule500.csv
-```
+仓库内离线汇总脚本为 `scripts/diagnostics/analyze_evidence_saturation.py`（按 `run_registry.jsonl` 的 `batch_id` 聚合每条 `outputs/runs/<run_id>/run_payload.json`）。需要区分「导航侧证据」与「生成器实际 context」时加 `--with-context-gold-metrics`；输出路径用 `--out-json` / `--per-sample-csv`。**可执行命令不在本文件维护**（避免路径与 `batch_id` 随环境变化导致文档过时）。
 
 关注摘要中的 **`frac_evidence_budget_saturated`**、**`mean_unique_entities_in_evidence`**，以及在 batch 传入 `positive_leaf_indices` 时的 **`frac_gold_leaf_ever_visited_deduped`** 与 **`frac_gold_in_accepted_evidence`**，再决定是加强 **anti-collapse / 多样性** 还是动 **接受阈值与探索顺序**。
 
@@ -448,6 +434,7 @@ python scripts/diagnostics/analyze_evidence_saturation.py \
 1. **主表**：继续以 **500 条** `rule + anti_collapse` / `cosine + anti_collapse` vs **Oracle** 为锚；小样本仅作消融提示，不写主结论。
 2. **实体 boost**：在 10.1 有 trace 证据前，不把 `alpha` 超参扫作为主工作量。
 3. **生成与评测口径**：端到端配置中已支持 `eval_mode`、`report_dir` 等字段；新跑批次应在 `run_registry.jsonl` 中可追溯，便于与诊断脚本联动。
+4. **`context_select` 消融队列（与 9.11 同口径）**：同主表、同生成器下补跑 `first_k`、`dedupe_entity_then_k`（与 `overlap_topk` 同 `k=3` 可比）——例题配置已加入 `configs/experiment/end_to_end_batch_real_corpus_server_mamba_370m_qwen7b_rule_ctxsel_first_k3.example.json` 与 `..._rule_ctxsel_dedupe_k3.example.json`（与现有 `..._rule.example.json` 仅差 `context_select_mode` / `batch_id_prefix` / `run_id_prefix`）；跑完将 `batch_id` 与摘要指标补入本表。随后在 `question_overlap_topk` 上轻扫 `k=2/4/5`；每轮仍同时报终点与过程指标，异常按专档判停。
 
 ### 10.3 批判性接收（RAPTOR / IRCoT 启发）
 
@@ -464,16 +451,11 @@ python scripts/diagnostics/analyze_evidence_saturation.py \
 
 ### 10.4 当前冻结策略（防盲扫）
 
-1. 冻结导航阈值主轴（不再继续 `mrs/pem` 细扫）。  
-2. 以 `context_select_mode` 为单变量主线（`off` / `first_k` / `question_overlap_topk`）。  
-3. 每轮必须同时报告：  
-- 终点指标：`EM/F1/ROUGE-L`  
-- 过程指标：`ctx-gold`、`gold visited/accepted`、A/B/C/D 分桶  
-4. 若出现 “过程指标升但终点指标降”，按判停规则立即止损，不进入主表。
+阈值冻结、`context_select_mode` 单变量主线、终点与过程指标同报、以及「过程升终点降」时的判停细则，**仅维护于** [`docs/Major_Issues_And_Resolutions_CN.md`](../Major_Issues_And_Resolutions_CN.md)（**MI-004、MI-005、MI-006**）。
 
 ### 10.5 服务器代码更新（GitHub 不稳定时）
 
-若容器内 `git clone` / `git pull` 频繁超时，可采用：**本机下载 GitHub `main` 分支 ZIP → 上传服务器解压 → 将 `data/`、`outputs/` 拷入新目录**。解压目录**默认不含 `.git`**，版本以压缩包对应提交或本机 `git rev-parse HEAD` 为准。
+无 `.git` 的 ZIP 部署、大目录迁移与单文件同步等操作口径，**仅维护于** [`docs/Major_Issues_And_Resolutions_CN.md`](../Major_Issues_And_Resolutions_CN.md)（**MI-002**）。
 
 ---
 

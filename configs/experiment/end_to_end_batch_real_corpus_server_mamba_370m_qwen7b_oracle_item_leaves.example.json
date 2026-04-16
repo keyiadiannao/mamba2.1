@@ -29,6 +29,7 @@
   "run_generator": true,
   "routing_mode": "rule",
   "context_source": "oracle_item_leaves",
+  "context_select_mode": "off",
   "context_max_items": 8,
   "max_evidence": 8,
   "min_relevance_score": 1.0,

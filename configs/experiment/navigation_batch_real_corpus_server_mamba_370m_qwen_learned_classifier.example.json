@@ -23,6 +23,8 @@
   "routing_mode": "learned_classifier",
   "router_checkpoint_path": "configs/router/learned_router_real_corpus.json",
   "context_source": "t1_visited_leaves_ordered",
+  "context_select_mode": "question_overlap_topk",
+  "context_select_k": 3,
   "max_evidence": 8,
   "min_relevance_score": 1.0,
   "max_depth": 8,
