@@ -405,6 +405,7 @@ Navigator-Generator 解耦后，是否可以形成完整、可复现、可审计
 
 - 由于当前 `avg_evidence_count` 仍容易打满 budget，它在第二阶段仍应被视为辅助指标
 - 在没有解除 budget 饱和前，不应把 evidence 数量差异写成主结论
+- **补充（2026-04）**：应用 `scripts/diagnostics/analyze_evidence_saturation.py` 对 `run_payload.json` 批量汇总，区分 **「预算顶满」**、**「证据实体多样性」** 与 **「金叶子是否曾访问 / 是否被接受进 evidence」**，避免仅凭条数下结论
 
 ### 11.0.5 第二阶段的判停标准
 
@@ -676,6 +677,9 @@ mamba2.1/
 5. 批量运行实现已经完成关键性能收口
 - 同一 batch 内共享 controller，避免每个样本重复加载预训练导航器
 
+6. 证据与归因诊断工具已落地（见 **16.3**）
+- 支持对「预算饱和 vs 金叶子未达」做批量统计，服务后续导航策略迭代
+
 因此，从“导航部分的基础框架是否已经立住”这个问题看，答案可以写成：**是，已经基本完成。**
 
 ### 15.2 当前可稳说的 measured results
@@ -749,6 +753,29 @@ mamba2.1/
 - 如有需要，再讨论 `1.4B`
 - 再讨论更严格的预算实验或 OOM 边界实验
 - 最后再讨论结构化图应用扩展
+
+### 16.3 工程与运维增量（2026-04，与论文叙事并行）
+
+下列内容不改变 RQ 表述，但影响**可复现性、归因清晰度与线上排障**，建议在实验记录中随手标注「当时代码版本」。
+
+**Phase A 管线（`run_navigation_sample`）**
+
+- 树 JSON **单次读取**：`load_tree_payload` + `load_tree_from_payload`，避免重复 I/O；叶子索引映射单次构建、上下文构建复用。
+- **上下文构建失败**时跳过生成器调用，并写入明确 `generation_error`，避免空上下文仍走生成。
+- **`eval_mode`**（`generation` / `retrieval`）与 **`report_dir`** 写入 payload 与 `run_registry.jsonl`，便于区分打分对象与多实验目录隔离。
+
+**Navigator（`Mamba2Navigator`）**
+
+- 问题侧向量 **LRU 有界缓存**、`clear_cache()`；可选 **`use_ssm_continuity`**（Phase 1 默认关闭）及对 `reset_state`/`reset_cache` 的探测式清理，与快照栈策略对齐文档边界。
+- 多后端 **last hidden** 抽取统一为 `_extract_last_hidden`，形状异常时 fail-fast。
+
+**诊断脚本**
+
+- `scripts/diagnostics/analyze_evidence_saturation.py`：从 `run_registry.jsonl`（按 `batch_id`）或 `glob` 加载 `run_payload.json`，输出证据预算饱和率、证据内实体多样性、金叶子访问与接受情况（依赖 batch 传入 `positive_leaf_indices` → trace `leaf_indices_required`）。
+
+**服务器同步**
+
+- AutoDL 等对 GitHub 不稳定时，可用 **`main` 分支 ZIP 上传解压** 替代 `git pull`；大目录 **`data/`、`outputs/`** 与代码分离拷贝。无 `.git` 时以 ZIP 对应提交或本机 `git rev-parse HEAD` 登记版本。
 
 ---
 

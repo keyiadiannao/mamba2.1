@@ -380,13 +380,63 @@
 3. 小样本严重偏乐观（rule 衰减 38%，oracle 仅衰减 3%），后续结论必须以 500 样本为准
 4. oracle 天花板 0.658 说明即使完美证据，7B 生成器仍有约 34% 答不对
 
+### 9.9 500 样本：`rule + anti_collapse` + 实体 boost（`entity_boost_alpha`）
+
+同一真实语料子集、`370M + Qwen7B`、端到端配置与 9.8 对齐；Oracle 批作为上界对照。
+
+| 配置 | 样本数 | EM | F1 / ROUGE-L | `nav_success` | 相对 Oracle（EM gap） |
+|---|---|---|---|---|---|
+| Oracle `oracle_item_leaves` | 500 | 0.64 | ≈0.658 | — | — |
+| `rule + anti_collapse`，`alpha=0.3` | 500 | 0.188 | ≈0.207 | 1.0 | ≈0.452 |
+| `rule + anti_collapse`，`alpha=0.5` | 500 | 0.188 | ≈0.207 | 1.0 | ≈0.452 |
+
+说明：
+
+1. 与 9.8 一致：**导航完成率满**，但端到端 EM 仍远低于 Oracle，主瓶颈仍在「是否取到正确证据」而非「是否跑完导航」。
+2. **`alpha=0.3` 与 `0.5` 指标完全一致**：需在 trace 上核对实体 boost 是否实际改变过排序（例如 `route_decisions` 里 `raw_router_score` vs 最终 `score`、`entity_hit_rate`）；若从未触达决策边界，则继续扫 `alpha` 收益有限。
+3. 单独 5 条级的 `smoke` 批（如 `smoke5_entityalpha_*`）EM 全零属于**烟测口径/子集**，不与上表 500 条主结论混写。
+
 ---
 
-## 10. 当前建议
+## 10. 当前建议与下一步（2026-04 更新）
 
-如果当前阶段的目标是“从导航闭环转入可发表的第二阶段验证”，那么现在最值的工作不是继续横向扩模块，而是：
+若目标是「在固定 500 条主表上把结论写稳、并定位下一刀改哪里」，建议按优先级：
 
-1. 固定第二阶段实验臂
-2. 固定生成器和 context build 口径
-3. 先跑一轮 `100-200` 条端到端评测
-4. 用端到端结果决定 learned head 的真实优先级
+### 10.1 证据饱和与金叶子可达性（优先）
+
+单纯把 `max_evidence` / `context_max_items` 提到 `16` 仍无法解决时，应默认怀疑 **同质证据顶满预算** 或 **探索路径从未靠近金叶子**，而不是「槽位不够」。
+
+仓库内已提供离线汇总脚本（读每条 `outputs/runs/<run_id>/run_payload.json`）：
+
+```bash
+cd <REPO_ROOT>
+python scripts/diagnostics/analyze_evidence_saturation.py \
+  --registry-jsonl outputs/reports/run_registry.jsonl \
+  --batch-id '<你的_rule_500_batch_id>' \
+  --root . \
+  --out-json outputs/reports/evidence_saturation_rule500.json \
+  --per-sample-csv outputs/reports/evidence_saturation_rule500.csv
+```
+
+关注摘要中的 **`frac_evidence_budget_saturated`**、**`mean_unique_entities_in_evidence`**，以及在 batch 传入 `positive_leaf_indices` 时的 **`frac_gold_leaf_ever_visited_deduped`** 与 **`frac_gold_in_accepted_evidence`**，再决定是加强 **anti-collapse / 多样性** 还是动 **接受阈值与探索顺序**。
+
+### 10.2 与第二阶段叙事对齐
+
+1. **主表**：继续以 **500 条** `rule + anti_collapse` / `cosine + anti_collapse` vs **Oracle** 为锚；小样本仅作消融提示，不写主结论。
+2. **实体 boost**：在 10.1 有 trace 证据前，不把 `alpha` 超参扫作为主工作量。
+3. **生成与评测口径**：端到端配置中已支持 `eval_mode`、`report_dir` 等字段；新跑批次应在 `run_registry.jsonl` 中可追溯，便于与诊断脚本联动。
+
+### 10.3 服务器代码更新（GitHub 不稳定时）
+
+若容器内 `git clone` / `git pull` 频繁超时，可采用：**本机下载 GitHub `main` 分支 ZIP → 上传服务器解压 → 将 `data/`、`outputs/` 拷入新目录**。解压目录**默认不含 `.git`**，版本以压缩包对应提交或本机 `git rev-parse HEAD` 为准。
+
+---
+
+## 11. 历史备忘（原「当前建议」骨架）
+
+若当前阶段的目标是「从导航闭环转入可发表的第二阶段验证」，长期仍需要：
+
+1. 固定第二阶段实验臂与指标口径  
+2. 固定生成器与 context build 合同  
+3. 在代表性子集上保持端到端复跑节奏  
+4. 用端到端 + 过程诊断共同决定 learned head 等资源是否值得继续投入
