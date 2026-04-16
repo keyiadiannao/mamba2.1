@@ -243,6 +243,40 @@ def _build_context_from_trace(
     return [], [], f"Unsupported context_source: {context_source}"
 
 
+def _select_context_items(
+    context_texts: list[str],
+    context_node_ids: list[str],
+    config: dict[str, Any],
+) -> tuple[list[str], list[str]]:
+    mode = str(config.get("context_select_mode", "off")).strip().lower()
+    if mode in {"", "off", "none"}:
+        return context_texts, context_node_ids
+
+    select_k = int(config.get("context_select_k", len(context_texts) or 0))
+    if select_k <= 0:
+        return [], []
+
+    paired = list(zip(context_texts, context_node_ids))
+    if mode == "first_k":
+        selected = paired[:select_k]
+        return [text for text, _ in selected], [node_id for _, node_id in selected]
+
+    if mode == "dedupe_entity_then_k":
+        deduped: list[tuple[str, str]] = []
+        seen_entities: set[str] = set()
+        for text, node_id in paired:
+            entity_key = _extract_entity_key(node_id) if node_id else text
+            if entity_key in seen_entities:
+                continue
+            seen_entities.add(entity_key)
+            deduped.append((text, node_id))
+            if len(deduped) >= select_k:
+                break
+        return [text for text, _ in deduped], [node_id for _, node_id in deduped]
+
+    return context_texts, context_node_ids
+
+
 def _collect_visited_leaf_texts(trace: Any, leaf_index_map: dict[int, Any]) -> list[str]:
     visited_leaf_texts: list[str] = []
     for leaf_index in list(trace.visited_leaf_visits_ordered or []):
@@ -310,6 +344,7 @@ def run_navigation_sample(
         leaf_nodes=leaf_nodes,
         leaf_index_map=leaf_index_map,
     )
+    context_texts, context_node_ids = _select_context_items(context_texts, context_node_ids, config)
     trace.context_texts = context_texts
     trace.context_node_ids = context_node_ids
     if context_error:

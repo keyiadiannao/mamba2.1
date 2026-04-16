@@ -298,6 +298,118 @@ class PhaseARunnerTest(unittest.TestCase):
 
         self.assertEqual(payload["generator_evidence_texts"], ["alpha", "beta"])
 
+    def test_run_navigation_sample_context_select_first_k(self) -> None:
+        temp_dir = Path(tempfile.mkdtemp())
+        self.addCleanup(lambda: __import__("shutil").rmtree(temp_dir, ignore_errors=True))
+
+        tree_dir = temp_dir / "data" / "processed"
+        tree_dir.mkdir(parents=True, exist_ok=True)
+        tree_path = tree_dir / "demo_tree_payload.json"
+        tree_path.write_text(
+            json.dumps(
+                {
+                    "question": "q",
+                    "reference_answer": "a",
+                    "root": {
+                        "node_id": "root",
+                        "text": "root",
+                        "children": [
+                            {"node_id": "leaf_a", "text": "alpha", "leaf_index": 0},
+                            {"node_id": "leaf_b", "text": "beta", "leaf_index": 1},
+                            {"node_id": "leaf_c", "text": "gamma", "leaf_index": 2},
+                        ],
+                    },
+                },
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+
+        payload = run_navigation_sample(
+            root_dir=temp_dir,
+            config={
+                "output_dir": "outputs/runs",
+                "navigator_type": "mock",
+                "routing_mode": "rule",
+                "context_source": "flat_leaf_concat",
+                "context_max_items": 3,
+                "context_select_mode": "first_k",
+                "context_select_k": 2,
+                "run_generator": False,
+            },
+            question="q",
+            tree_path="data/processed/demo_tree_payload.json",
+            reference_answer="a",
+            run_id_prefix="test_context_select_first_k",
+            sample_id="sample_context_select_first_k",
+        )
+
+        self.assertEqual(payload["generator_evidence_texts"], ["alpha", "beta"])
+        self.assertEqual(payload["generator_evidence_node_ids"], ["leaf_a", "leaf_b"])
+
+    def test_run_navigation_sample_context_select_dedupe_entity_then_k(self) -> None:
+        temp_dir = Path(tempfile.mkdtemp())
+        self.addCleanup(lambda: __import__("shutil").rmtree(temp_dir, ignore_errors=True))
+
+        tree_dir = temp_dir / "data" / "processed"
+        tree_dir.mkdir(parents=True, exist_ok=True)
+        tree_path = tree_dir / "demo_tree_payload.json"
+        tree_path.write_text(
+            json.dumps(
+                {
+                    "question": "q",
+                    "reference_answer": "a",
+                    "root": {
+                        "node_id": "root",
+                        "text": "root",
+                        "children": [
+                            {
+                                "node_id": "leaf_einstein__sent_000_000_000",
+                                "text": "Einstein alpha.",
+                                "leaf_index": 0,
+                            },
+                            {
+                                "node_id": "leaf_einstein__sent_000_000_001",
+                                "text": "Einstein beta.",
+                                "leaf_index": 1,
+                            },
+                            {
+                                "node_id": "leaf_newton__sent_000_000_000",
+                                "text": "Newton gamma.",
+                                "leaf_index": 2,
+                            },
+                        ],
+                    },
+                },
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+
+        payload = run_navigation_sample(
+            root_dir=temp_dir,
+            config={
+                "output_dir": "outputs/runs",
+                "navigator_type": "mock",
+                "routing_mode": "rule",
+                "context_source": "flat_leaf_concat",
+                "context_max_items": 3,
+                "context_select_mode": "dedupe_entity_then_k",
+                "context_select_k": 2,
+                "run_generator": False,
+            },
+            question="q",
+            tree_path="data/processed/demo_tree_payload.json",
+            reference_answer="a",
+            run_id_prefix="test_context_select_dedupe",
+            sample_id="sample_context_select_dedupe",
+        )
+
+        self.assertEqual(
+            payload["generator_evidence_node_ids"],
+            ["leaf_einstein__sent_000_000_000", "leaf_newton__sent_000_000_000"],
+        )
+
     def test_context_build_failure_scores_zero_instead_of_falling_back(self) -> None:
         temp_dir = Path(tempfile.mkdtemp())
         self.addCleanup(lambda: __import__("shutil").rmtree(temp_dir, ignore_errors=True))
