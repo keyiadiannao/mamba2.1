@@ -436,7 +436,8 @@
 
 **诊断摘要**：  
 - **表 A、`off` vs `overlap3`（500）**（`analyze_evidence_saturation.py` + `--with-context-gold-metrics`）：导航侧两批一致（`frac_evidence_budget_saturated=1.0`、`frac_gold_leaf_ever_visited_deduped≈0.358` 等），符合「仅后处理 context、不改 trace」。生成器 context：`off` 为 `mean_n_generator_context_items≈6.89`、`mean_frac_gold_leaf_texts_in_generator_context≈0.151`；`overlap3` 为 `≈3.0`、`≈0.119`，`frac_samples_all_gold_texts_in_generator_context` 由 `≈0.012` 降至 `≈0.004`，与终点 EM 仍升并存，属 readout / 噪声与「ctx-gold 均值」非单调关系（见 MI-004）。  
-- **表 B、`overlap_k3`（500）**（`batch_id=end_to_end_real_corpus_370m_qwen7b_rule_ctxsel_overlap_k3_20260416_124233Z`）：`mean_n_generator_context_items=3.0`，`mean_frac_gold_leaf_texts_in_generator_context≈0.1162`，`frac_samples_all_gold_texts_in_generator_context=0.002`；与 A 中「overlap 后 ctx-gold 均值不高」同向。完整 JSON/CSV：`outputs/reports/evidence_saturation_B_overlap_k3.json`、`.csv`。
+- **表 B、`overlap_k3`（500）**（`batch_id=end_to_end_real_corpus_370m_qwen7b_rule_ctxsel_overlap_k3_20260416_124233Z`）：`mean_n_generator_context_items=3.0`，`mean_frac_gold_leaf_texts_in_generator_context≈0.1162`，`frac_samples_all_gold_texts_in_generator_context=0.002`；与 A 中「overlap 后 ctx-gold 均值不高」同向。完整 JSON/CSV：`outputs/reports/evidence_saturation_B_overlap_k3.json`、`.csv`。  
+- **表 B、`overlap_k4`（500）**（`batch_id=end_to_end_real_corpus_370m_qwen7b_rule_ctxsel_overlap_k4_20260416_140204Z`）：导航侧与 **`overlap_k3` 同批一致**（`frac_evidence_budget_saturated=1.0`、`frac_gold_leaf_ever_visited_deduped≈0.358`、`sample_count_gold_missing_from_evidence=322` 等）。生成器 context：`mean_n_generator_context_items=4.0`，`mean_frac_gold_leaf_texts_in_generator_context≈0.1274`，`frac_samples_all_gold_texts_in_generator_context=0.002`；相对 **`k=3`**：`n_ctx` 与 ctx-gold 均值略升，与 **表 B** 终点 **`k=4` 优于 `k=3`** 同向。报告：`outputs/reports/evidence_saturation_end_to_end_real_corpus_370m_qwen7b_rule_ctxsel_overlap_k4_20260416_140204Z.json`、同名 `.csv`。
 
 **仓库默认（2026-04-16，2026-04-17，2026-04-18）**：`configs/experiment/` 下凡 `context_source` 为 `t1_visited_leaves_ordered` 或 `flat_leaf_concat`、且为 **`question_overlap_topk`** 的模版，**`context_select_k` 已 bump 为 `4`**（与 **表 B** 全量 500 结论一致）；**`first_k3` / `dedupe_k3` 例题**仍为 `context_select_k=3`（与臂名一致）。**`oracle_item_leaves` 臂**显式 `context_select_mode=off`。复现 **表 A** 请仍使用 `k=3` 的历史 `batch_id` 或自建配置，勿与默认模版混读。
 
@@ -459,7 +460,7 @@
 1. **主表**：继续以 **500 条** `rule + anti_collapse` / `cosine + anti_collapse` vs **Oracle** 为锚；小样本仅作消融提示，不写主结论。
 2. **实体 boost**：在 10.1 有 trace 证据前，不把 `alpha` 超参扫作为主工作量。
 3. **生成与评测口径**：端到端配置中已支持 `eval_mode`、`report_dir` 等字段；新跑批次应在 `run_registry.jsonl` 中可追溯，便于与诊断脚本联动。
-4. **`context_select` 消融队列**：服务器 **B** 上 `first_k3` / `dedupe_k3` / **`overlap_k3` / `overlap_k4`（500）** 已齐（**9.11 表 B**）；`overlap` 的 **`k` pilot200** 已齐（**9.11 表 C**）。可选：全量 500 再跑 **`k=8`** 与 `k=3/4` 并列（成本较高）；或转入 **10.1 证据饱和 / 金叶子** 与 **cosine vs rule** 主对比。生成端须指本机 Qwen（MI-001）。每轮仍同时报终点与过程指标，异常按专档判停。
+4. **`context_select` 消融队列**：服务器 **B** 上 `first_k3` / `dedupe_k3` / **`overlap_k3` / `overlap_k4`（500）** 已齐（**9.11 表 B**）；`overlap` 的 **`k` pilot200** 已齐（**9.11 表 C**）；**`overlap_k4`（500）** 的 **`analyze_evidence_saturation` + `--with-context-gold-metrics`** 已记入 **9.11 诊断摘要**（与 **`overlap_k3`** 对照）。下一步主工作量转入 **10.1**（预算饱和 + 金叶子缺失 322 样本）与 **`cosine_probe` vs `rule`（500）`**；可选再跑 **`k=8` 全量 500**（ROI 低）。生成端须指本机 Qwen（MI-001）。
 
 ### 10.3 批判性接收（RAPTOR / IRCoT 启发）
 
