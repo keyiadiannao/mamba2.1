@@ -528,7 +528,7 @@
 
 | 臂（修订命名） | 核心假设 | 实际作用域 | 主要可验证指标（本脚本） | 风险与备注 |
 |:---|:---|:---|:---|:---|
-| **B1：`entity_*` 或实体加权 overlap（新 `context_select_mode`）** | 纯词 overlap 易受泛词干扰；按 **问题实体命中** 对 **visited→context** 重排，可抬高 **ctx-gold** | **`phase_a_runner`**，不改 Controller | **`mean_frac_gold_leaf_texts_in_generator_context`**、EM/F1；**不承诺** **`frac_gold_in_accepted_evidence`** | 低～中（新 mode + 单测；与 **9.11** 表 B 对照） |
+| **B1：`question_entity_match_topk`（已实现）** | 纯词 overlap 易受泛词干扰；按 **问题实体命中比例** 对 **visited→context** 重排，可抬高 **ctx-gold** | **`phase_a_runner._select_context_items`**，不改 Controller | **`mean_frac_gold_leaf_texts_in_generator_context`**、EM/F1；**不承诺** **`frac_gold_in_accepted_evidence`** | 低～中（单元测 `test_run_navigation_sample_context_select_question_entity_match_topk`；500 主表待跑） |
 | **B2：扩大 visited 候选窗口再截断到 `context_select_k`（非「延迟 accept」）** | 金叶已出现在 **visited** 但排在 overlap 后段未进 top-`k`；从更长 visited 列表再打分取 `k` | **`_build_context_from_trace` / `_collect_visited_leaf_texts` 与 config 上限**，仍属读侧 | **`mean_frac_gold_leaf_texts_in_generator_context`**、EM；若 visited 本身未覆盖金叶则无效 | 中（需核对 **`max_nodes`/步数** 与内存；**勿与 Controller `accept_evidence` 混淆**） |
 | **B3：句级去重 / Jaccard anti-collapse** | 同质块挤占槽位；在 **证据文本或 context 列表** 上滤近重复 | **`_apply_evidence_controls` 或读侧去重** | **`mean_evidence_same_entity_as_first`**、过程噪声；若动在 Controller 前则可能影响 **`evidence_texts`** 长度 | 中高（阈值误杀；**`mean_pairwise_evidence_jaccard` 需先加诊断或离线抽样**） |
 | **B4：`rule` 分数混合 `cosine_probe`（小权重）** | 微调下钻序以抬高 **`frac_gold_leaf_ever_visited`** | **Router / Controller** | **`frac_gold_leaf_ever_visited_deduped`**、`gold_missing`（证据侧） | **高**：§9.12 已示 **纯 cosine 劣于 rule**，混合可能改善或 **进一步伤**；需 **500 + 全量过程指标**，列为 **P0-B** 更妥 |

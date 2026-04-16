@@ -10,7 +10,11 @@ from src.evaluation import answer_f1, exact_match, rouge_l_f1
 from src.generator_bridge import build_generator_result
 from src.navigator import build_navigator
 from src.router import build_router
-from src.routing.entity_match import compute_entity_hit_rate, extract_question_entities
+from src.routing.entity_match import (
+    compute_entity_hit_rate,
+    compute_entity_match_score,
+    extract_question_entities,
+)
 from src.tracing import (
     append_jsonl,
     build_navigation_summary,
@@ -289,6 +293,20 @@ def _select_context_items(
         selected = ranked[:select_k]
         return [text for _, _, text, _ in selected], [node_id for _, _, _, node_id in selected]
 
+    if mode == "question_entity_match_topk":
+        question_entities = extract_question_entities(question)
+        question_tokens = _tokenize_content(question)
+        ranked_em: list[tuple[float, float, int, str, str]] = []
+        for idx, (text, node_id) in enumerate(paired):
+            ent_score = compute_entity_match_score(question_entities, text)
+            tok_overlap = (
+                float(len(_tokenize_content(text).intersection(question_tokens))) if question_tokens else 0.0
+            )
+            ranked_em.append((ent_score, tok_overlap, -idx, text, node_id))
+        ranked_em.sort(key=lambda item: (item[0], item[1], item[2]), reverse=True)
+        selected_em = ranked_em[:select_k]
+        return [text for _, _, _, text, _ in selected_em], [node_id for _, _, _, _, node_id in selected_em]
+
     return context_texts, context_node_ids
 
 
@@ -318,7 +336,7 @@ def run_navigation_sample(
     """单样本 Phase A：导航 → 构建 context → 可选生成与打分。
 
     在写入 trace 的 context 之前，可按 ``context_select_mode`` / ``context_select_k`` 对证据列表做后处理
-   （``off`` / ``first_k`` / ``dedupe_entity_then_k`` / ``question_overlap_topk``）；行为说明见 ``docs/Major_Issues_And_Resolutions_CN.md``（MI-006）。
+    （``off`` / ``first_k`` / ``dedupe_entity_then_k`` / ``question_overlap_topk`` / ``question_entity_match_topk``）；行为说明见 ``docs/Major_Issues_And_Resolutions_CN.md``（MI-006）。
     """
     resolved_tree_path = root_dir / tree_path
     tree_payload = load_tree_payload(resolved_tree_path)

@@ -137,6 +137,7 @@ git pull origin main
   - `first_k`：按当前顺序截断前 `k` 条。  
   - `dedupe_entity_then_k`：按实体键去重后取前 `k` 条。  
   - `question_overlap_topk`：按问题词与证据文本词重叠数降序，稳定 tie-break 后取 top `k`。  
+  - `question_entity_match_topk`：按 `extract_question_entities` + `compute_entity_match_score`（命中问题实体占提取实体数的比例）降序；**次级键**为与 `question_overlap_topk` 相同的词重叠数，再按原序 tie-break。无实体时退化为仅靠词重叠（与 overlap 行为一致）。  
 - **仓库模版默认（2026-04-16，2026-04-18）**：`configs/experiment/` 下 **`question_overlap_topk`** 与 `t1_visited_leaves_ordered` / `flat_leaf_concat` 组合时 **`context_select_k=4`**（`first_k3`/`dedupe_k3` 例题仍为 `3`）；`oracle_item_leaves` 例题显式 `context_select_mode=off`。  
 - **验证**：单元测试 `tests/test_phase_a_runner.py`；端到端小批 `generation_error` 为零的对照与 A/B 批。
 

@@ -462,6 +462,81 @@ class PhaseARunnerTest(unittest.TestCase):
 
         self.assertEqual(payload["generator_evidence_node_ids"], ["leaf_a", "leaf_b"])
 
+    def test_run_navigation_sample_context_select_question_entity_match_topk(self) -> None:
+        """Entity-first ranking can differ from token overlap when generic leaves share many words."""
+        temp_dir = Path(tempfile.mkdtemp())
+        self.addCleanup(lambda: __import__("shutil").rmtree(temp_dir, ignore_errors=True))
+
+        tree_dir = temp_dir / "data" / "processed"
+        tree_dir.mkdir(parents=True, exist_ok=True)
+        tree_path = tree_dir / "demo_tree_payload.json"
+        tree_path.write_text(
+            json.dumps(
+                {
+                    "question": "Any news on \"ZebraCorp\" guidance and quarterly updates?",
+                    "reference_answer": "ZebraCorp",
+                    "root": {
+                        "node_id": "root",
+                        "text": "root",
+                        "children": [
+                            {
+                                "node_id": "leaf_generic",
+                                "text": (
+                                    "Guidance news quarterly updates disclosures commentary trends "
+                                    "markets corporate investor sector standards reporting filings."
+                                ),
+                                "leaf_index": 0,
+                            },
+                            {
+                                "node_id": "leaf_target",
+                                "text": "ZebraCorp statement.",
+                                "leaf_index": 1,
+                            },
+                            {
+                                "node_id": "leaf_other",
+                                "text": "Unrelated macro notes.",
+                                "leaf_index": 2,
+                            },
+                        ],
+                    },
+                },
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+
+        base_cfg: dict = {
+            "output_dir": "outputs/runs",
+            "navigator_type": "mock",
+            "routing_mode": "rule",
+            "context_source": "flat_leaf_concat",
+            "context_max_items": 3,
+            "context_select_k": 1,
+            "run_generator": False,
+        }
+
+        payload_overlap = run_navigation_sample(
+            root_dir=temp_dir,
+            config={**base_cfg, "context_select_mode": "question_overlap_topk"},
+            question="Any news on \"ZebraCorp\" guidance and quarterly updates?",
+            tree_path="data/processed/demo_tree_payload.json",
+            reference_answer="ZebraCorp",
+            run_id_prefix="test_ctx_entity_overlap",
+            sample_id="sample_ctx_entity_overlap",
+        )
+        payload_entity = run_navigation_sample(
+            root_dir=temp_dir,
+            config={**base_cfg, "context_select_mode": "question_entity_match_topk"},
+            question="Any news on \"ZebraCorp\" guidance and quarterly updates?",
+            tree_path="data/processed/demo_tree_payload.json",
+            reference_answer="ZebraCorp",
+            run_id_prefix="test_ctx_entity_entity",
+            sample_id="sample_ctx_entity_entity",
+        )
+
+        self.assertEqual(payload_overlap["generator_evidence_node_ids"][0], "leaf_generic")
+        self.assertEqual(payload_entity["generator_evidence_node_ids"][0], "leaf_target")
+
     def test_context_build_failure_scores_zero_instead_of_falling_back(self) -> None:
         temp_dir = Path(tempfile.mkdtemp())
         self.addCleanup(lambda: __import__("shutil").rmtree(temp_dir, ignore_errors=True))
