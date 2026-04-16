@@ -28,6 +28,7 @@
 - **解决方案**：  
   1. 修复网络（代理、镜像、本机/服务器预下载并指向本地路径）。  
   2. 将该 `batch_id` 在实验结论中**单独标记为无效批次**，不参与与其它配置的优劣比较（见 MI-005）。  
+  3. **已有本机模型快照时**：把配置里的 `generator_hf_model_name`（或代码支持的 `generator_model_path`）设为**含 `config.json` 与权重的本地目录**（例如 AutoDL 的 `/root/autodl-tmp/models/Qwen2.5-7B-Instruct`），`transformers` 将直接 `from_pretrained(本地路径)`，不再访问 Hub / 镜像。若环境变量把端点指到不可达的 `hf-mirror.com`，应取消该设置或改为可用端点，否则仍可能在解析元数据时失败。  
 - **验证**：同配置在修复网络后复跑小批（如 20 条）应使 `generation_error` 归零或降至可接受比例；`run_payload.json` 中可抽查单条 `generation_error` 字段。
 
 ---
@@ -36,12 +37,14 @@
 
 - **日期**：2026-04  
 - **现象**：容器内 `git clone` / `git pull` 频繁超时；或部署方式为 **GitHub `main` 分支 ZIP 解压**，目录内**无 `.git`**，无法在服务器上直接 `git rev-parse HEAD`。  
+  补充：即便可连通，`git pull` 也可能因服务器本地改动而中止（`Your local changes to the following files would be overwritten by merge`），常见于 `scripts/diagnostics/analyze_evidence_saturation.py`、`src/pipeline/phase_a_runner.py`、`tests/test_phase_a_runner.py` 等被临时改过的文件。  
 - **根因**：网络策略、镜像站不稳定或运维选择「上传包」而非 clone。  
 - **涉及路径 / 配置**：整仓解压目录；需与代码分离拷贝的 `data/`、`outputs/`。  
 - **解决方案**：  
   1. 本机打包前执行 `git rev-parse HEAD`，在实验记录或 `run_registry` 旁注记**提交哈希**。  
   2. 大目录从旧工作区拷入新解压目录，避免重复下载数据。  
   3. 若仅需同步少数文件，可用稳定代理拉取单文件 raw（例如 `ghproxy` 等，以你环境合规性为准）覆盖 `src/` 下对应路径。  
+  4. 实操口径：先尝试常规拉取；若因本地改动冲突导致拉取中止，则切换到“**容错拉取 + 关键文件定点覆盖 + 关键字校验**”流程，保证最小改动恢复到目标提交行为。  
 - **验证**：服务器上关键文件与提交内容一致（哈希或 diff）；实验复跑与本地同提交结果可对照。
 
 ---
@@ -120,3 +123,5 @@
 | 2026-04-16 | 初版：从研究文档迁出重大问题叙述，建立专档与交叉引用约定。 |
 | 2026-04-16 | 追加 MI-006 的 500 样本 A/B 验证结果（`off` vs `question_overlap_topk(k=3)`，两组 `generation_error=0/500`）。 |
 | 2026-04-16 | `configs/experiment/` 主流模版写入 `context_select_mode` 默认值；Oracle 臂为 `off`。 |
+| 2026-04-16 | MI-002 补充：记录 `git pull` 被本地改动阻塞时的容错同步口径与典型冲突文件。 |
+| 2026-04-16 | MI-001 补充：`generator_hf_model_name` 指向本机模型目录以绕过失效 `hf-mirror`。 |

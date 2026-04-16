@@ -402,14 +402,23 @@
 
 ### 9.11 500 样本 A/B：`context_select_mode`（2026-04-16）
 
-同一 `sample_count=500`、`localqwen` 且两组均 `generation_error=0/500`：
+**A）`localqwen` 主表**（`sample_count=500`，两组均 `generation_error=0/500`）：
 
 | 配置 | `batch_id` | EM | F1 / ROUGE-L | `nav_success` |
 |---|---|---:|---:|---:|
 | `context_select_mode=off` | `ab500_ctxsel_off_localqwen_v2_20260416_101040Z` | `0.170` | `0.1916` | `1.0` |
 | `context_select_mode=question_overlap_topk`, `context_select_k=3` | `ab500_ctxsel_overlap3_localqwen_20260416_103201Z` | `0.194` | `0.2116` | `1.0` |
 
-本轮结论：`overlap_topk(k=3)` 相对 `off` 提升 `EM +0.024`、`F1 +0.0201`。问题归因、判停口径与策略解释仅见专档 [`docs/Major_Issues_And_Resolutions_CN.md`](../Major_Issues_And_Resolutions_CN.md)（MI-004/005/006）。
+**B）服务器 `370m + rule` + 本机 `Qwen2.5-7B` 快照**（`end_to_end_batch_real_corpus_server_mamba_370m_qwen7b_rule_ctxsel_*`，`sample_count=500`，`generation_error=0`）：
+
+| 配置 | `batch_id` | EM | F1 / ROUGE-L | `nav_success` |
+|---|---|---:|---:|---:|
+| `first_k`, `context_select_k=3` | `end_to_end_real_corpus_370m_qwen7b_rule_ctxsel_first_k3_20260416_115156Z` | `0.176` | `0.1910` | `1.0` |
+| `dedupe_entity_then_k`, `context_select_k=3` | `end_to_end_real_corpus_370m_qwen7b_rule_ctxsel_dedupe_k3_20260416_121223Z` | `0.192` | `0.2030` | `1.0` |
+
+**说明**：**A 与 B 生成端与环境不同，不得跨块比较绝对 EM 高低**；仅在各自块内读结论。B 内：`dedupe_k3` 相对 `first_k3` 为 `EM +0.016`、`F1 +0.012`；仍低于 A 中 `overlap3` 的表观 EM，但不据此推断「dedupe 弱于 overlap」，因非同一评测链。
+
+**A 内结论**：`overlap_topk(k=3)` 相对 `off` 为 `EM +0.024`、`F1 +0.0201`。问题归因、判停口径与策略解释仅见专档 [`docs/Major_Issues_And_Resolutions_CN.md`](../Major_Issues_And_Resolutions_CN.md)（MI-004/005/006）。
 
 **诊断摘要（9.11 两批，`analyze_evidence_saturation.py` + `--with-context-gold-metrics`）**：导航侧指标两批一致（`frac_evidence_budget_saturated=1.0`、`frac_gold_leaf_ever_visited_deduped≈0.358` 等），符合「仅后处理 context、不改 trace」。生成器 context：`off` 为 `mean_n_generator_context_items≈6.89`、`mean_frac_gold_leaf_texts_in_generator_context≈0.151`；`overlap3` 为 `≈3.0`、`≈0.119`，`frac_samples_all_gold_texts_in_generator_context` 由 `≈0.012` 降至 `≈0.004`，与终点 EM 仍升并存，属 readout / 噪声与「ctx-gold 均值」非单调关系（见 MI-004）。
 
@@ -434,7 +443,7 @@
 1. **主表**：继续以 **500 条** `rule + anti_collapse` / `cosine + anti_collapse` vs **Oracle** 为锚；小样本仅作消融提示，不写主结论。
 2. **实体 boost**：在 10.1 有 trace 证据前，不把 `alpha` 超参扫作为主工作量。
 3. **生成与评测口径**：端到端配置中已支持 `eval_mode`、`report_dir` 等字段；新跑批次应在 `run_registry.jsonl` 中可追溯，便于与诊断脚本联动。
-4. **`context_select` 消融队列（与 9.11 同口径）**：同主表、同生成器下补跑 `first_k`、`dedupe_entity_then_k`（与 `overlap_topk` 同 `k=3` 可比）——例题配置已加入 `configs/experiment/end_to_end_batch_real_corpus_server_mamba_370m_qwen7b_rule_ctxsel_first_k3.example.json` 与 `..._rule_ctxsel_dedupe_k3.example.json`（与现有 `..._rule.example.json` 仅差 `context_select_mode` / `batch_id_prefix` / `run_id_prefix`）；跑完将 `batch_id` 与摘要指标补入本表。随后在 `question_overlap_topk` 上轻扫 `k=2/4/5`；每轮仍同时报终点与过程指标，异常按专档判停。
+4. **`context_select` 消融队列**：服务器上 `first_k3` / `dedupe_k3` 已跑完并记入 **9.11 表 B**（须将 `generator_hf_model_name` 指到本机 Qwen 快照，见 MI-001）。下一步在同一 **B 环境**下补跑 `question_overlap_topk` 的 `k=3`（及轻扫 `k=2/4/5`）方可与 `first_k`/`dedupe` 公平对照；每轮仍同时报终点与过程指标，异常按专档判停。
 
 ### 10.3 批判性接收（RAPTOR / IRCoT 启发）
 
