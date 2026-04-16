@@ -336,6 +336,8 @@ Navigator-Generator 解耦后，是否可以形成完整、可复现、可审计
 - 如果端到端指标对 routing 差异不敏感，说明继续优化 learned head 的优先级应下降
 - 如果端到端指标明显受 evidence 质量影响，再做 learned head 才更有针对性
 
+**与本仓库实验记录对齐（2026-04）**：固定生成器与本机 Qwen、**`context_select` 对齐** 下的 **B 链 500 三连**（`overlap_k4` / `cosine_probe` / Oracle）见 [`Navigation_Experiment_Record_CN.md`](Navigation_Experiment_Record_CN.md) **§9.12**：**Oracle 显著高于 `rule`**，**`cosine_probe` 低于 `rule`**（EM 与 F1 均劣）。因此下文 **§11.0.5** 中「`rule` 与 `cosine_probe` 差异很小」**仅指 §9.8 表内协议**（双臂 **`+ anti_collapse`**），**不**否定其它协议下 cosine 更差的可能。
+
 ### 11.0.2 第二阶段的推荐执行顺序
 
 推荐按以下顺序推进：
@@ -411,9 +413,9 @@ Navigator-Generator 解耦后，是否可以形成完整、可复现、可审计
 
 第二阶段第一轮端到端评测结束后，应先判断是否满足以下任一条件：
 
-1. `rule` 与 `cosine_probe` 的最终答案指标差异很小
-- 说明当前 routing 差异未明显传导到生成结果
-- 优先回头检查 context build、budget 设计与任务难度
+1. `rule` 与 `cosine_probe` 的最终答案指标差异很小（**需核对比较协议**：实验记录 **§9.8** 在 **`rule + anti_collapse` vs `cosine + anti_collapse`** 上曾观测到差异很小；**§9.12** 在 **`context_select` 固定、`overlap_k4` vs 纯 `cosine_probe`** 上观测到 **cosine 明显更差**）
+- 若确认为 **§9.8 同类协议** 且差异仍很小：说明 **该协议下** routing 差异未明显传导到生成结果，优先检查 context build、budget 与任务难度
+- 若协议为 **§9.12**：则不宜用「差异很小」判停；应回到证据发现 / 路由质量与 **§10.1.1** 过程指标
 
 2. `oracle_item_leaves` 明显高于导航臂
 - 说明系统瓶颈仍主要在导航/证据发现

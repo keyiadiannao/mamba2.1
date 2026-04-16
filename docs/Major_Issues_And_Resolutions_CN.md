@@ -142,5 +142,4 @@
 | 2026-04-16 | MI-002 补充：记录 `git pull` 被本地改动阻塞时的容错同步口径与典型冲突文件。 |
 | 2026-04-16 | MI-001 补充：`generator_hf_model_name` 指向本机模型目录以绕过失效 `hf-mirror`。 |
 | 2026-04-18 | MI-006：仓库 overlap 默认 `context_select_k` bump 至 `4`；增加 demo 烟测配置与 `tests/test_demo_ctxsel_k_smoke_batch.py`。 |
-| 2026-04-18 | 新增 MI-007：磁盘满 `Errno 28` 与端到端批处置。 |
-| 2026-04-18 | MI-007：补充 Phase2 串联脚本在低磁盘余量时的 stderr 警告说明。 |
+| 2026-04-18 | 新增 MI-007：磁盘满 `Errno 28` 与端到端批处置（正文已含串联脚本低余量 stderr 警告）。 |

@@ -366,6 +366,8 @@
 | rule + anti_collapse | 500 | 0.192 | 0.210 | 31.9% |
 | oracle | 500 | 0.64 | 0.658 | 100% |
 
+**与 §9.12 交叉引用**：本节表为 **`rule + anti_collapse` / `cosine + anti_collapse`** 与 Oracle（`batch_id` 见本节列表）；当时 **「本表内 rule vs cosine 差距很小」**（F1 差 **0.014**）**不可外推**为「任意协议下 cosine 都接近 overlap rule」。固定 **`context_select`**、**`overlap_k4` 与 `cosine_probe` 的 routing 三连**及 Oracle 同量级复现见 **§9.12**（该处 **cosine 较 `overlap_k4` 为 EM −0.044**）。两节 Oracle 终点均为 **`EM≈0.64`、`F1≈0.658`**，可互证上界。
+
 小样本→大样本衰减：
 
 | 配置 | small50 F1 | 500 F1 | 衰减幅度 |
@@ -376,7 +378,7 @@
 核心结论：
 
 1. rule-oracle gap = 0.448，导航只发挥了 oracle 潜力的 32%，改进空间极大
-2. rule vs cosine 差距很小（F1 差 0.014），当前路由策略不是关键区分点
+2. **仅限本表协议**（双臂均 **`+ anti_collapse`**）：rule vs cosine 差距很小（F1 差 **0.014**），不宜概括为「routing 永远不敏感」——**§9.12** 在 **`context_select` 对齐、`cosine_probe` vs `overlap_k4`** 下给出 **cosine 明显更差**的反例。
 3. 小样本严重偏乐观（rule 衰减 38%，oracle 仅衰减 3%），后续结论必须以 500 样本为准
 4. oracle 天花板 0.658 说明即使完美证据，7B 生成器仍有约 34% 答不对
 
@@ -443,6 +445,8 @@
 
 ### 9.12 B 链：routing 对照（500，本机 Qwen，`context_select` 已对齐）
 
+**与 §9.8**：两节均为 **500 × `370m` + 本机 Qwen**、Oracle **`EM≈0.64`、`F1≈0.658`**（本节 Oracle `batch_id` 为 **`…oracle_20260416_155420Z`**，与 **§9.8** 表内 Oracle **`…oracle_500_20260416_085012`** 不同跑次、指标同量级）。**§9.8** 比较的是 **`rule + anti_collapse` / `cosine + anti_collapse`**；本节比较的是 **固定 `context_select` 后** 的 **`overlap_k4`（rule 路由）** vs **`cosine_probe`** vs Oracle，**不得与 §9.8 的绝对 EM 混读**。
+
 同一 **`sample_count=500`**、**`370m` + 本机 `Qwen2.5-7B`**、**`nav_success=1.0`**；**rule / cosine** 为 **`t1_visited_leaves_ordered` + `question_overlap_topk` + `k=4`**，**Oracle** 为 **`oracle_item_leaves` + `context_select off`**（与 `end_to_end_batch_real_corpus_server_mamba_370m_qwen7b_*.example.json` 一致）。
 
 | 臂 | `batch_id` | EM | F1 / ROUGE-L | `nav_success` | EM 占 Oracle |
@@ -452,6 +456,8 @@
 | `oracle_item_leaves` | `end_to_end_real_corpus_370m_qwen7b_oracle_20260416_155420Z` | **`0.64`** | **`≈0.658`** | `1.0` | **100%** |
 
 **与 `rule` 对照（cosine − rule）**：`EM -0.044`（相对约 **−20.8%**），`F1 -0.0490`（相对约 **−21.0%**）。
+
+**相对 Oracle 的 F1 gap（便于与 §9.8「rule-oracle gap」对照）**：**Oracle − `rule`** ≈ **`0.658 − 0.2337 ≈ 0.424`**；**Oracle − `cosine_probe`** ≈ **`0.658 − 0.1847 ≈ 0.473`**。EM gap 同向：**`0.64 − 0.212 = 0.428`**、**`0.64 − 0.168 = 0.472`**。
 
 **Oracle 补齐后的结论（本批 B 链三连）**：**Oracle EM = `0.64`**，相对 **`rule` EM = `0.212`** 的差 **≈`0.428`**，远高于事先约定的分叉阈值 **`0.03`**，故 **「金证据上界」显著高于当前 overlap 路由实际送入生成器的上下文**——与 **9.11** 一致，主矛盾仍在 **证据发现 / 路由与接受**，而非 **`nav_success`（三臂均为 `1.0`）**。在此前提下，**`cosine_probe` 仍低于 `rule`**，且占 Oracle 比例由 **≈33.1%** 跌至 **≈26.3%**，优先叙事为：**`cosine_probe` 相对 `overlap_k4` 进一步伤害证据路由**；同时 **Oracle F1 ≈ `0.658`** 表明即使用金叶上下文，**7B 生成仍有约 34% 答不对**（与 **9.8** 全量 Oracle 叙述同量级）。本批 **`avg_nav_wall_time_ms`**：Oracle **`≈1128`**，`cosine` **`≈1178`**，`rule` 批见对应 `batch_summary`（量级相近，不构成主差异）。
 
@@ -492,6 +498,7 @@
    - 跑完将三条 **`batch_id`** 与 EM/F1 写入 **9.12**（**2026-04-16** 三连：`rule` / `cosine_probe` / `oracle_item_leaves` 已齐，见表）。  
    - **生成端须指本机 Qwen**（**MI-001**）；`git pull` 不通时用 **MI-002** 单文件 / ZIP 同步脚本与配置。  
    - 若批跑到一半报 **`OSError: 28`（磁盘满）**，见专档 **MI-007**；清空间后从失败臂重跑（串联脚本会从 **rule** 再跑一遍，可接受重复或改用手动两条配置只跑 **cosine / oracle**）。
+7. **三连已闭合后的下一刀**：**P0-B** 指标已写入 **§9.12**；叙事与判停口径已与 [`SSGS_Research_Framework_CN.md`](SSGS_Research_Framework_CN.md) **§11.0.5** 对齐（含「**§9.8 表内** routing 差小 **≠** **§9.12** 协议下 cosine 不差」）。**优先执行 §10.1.1 / P0-A**：对 **§9.12** 的 **`rule` / `cosine_probe` `batch_id`** 跑 **`scripts/diagnostics/analyze_evidence_saturation.py --with-context-gold-metrics`**，再开 **anti-collapse / 接受 / 探索** 的可审计实验臂（仍冻结 **`mrs/pem` 盲扫**）。
 
 ### 10.3 批判性接收（RAPTOR / IRCoT 启发）
 
