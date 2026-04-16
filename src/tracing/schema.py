@@ -24,6 +24,10 @@ FROZEN_TRACE_FIELDS = [
     "rouge_l_f1",
     "postprocess_mode",
     "postprocess_rule",
+    "entity_boost_alpha",
+    "question_entity_count",
+    "entity_intersection_size",
+    "entity_hit_rate",
 ]
 
 
@@ -53,6 +57,10 @@ class TraceRecord:
     generation_error: str | None = None
     postprocess_mode: str | None = None
     postprocess_rule: str | None = None
+    entity_boost_alpha: float | None = None
+    question_entity_count: int | None = None
+    entity_intersection_size: int | None = None
+    entity_hit_rate: float | None = None
     context_texts: list[str] = field(default_factory=list)
     context_node_ids: list[str] = field(default_factory=list)
     evidence_texts: list[str] = field(default_factory=list)

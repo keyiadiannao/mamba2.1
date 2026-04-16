@@ -10,6 +10,7 @@ from src.evaluation import answer_f1, exact_match, rouge_l_f1
 from src.generator_bridge import build_generator_result
 from src.navigator import build_navigator
 from src.router import build_router
+from src.routing.entity_match import compute_entity_hit_rate, extract_question_entities
 from src.tracing import (
     append_jsonl,
     build_navigation_summary,
@@ -38,6 +39,7 @@ def build_controller(config: dict[str, Any]) -> SSGSController:
             min_relevance_score=float(config.get("min_relevance_score", 1.0)),
             max_depth=int(config.get("max_depth", 8)),
             max_nodes=int(config.get("max_nodes", 64)),
+            entity_boost_alpha=float(config.get("entity_boost_alpha", 0.0)),
         ),
     )
 
@@ -245,6 +247,17 @@ def _build_context_from_trace(
     return [], [], f"Unsupported context_source: {context_source}"
 
 
+def _collect_visited_leaf_texts(trace: Any, leaf_index_map: dict[int, Any]) -> list[str]:
+    visited_leaf_texts: list[str] = []
+    for leaf_index in list(trace.visited_leaf_visits_ordered or []):
+        node = leaf_index_map.get(leaf_index)
+        if node is not None:
+            visited_leaf_texts.append(node.text)
+    if visited_leaf_texts:
+        return visited_leaf_texts
+    return list(trace.evidence_texts or [])
+
+
 def run_navigation_sample(
     root_dir: Path,
     config: dict[str, Any],
@@ -267,9 +280,22 @@ def run_navigation_sample(
 
     active_controller = controller or build_controller(config)
     trace = active_controller.run(final_question, tree)
+    trace.entity_boost_alpha = float(config.get("entity_boost_alpha", trace.entity_boost_alpha or 0.0))
     if leaf_indices_required is not None:
         trace.leaf_indices_required = list(leaf_indices_required)
     trace.batch_id = batch_id
+
+    question_entities = extract_question_entities(final_question)
+    leaf_index_map = {
+        int(node.metadata["leaf_index"]): node
+        for node in _collect_leaf_nodes(tree)
+        if isinstance(node.metadata.get("leaf_index"), int)
+    }
+    visited_leaf_texts = _collect_visited_leaf_texts(trace, leaf_index_map)
+    entity_hit_rate, entity_intersection_size = compute_entity_hit_rate(question_entities, visited_leaf_texts)
+    trace.question_entity_count = len(question_entities)
+    trace.entity_intersection_size = entity_intersection_size
+    trace.entity_hit_rate = entity_hit_rate
 
     final_reference = reference_answer
     if final_reference is None:

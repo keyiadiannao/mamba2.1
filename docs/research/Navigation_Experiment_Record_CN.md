@@ -292,6 +292,94 @@
 - 说明生成器 readout 或 prompt 可能更接近当前瓶颈
 - 这时再考虑是否适度引入生成侧优化
 
+### 9.6 `small50` 2x2 消融记录（postprocess vs anti-collapse）
+
+为避免把“输出格式修正收益”和“导航证据质量收益”混在一起，本轮在同一数据子集上执行了 2x2 设计：
+
+1. A: `rule + baseline`  
+2. B: `rule + postprocess(constrained)`  
+3. C: `rule + anti_collapse`  
+4. D: `rule + anti_collapse + postprocess(constrained)`
+
+对应 batch：
+
+- `end_to_end_real_corpus_370m_qwen7b_rule_small50_ablation_A_20260415_230717`
+- `end_to_end_real_corpus_370m_qwen7b_rule_small50_ablation_B_20260415_230947`
+- `end_to_end_real_corpus_370m_qwen7b_rule_small50_ablation_C_20260415_231217`
+- `end_to_end_real_corpus_370m_qwen7b_rule_small50_ablation_D_20260415_231449`
+
+关键结果（`sample_count=50`）：
+
+- A: `EM=0.28`, `F1=0.2903`
+- B: `EM=0.28`, `F1=0.2903`
+- C: `EM=0.32`, `F1=0.3370`
+- D: `EM=0.32`, `F1=0.3370`
+
+结论：
+
+1. `postprocess` 在该设置下收益为 `0`
+- A 与 B 完全一致，C 与 D 也完全一致
+
+2. 本轮提升主要来自 `anti_collapse`
+- A -> C：`EM +0.04`，`F1 +0.0467`
+
+3. 当前阶段主瓶颈仍是导航侧证据组织，而不是输出后处理
+- 后续主线应优先保留 `anti_collapse`，并将 `postprocess` 作为可审计开关保留但不主推
+
+下一步最小行动：
+
+1. 固定 `rule + anti_collapse` 为下一轮 `rule` 主线配置  
+2. 在同一抽样上补跑 `rule + anti_collapse` vs `oracle`，重新计算 gap  
+3. 若 gap 仍大，优先继续导航侧策略优化；暂不扩大生成后处理复杂度
+
+### 9.7 `rule + anti_collapse` vs `oracle` gap 重新评估
+
+对应 batch：
+
+- `end_to_end_real_corpus_370m_qwen7b_rule_anticollapse_small50_next_20260415_232753`
+- `end_to_end_real_corpus_370m_qwen7b_oracle_small50_next_20260415_233018`
+
+| 配置 | EM | F1 | gap vs oracle |
+|---|---|---|---|
+| rule baseline (A) | 0.28 | 0.2903 | 0.39 |
+| rule + anti_collapse | 0.32 | 0.3370 | 0.343 |
+| oracle | 0.68 | 0.68 | — |
+
+结论：
+
+1. `anti_collapse` 使 rule-oracle gap 从 `0.39` 收窄至 `0.34`（收窄约 12%）
+2. gap 绝对值仍大（0.34），导航侧仍是主瓶颈
+3. oracle 天花板 0.68 说明即使完美证据，7B 生成器仍有约 32% 答不对
+4. 生成侧上限和导航侧上限是两个独立瓶颈，需分别优化
+
+### 9.8 500 样本级完整对照（修复后 metrics + prompt）
+
+对应 batch：
+
+- `end_to_end_real_corpus_370m_qwen7b_cosine_anticollapse_small50_20260416_000238`（cosine+anticollapse, 500）
+- `end_to_end_real_corpus_370m_qwen7b_rule_anticollapse_500_20260416_004405`（rule+anticollapse, 500）
+- `end_to_end_real_corpus_370m_qwen7b_oracle_500_20260416_085012`（oracle, 500）
+
+| 配置 | 样本数 | EM | F1 | 占 oracle 比例 |
+|---|---|---|---|---|
+| cosine + anti_collapse | 500 | 0.178 | 0.196 | 29.8% |
+| rule + anti_collapse | 500 | 0.192 | 0.210 | 31.9% |
+| oracle | 500 | 0.64 | 0.658 | 100% |
+
+小样本→大样本衰减：
+
+| 配置 | small50 F1 | 500 F1 | 衰减幅度 |
+|---|---|---|---|
+| rule + anti_collapse | 0.337 | 0.210 | -38% |
+| oracle | 0.68 | 0.658 | -3% |
+
+核心结论：
+
+1. rule-oracle gap = 0.448，导航只发挥了 oracle 潜力的 32%，改进空间极大
+2. rule vs cosine 差距很小（F1 差 0.014），当前路由策略不是关键区分点
+3. 小样本严重偏乐观（rule 衰减 38%，oracle 仅衰减 3%），后续结论必须以 500 样本为准
+4. oracle 天花板 0.658 说明即使完美证据，7B 生成器仍有约 34% 答不对
+
 ---
 
 ## 10. 当前建议

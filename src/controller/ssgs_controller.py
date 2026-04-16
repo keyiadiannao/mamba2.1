@@ -3,7 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from src.navigator import BaseNavigator, NavigatorState
-from src.router import BaseRouter
+from src.router import BaseRouter, ChildScore, RouteDecision
+from src.routing.entity_match import apply_entity_boost, extract_question_entities
 from src.tracing import TraceRecord
 from src.tree_builder import DocumentTree, TreeNode
 
@@ -16,6 +17,7 @@ class ControllerConfig:
     min_relevance_score: float = 1.0
     max_depth: int = 8
     max_nodes: int = 64
+    entity_boost_alpha: float = 0.0
 
 
 class SSGSController:
@@ -30,15 +32,25 @@ class SSGSController:
         self.config = config
 
     def run(self, question: str, tree: DocumentTree) -> TraceRecord:
+        question_entities = extract_question_entities(question)
         trace = TraceRecord(
             routing_mode=self.config.routing_mode,
             context_source=self.config.context_source,
             navigator_type=self.navigator.__class__.__name__,
             visited_leaf_visits_ordered=[],
             visited_leaf_indices_deduped=[],
+            entity_boost_alpha=float(self.config.entity_boost_alpha),
+            question_entity_count=len(question_entities),
         )
         try:
-            self._explore_node(question, tree.root, self.navigator.init_state(), trace, depth=0)
+            self._explore_node(
+                question,
+                tree.root,
+                self.navigator.init_state(),
+                trace,
+                depth=0,
+                question_entities=question_entities,
+            )
         except Exception as exc:
             trace.context_build_error = str(exc)
             trace.failure_attribution = "nav_failure_or_mixed"
@@ -55,6 +67,7 @@ class SSGSController:
         state: NavigatorState,
         trace: TraceRecord,
         depth: int,
+        question_entities: list[str],
     ) -> None:
         if len(trace.evidence_texts) >= self.config.max_evidence:
             return
@@ -126,20 +139,32 @@ class SSGSController:
         )
 
         ordered = self.router.rank_children(question, node, node.children, next_state)
+        ordered, entity_score_map = self._apply_entity_boost(question_entities, node, ordered)
         trace.route_decisions.append(
             {
                 "parent_node_id": node.node_id,
                 "depth": depth,
                 "ordered_child_ids": [child.node_id for child in ordered.ordered_children],
                 "child_scores": [
-                    {"node_id": child_score.node_id, "score": float(child_score.score)}
+                    {
+                        "node_id": child_score.node_id,
+                        "score": float(child_score.score),
+                        "entity_match_score": entity_score_map.get(child_score.node_id),
+                    }
                     for child_score in ordered.child_scores
                 ],
             }
         )
         for child in ordered.ordered_children:
             before_evidence = len(trace.evidence_texts)
-            self._explore_node(question, child, snapshot.clone(), trace, depth + 1)
+            self._explore_node(
+                question,
+                child,
+                snapshot.clone(),
+                trace,
+                depth + 1,
+                question_entities=question_entities,
+            )
             if len(trace.evidence_texts) == before_evidence:
                 trace.rollback_count += 1
                 trace.snapshot_restore_count += 1
@@ -163,3 +188,43 @@ class SSGSController:
 
             if len(trace.evidence_texts) >= self.config.max_evidence:
                 break
+
+    def _apply_entity_boost(
+        self,
+        question_entities: list[str],
+        parent: TreeNode,
+        route_decision: RouteDecision,
+    ) -> tuple[RouteDecision, dict[str, float | None]]:
+        child_lookup = {child.node_id: child for child in parent.children}
+        scored_children = [
+            {"node_id": child_score.node_id, "score": float(child_score.score)}
+            for child_score in route_decision.child_scores
+        ]
+        boosted = apply_entity_boost(
+            scored_children=scored_children,
+            question_entities=question_entities,
+            alpha=float(self.config.entity_boost_alpha),
+            get_node_text=lambda node_id: child_lookup[node_id].text if node_id in child_lookup else "",
+        )
+        boosted_sorted = sorted(
+            boosted,
+            key=lambda item: (float(item.get("score", 0.0)), str(item.get("node_id", ""))),
+            reverse=True,
+        )
+
+        ordered_children = [
+            child_lookup[item["node_id"]]
+            for item in boosted_sorted
+            if item.get("node_id") in child_lookup
+        ]
+        child_scores = [
+            ChildScore(node_id=str(item.get("node_id")), score=float(item.get("score", 0.0)))
+            for item in boosted_sorted
+        ]
+        entity_score_map = {
+            str(item.get("node_id")): (
+                float(item["entity_match_score"]) if "entity_match_score" in item else None
+            )
+            for item in boosted_sorted
+        }
+        return RouteDecision(ordered_children=ordered_children, child_scores=child_scores), entity_score_map

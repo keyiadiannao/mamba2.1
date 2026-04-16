@@ -48,6 +48,54 @@ class PhaseARunnerTest(unittest.TestCase):
             "leaf_when_love_begins__sent_000_000_000",
         ])
 
+    def test_run_navigation_sample_writes_entity_metrics(self) -> None:
+        temp_dir = Path(tempfile.mkdtemp())
+        self.addCleanup(lambda: __import__("shutil").rmtree(temp_dir, ignore_errors=True))
+
+        tree_dir = temp_dir / "data" / "processed"
+        tree_dir.mkdir(parents=True, exist_ok=True)
+        tree_path = tree_dir / "entity_tree_payload.json"
+        tree_path.write_text(
+            json.dumps(
+                {
+                    "question": "What did Einstein discover?",
+                    "reference_answer": "relativity",
+                    "root": {
+                        "node_id": "root",
+                        "text": "science index",
+                        "children": [
+                            {"node_id": "leaf_einstein", "text": "Einstein discovered relativity.", "leaf_index": 0},
+                            {"node_id": "leaf_newton", "text": "Newton studied gravity.", "leaf_index": 1},
+                        ],
+                    },
+                },
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+
+        payload = run_navigation_sample(
+            root_dir=temp_dir,
+            config={
+                "output_dir": "outputs/runs",
+                "navigator_type": "mock",
+                "routing_mode": "rule",
+                "context_source": "t1_visited_leaves_ordered",
+                "run_generator": False,
+                "entity_boost_alpha": 0.3,
+            },
+            question="What did Einstein discover?",
+            tree_path="data/processed/entity_tree_payload.json",
+            reference_answer="relativity",
+            run_id_prefix="test_entity_metrics",
+            sample_id="sample_entity_metrics",
+        )
+        trace = payload["trace"]
+        self.assertEqual(trace["entity_boost_alpha"], 0.3)
+        self.assertEqual(trace["question_entity_count"], 1)
+        self.assertEqual(trace["entity_intersection_size"], 1)
+        self.assertEqual(trace["entity_hit_rate"], 1.0)
+
     def test_load_json_reads_batch_samples(self) -> None:
         payload = load_json(Path("data/processed/demo_navigation_batch.json"))
         self.assertEqual(len(payload["samples"]), 3)
