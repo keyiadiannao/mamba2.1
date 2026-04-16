@@ -42,6 +42,29 @@ class EvidenceSaturationDiagnosticsTest(unittest.TestCase):
         self.assertTrue(row["gold_hit_visited"])
         self.assertEqual(row["gold_index_first_in_visits"], 1)
         self.assertTrue(row["gold_in_accepted_evidence"])
+        self.assertEqual(row["n_generator_context_items"], 0)
+
+    def test_generator_context_gold_with_leaf_map(self) -> None:
+        payload = {
+            "config": {"context_source": "t1_visited_leaves_ordered"},
+            "generator_evidence_texts": ["First sentence about alpha."],
+            "trace": {
+                "context_source": "t1_visited_leaves_ordered",
+                "leaf_indices_required": [0],
+                "evidence_texts": [],
+                "evidence_node_ids": [],
+                "visited_leaf_indices_deduped": [],
+                "visited_leaf_visits_ordered": [],
+                "event_log": [],
+            },
+        }
+        row = analyze_payload(
+            payload,
+            leaf_index_to_text={0: "First sentence about alpha."},
+        )
+        self.assertTrue(row["context_gold_metrics_available"])
+        self.assertEqual(row["frac_gold_leaf_texts_in_generator_context"], 1.0)
+        self.assertTrue(row["all_gold_texts_in_generator_context"])
 
     def test_summarize_fractions(self) -> None:
         rows = [

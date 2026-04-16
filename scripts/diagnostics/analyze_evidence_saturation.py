@@ -25,6 +25,12 @@ from collections import Counter
 from pathlib import Path
 from typing import Any, Callable, TextIO
 
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+from src.tree_builder import DocumentTree, load_tree_from_payload, load_tree_payload
+
 
 def _extract_entity_key(node_id: str) -> str:
     if "__sent_" in node_id:
@@ -40,7 +46,105 @@ def _load_json(path: Path) -> dict[str, Any]:
     return data
 
 
-def analyze_payload(payload: dict[str, Any]) -> dict[str, Any]:
+def _leaf_index_to_text_map(tree: DocumentTree) -> dict[int, str]:
+    out: dict[int, str] = {}
+    for node in tree.walk_depth_first():
+        if not node.is_leaf:
+            continue
+        li = node.metadata.get("leaf_index")
+        if isinstance(li, int):
+            out[li] = str(node.text)
+    return out
+
+
+def _get_leaf_index_to_text_cached(
+    repo_root: Path,
+    tree_path: str | None,
+    cache: dict[str, dict[int, str] | None],
+) -> dict[int, str] | None:
+    if not tree_path:
+        return None
+    key = str(tree_path)
+    if key in cache:
+        return cache[key]
+    try:
+        full = repo_root / tree_path
+        payload = load_tree_payload(full)
+        tree = load_tree_from_payload(payload)
+        m = _leaf_index_to_text_map(tree)
+        cache[key] = m
+        return m
+    except (OSError, ValueError, json.JSONDecodeError, KeyError):
+        cache[key] = None
+        return None
+
+
+def _gold_leaf_text_in_contexts(gold_text: str, contexts: list[str]) -> bool:
+    g = gold_text.strip()
+    if not g:
+        return False
+    g_norm = " ".join(g.split())
+    for ct in contexts:
+        c = (ct or "").strip()
+        if not c:
+            continue
+        c_norm = " ".join(c.split())
+        if g_norm == c_norm or g == c:
+            return True
+        if g in ct or c in g:
+            return True
+    return False
+
+
+def _compute_generator_context_gold_metrics(
+    payload: dict[str, Any],
+    leaf_index_to_text: dict[int, str] | None,
+) -> dict[str, Any]:
+    trace = payload.get("trace") or {}
+    config = payload.get("config") or {}
+    contexts = list(
+        payload.get("generator_evidence_texts")
+        or trace.get("context_texts")
+        or []
+    )
+    gold = [int(x) for x in (trace.get("leaf_indices_required") or []) if isinstance(x, int)]
+    out: dict[str, Any] = {
+        "context_source": str(trace.get("context_source") or config.get("context_source") or ""),
+        "n_generator_context_items": len(contexts),
+        "context_build_error": trace.get("context_build_error"),
+        "frac_gold_leaf_texts_in_generator_context": None,
+        "n_gold_leaf_texts_matched_in_generator_context": None,
+        "n_gold_leaf_texts_resolvable": None,
+        "all_gold_texts_in_generator_context": None,
+        "context_gold_metrics_available": False,
+    }
+    if not gold or not leaf_index_to_text:
+        return out
+
+    matched = 0
+    resolvable = 0
+    for idx in gold:
+        t = leaf_index_to_text.get(idx)
+        if t is None:
+            continue
+        resolvable += 1
+        if _gold_leaf_text_in_contexts(t, contexts):
+            matched += 1
+
+    out["context_gold_metrics_available"] = resolvable > 0
+    out["n_gold_leaf_texts_resolvable"] = resolvable
+    out["n_gold_leaf_texts_matched_in_generator_context"] = matched
+    if resolvable > 0:
+        out["frac_gold_leaf_texts_in_generator_context"] = float(matched) / float(resolvable)
+        out["all_gold_texts_in_generator_context"] = matched == resolvable
+    return out
+
+
+def analyze_payload(
+    payload: dict[str, Any],
+    *,
+    leaf_index_to_text: dict[int, str] | None = None,
+) -> dict[str, Any]:
     trace = payload.get("trace") or {}
     config = payload.get("config") or {}
     max_evidence = int(config.get("max_evidence", 3))
@@ -81,7 +185,7 @@ def analyze_payload(payload: dict[str, Any]) -> dict[str, Any]:
                 gold_in_accepted_evidence = True
                 break
 
-    return {
+    row: dict[str, Any] = {
         "run_id": payload.get("run_id"),
         "sample_id": payload.get("sample_id"),
         "batch_id": payload.get("batch_id"),
@@ -97,6 +201,9 @@ def analyze_payload(payload: dict[str, Any]) -> dict[str, Any]:
         "nav_success": trace.get("nav_success"),
         "exact_match": trace.get("exact_match"),
     }
+    ctx = _compute_generator_context_gold_metrics(payload, leaf_index_to_text)
+    row.update(ctx)
+    return row
 
 
 def _summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:
@@ -141,6 +248,17 @@ def _summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:
         summary["sample_count_gold_missing_from_evidence"] = len(missed)
         if missed:
             summary["frac_saturated_among_gold_missing"] = frac(lambda r: r.get("saturated"), missed)
+
+    ctx_ok = [r for r in rows if r.get("context_gold_metrics_available")]
+    if ctx_ok:
+        summary["mean_n_generator_context_items"] = mean("n_generator_context_items", ctx_ok)
+        summary["mean_frac_gold_leaf_texts_in_generator_context"] = mean(
+            "frac_gold_leaf_texts_in_generator_context", ctx_ok
+        )
+        summary["frac_samples_all_gold_texts_in_generator_context"] = frac(
+            lambda r: bool(r.get("all_gold_texts_in_generator_context")), ctx_ok
+        )
+        summary["sample_count_with_context_gold_metrics"] = len(ctx_ok)
     return summary
 
 
@@ -300,6 +418,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=None,
         help="Optional CSV path for per-sample metrics",
     )
+    parser.add_argument(
+        "--with-context-gold-metrics",
+        action="store_true",
+        help=(
+            "Load each sample's tree JSON (tree_path) and check whether gold leaf texts "
+            "appear in generator_evidence_texts / context_texts (distinguishes oracle vs visited context)."
+        ),
+    )
     ns = parser.parse_args(argv)
     if not ns.glob_pattern and not ns.registry_jsonl:
         parser.error("Provide --glob or --registry-jsonl")
@@ -356,12 +482,18 @@ def main(argv: list[str] | None = None) -> int:
             )
         return 2
 
+    leaf_map_cache: dict[str, dict[int, str] | None] = {}
     per_sample: list[dict[str, Any]] = []
     errors: list[str] = []
     for path in paths:
         try:
             payload = _load_json(path)
-            row = analyze_payload(payload)
+            leaf_map: dict[int, str] | None = None
+            if args.with_context_gold_metrics:
+                tp = payload.get("tree_path")
+                if isinstance(tp, str):
+                    leaf_map = _get_leaf_index_to_text_cached(root, tp, leaf_map_cache)
+            row = analyze_payload(payload, leaf_index_to_text=leaf_map)
             row["source_path"] = str(path)
             per_sample.append(row)
         except (OSError, json.JSONDecodeError, ValueError) as exc:
@@ -379,6 +511,7 @@ def main(argv: list[str] | None = None) -> int:
             "batch_id_substring": args.batch_id_substring,
             "payload_count": len(paths),
             "registry_debug": reg_stats,
+            "with_context_gold_metrics": bool(args.with_context_gold_metrics),
         },
     }
 
