@@ -461,6 +461,24 @@
 
 **Oracle 补齐后的结论（本批 B 链三连）**：**Oracle EM = `0.64`**，相对 **`rule` EM = `0.212`** 的差 **≈`0.428`**，远高于事先约定的分叉阈值 **`0.03`**，故 **「金证据上界」显著高于当前 overlap 路由实际送入生成器的上下文**——与 **9.11** 一致，主矛盾仍在 **证据发现 / 路由与接受**，而非 **`nav_success`（三臂均为 `1.0`）**。在此前提下，**`cosine_probe` 仍低于 `rule`**，且占 Oracle 比例由 **≈33.1%** 跌至 **≈26.3%**，优先叙事为：**`cosine_probe` 相对 `overlap_k4` 进一步伤害证据路由**；同时 **Oracle F1 ≈ `0.658`** 表明即使用金叶上下文，**7B 生成仍有约 34% 答不对**（与 **9.8** 全量 Oracle 叙述同量级）。本批 **`avg_nav_wall_time_ms`**：Oracle **`≈1128`**，`cosine` **`≈1178`**，`rule` 批见对应 `batch_summary`（量级相近，不构成主差异）。
 
+**过程指标（`analyze_evidence_saturation.py --with-context-gold-metrics`，与上表同一 `batch_id`）**：落盘 **`outputs/reports/evidence_saturation_9p12_rule_overlap_k4_ctxgold.json`**、**`…_cosine_probe_ctxgold.json`**（及同名 **`_per_sample.csv`**）。摘要对比如下（**`diag_*` 均为 500/0/500**，树与 ctx-gold 可解析）。
+
+| 指标 | `rule`（`overlap_k4`） | `cosine_probe` |
+|------|------------------------:|---------------:|
+| `frac_evidence_budget_saturated` | `1.0` | `1.0` |
+| `mean_n_evidence` / `mean_max_evidence` | `8.0` / `8.0` | `8.0` / `8.0` |
+| `frac_gold_leaf_ever_visited_deduped` | **`0.358`** | **`0.246`** |
+| `frac_gold_in_accepted_evidence` | **`0.356`** | **`0.244`** |
+| `sample_count_gold_missing_from_evidence` | **`322`** | **`378`** |
+| `frac_saturated_among_gold_missing` | `1.0` | `1.0` |
+| `mean_unique_entities_in_evidence` | `4.492` | `5.84` |
+| `mean_evidence_same_entity_as_first` | `2.53` | `1.552` |
+| `mean_n_generator_context_items` | `4.0` | `4.0` |
+| `mean_frac_gold_leaf_texts_in_generator_context` | **`≈0.1274`** | **`≈0.0899`** |
+| `frac_samples_all_gold_texts_in_generator_context` | `0.002` | `0.008` |
+
+**解读（与终点 EM 对齐）**：**`cosine_probe`** 相对 **`rule`**，**金叶子曾访问比例**、**金进 accepted evidence**、**生成器 context 含金文均值**均**更低**，**`gold_missing_from_evidence` 多 56 条**——与 **EM `0.168` vs `0.212`** 同向，支持 **「cosine 路由在证据发现与送入生成器的链路上弱于 overlap」**，而非仅 `context_select` 后处理差异。**`rule`** 侧导航与生成器摘要与 **9.11 表 B `overlap_k4`** 一致（如 **`frac_gold_leaf_ever_visited_deduped=0.358`**、**`gold_missing=322`**），可互证同批。**`frac_samples_all_gold_texts_in_generator_context`** 在 cosine 上略高（`0.008` vs `0.002`）但绝对仍极低，**不足以抵消** **`mean_frac_gold_leaf_texts_in_generator_context`** 的劣势。
+
 ---
 
 ## 10. 当前建议与下一步（2026-04 更新）
@@ -498,7 +516,7 @@
    - 跑完将三条 **`batch_id`** 与 EM/F1 写入 **9.12**（**2026-04-16** 三连：`rule` / `cosine_probe` / `oracle_item_leaves` 已齐，见表）。  
    - **生成端须指本机 Qwen**（**MI-001**）；`git pull` 不通时用 **MI-002** 单文件 / ZIP 同步脚本与配置。  
    - 若批跑到一半报 **`OSError: 28`（磁盘满）**，见专档 **MI-007**；清空间后从失败臂重跑（串联脚本会从 **rule** 再跑一遍，可接受重复或改用手动两条配置只跑 **cosine / oracle**）。
-7. **三连已闭合后的下一刀**：**P0-B** 指标已写入 **§9.12**；叙事与判停口径已与 [`SSGS_Research_Framework_CN.md`](SSGS_Research_Framework_CN.md) **§11.0.5** 对齐（含「**§9.8 表内** routing 差小 **≠** **§9.12** 协议下 cosine 不差」）。**优先执行 §10.1.1 / P0-A**：对 **§9.12** 的 **`rule` / `cosine_probe` `batch_id`** 跑 **`scripts/diagnostics/analyze_evidence_saturation.py --with-context-gold-metrics`**，再开 **anti-collapse / 接受 / 探索** 的可审计实验臂（仍冻结 **`mrs/pem` 盲扫**）。
+7. **三连已闭合后的下一刀**：**P0-B** 与 **§9.12** 终点表已齐；**§9.12** 已补 **`rule` / `cosine_probe` 双批 `--with-context-gold-metrics`** 过程表与落盘路径。叙事与判停口径见 [`SSGS_Research_Framework_CN.md`](SSGS_Research_Framework_CN.md) **§11.0.5**。**下一执行项（P0-A）**：按 **§10.1.1** 设计并跑 **anti-collapse / 接受 / 探索** 的可审计臂（仍冻结 **`mrs/pem` 盲扫**），每臂仍须 **终点 + 本脚本过程指标** 同报。
 
 ### 10.3 批判性接收（RAPTOR / IRCoT 启发）
 
