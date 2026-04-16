@@ -16,6 +16,7 @@
 | MI-004 | 导航 / 证据 recall 提升与生成 readout 的 trade-off；盲扫阈值 | 已处置 |
 | MI-005 | 「无效批次」不得进入配置优劣比较 | 已说明 |
 | MI-006 | 证据上下文排序与截断：`context_select_mode` | 已实现 |
+| MI-007 | 磁盘写满导致 `run_payload` / registry 写入失败（`OSError: 28`） | 已说明 |
 
 ---
 
@@ -116,6 +117,21 @@
 
 ---
 
+## MI-007：磁盘空间耗尽导致端到端批中途失败
+
+- **日期**：2026-04  
+- **现象**：运行 `run_end_to_end_batch.py` 或串联脚本时，在写入 `outputs/runs/<run_id>/run_payload.json` 或 `run_registry.jsonl` 过程中抛出 **`OSError: [Errno 28] No space left on device`**，子进程以非零退出；**已完成的样本**可能部分落盘，**当前 `batch_id` 往往不完整**，不应直接当作主表结论。  
+- **根因**：系统盘或挂载盘（含 **`/root`**、**`/root/autodl-tmp`** 等）**可用块耗尽**；每条 run 含 payload、trace、prompt，**500×Qwen7B** 批会快速占满磁盘。  
+- **涉及路径 / 配置**：`outputs/runs/`、`outputs/reports/`、`outputs/reports/tmp_phase2_configs/`；可选将 **`output_dir` / `batch_output_dir`** 改到更大数据盘（若平台支持）。  
+- **解决方案**：  
+  1. **`df -h`** 确认满的是哪一块挂载；**`du -sh outputs/runs outputs/reports`** 看占用。  
+  2. **归档或删除**不再需要的旧 `outputs/runs/*`、旧 `end_to_end_batches/*`、HF 缓存重复副本、容器内无关大包。  
+  3. 大实验前预留 **≥ 数十 GB**（与模型体积、批大小、是否保留全量 `run_payload` 成正比）；必要时 **只保留 `batch_summary.json` + 抽样 `run_payload`** 的运维策略。  
+  4. 串联多臂时：**每臂跑前检查剩余空间**；上一臂跑完后若空间仍紧，先清理再跑下一臂。  
+- **验证**：`df -h` 显示目标挂载有足够余量后，从失败臂 **重新跑**（或从断点样本继续，需自行脚本化）；新批 `generation_error` 与 `sample_count` 正常闭合。
+
+---
+
 ## 修订历史
 
 | 日期 | 说明 |
@@ -126,3 +142,4 @@
 | 2026-04-16 | MI-002 补充：记录 `git pull` 被本地改动阻塞时的容错同步口径与典型冲突文件。 |
 | 2026-04-16 | MI-001 补充：`generator_hf_model_name` 指向本机模型目录以绕过失效 `hf-mirror`。 |
 | 2026-04-18 | MI-006：仓库 overlap 默认 `context_select_k` bump 至 `4`；增加 demo 烟测配置与 `tests/test_demo_ctxsel_k_smoke_batch.py`。 |
+| 2026-04-18 | 新增 MI-007：磁盘满 `Errno 28` 与端到端批处置。 |

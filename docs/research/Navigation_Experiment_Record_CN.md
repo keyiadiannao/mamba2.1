@@ -476,7 +476,8 @@
    - `python scripts/run_eval/run_b_chain_phase2_three_arm.py --generator-hf-model-name '<本机Qwen目录>'`  
    - 可选先 `--dry-run` 检查生成的 `outputs/reports/tmp_phase2_configs/phase2_patch_*.json`。  
    - 跑完将三条 **`batch_id`** 与 EM/F1 写入本节或 **9.x 主表**（与 **9.11** 区分口径即可）。  
-   - **生成端须指本机 Qwen**（**MI-001**）；`git pull` 不通时用 **MI-002** 单文件 / ZIP 同步脚本与配置。
+   - **生成端须指本机 Qwen**（**MI-001**）；`git pull` 不通时用 **MI-002** 单文件 / ZIP 同步脚本与配置。  
+   - 若批跑到一半报 **`OSError: 28`（磁盘满）**，见专档 **MI-007**；清空间后从失败臂重跑（串联脚本会从 **rule** 再跑一遍，可接受重复或改用手动两条配置只跑 **cosine / oracle**）。
 
 ### 10.3 批判性接收（RAPTOR / IRCoT 启发）
 

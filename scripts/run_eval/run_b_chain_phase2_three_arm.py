@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -60,6 +61,13 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
+    free_gb = shutil.disk_usage(_REPO_ROOT).free / (1024**3)
+    if free_gb < 5.0:
+        print(
+            f"WARNING: only {free_gb:.1f} GiB free on repo filesystem; "
+            "500-sample Qwen runs may hit OSError 28 (disk full). See docs/Major_Issues_And_Resolutions_CN.md MI-007.",
+            file=sys.stderr,
+        )
     out_dir = _REPO_ROOT / "outputs" / "reports" / "tmp_phase2_configs"
     out_dir.mkdir(parents=True, exist_ok=True)
 
