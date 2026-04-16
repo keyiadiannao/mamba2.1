@@ -516,7 +516,30 @@
    - 跑完将三条 **`batch_id`** 与 EM/F1 写入 **9.12**（**2026-04-16** 三连：`rule` / `cosine_probe` / `oracle_item_leaves` 已齐，见表）。  
    - **生成端须指本机 Qwen**（**MI-001**）；`git pull` 不通时用 **MI-002** 单文件 / ZIP 同步脚本与配置。  
    - 若批跑到一半报 **`OSError: 28`（磁盘满）**，见专档 **MI-007**；清空间后从失败臂重跑（串联脚本会从 **rule** 再跑一遍，可接受重复或改用手动两条配置只跑 **cosine / oracle**）。
-7. **三连已闭合后的下一刀**：**P0-B** 与 **§9.12** 终点表已齐；**§9.12** 已补 **`rule` / `cosine_probe` 双批 `--with-context-gold-metrics`** 过程表与落盘路径。叙事与判停口径见 [`SSGS_Research_Framework_CN.md`](SSGS_Research_Framework_CN.md) **§11.0.5**。**下一执行项（P0-A）**：按 **§10.1.1** 设计并跑 **anti-collapse / 接受 / 探索** 的可审计臂（仍冻结 **`mrs/pem` 盲扫**），每臂仍须 **终点 + 本脚本过程指标** 同报。
+7. **三连已闭合后的下一刀**：**P0-B** 与 **§9.12** 终点表已齐；**§9.12** 已补 **`rule` / `cosine_probe` 双批 `--with-context-gold-metrics`** 过程表与落盘路径。叙事与判停口径见 [`SSGS_Research_Framework_CN.md`](SSGS_Research_Framework_CN.md) **§11.0.5**。**下一执行项（P0-A）**：按 **§10.1.1** 与下节 **§10.2.1** 设计并跑可审计臂（仍冻结 **`mrs/pem` 盲扫**），每臂仍须 **终点 + 本脚本过程指标** 同报。
+
+#### 10.2.1 P0-A 候选臂（外部草案的批判修订，与指标契约对齐）
+
+`scripts/diagnostics/analyze_evidence_saturation.py` 中：**`n_evidence` / `saturated` / `frac_gold_in_accepted_evidence` / `sample_count_gold_missing_from_evidence`** 来自 **`trace.evidence_texts`** 与 **`event_log`（`accept_evidence`）**，由 **`SSGSController` 导航闭环**写入；**`mean_frac_gold_leaf_texts_in_generator_context`** 等则来自 **写入生成器前的 `context_texts` / `generator_evidence_texts`**，受 **`phase_a_runner._select_context_items`（`context_select_*`）** 影响（见 **MI-003**、脚本 `analyze_payload`）。因此：
+
+- **仅改 `context_select_mode` / visited→context 管线**：可抬 **生成器 ctx-gold / EM**，**一般不能**抬 **`frac_gold_in_accepted_evidence` 或压低 `gold_missing`（证据侧）**——除非同时改 Controller 或 trace 定义。外部草案把 A1/A2 的「预期 ↑ `frac_gold_in_accepted_evidence`」与 **`gold_missing≈378`** 绑在一起 **不成立**（**378** 为 **§9.12 `cosine_probe`** 批；**`rule`** 为 **322**）。
+- **真要动「接受」**（证据槽里的叶子集合）：需动 **Controller 接受逻辑 / `max_evidence` 与 accept 策略 / Router 带来的访问序**，**不是**「仅 `phase_a_runner` 后处理」能等价替代；排错成本确实更高，应单独命名（例如 **P0-A′**），与 **MI-006** 的「后读排序」解耦。
+- **「优先接受而非探索」**在工程风险上可接受，但须把目标指标说对：**先做后读排序（低成本）→ 看 EM 与 `mean_frac_gold_leaf_texts_in_generator_context`**；若 **`gold_missing` / `frac_gold_in_accepted`** 仍差，再评估是否值得动 Controller。
+
+| 臂（修订命名） | 核心假设 | 实际作用域 | 主要可验证指标（本脚本） | 风险与备注 |
+|:---|:---|:---|:---|:---|
+| **B1：`entity_*` 或实体加权 overlap（新 `context_select_mode`）** | 纯词 overlap 易受泛词干扰；按 **问题实体命中** 对 **visited→context** 重排，可抬高 **ctx-gold** | **`phase_a_runner`**，不改 Controller | **`mean_frac_gold_leaf_texts_in_generator_context`**、EM/F1；**不承诺** **`frac_gold_in_accepted_evidence`** | 低～中（新 mode + 单测；与 **9.11** 表 B 对照） |
+| **B2：扩大 visited 候选窗口再截断到 `context_select_k`（非「延迟 accept」）** | 金叶已出现在 **visited** 但排在 overlap 后段未进 top-`k`；从更长 visited 列表再打分取 `k` | **`_build_context_from_trace` / `_collect_visited_leaf_texts` 与 config 上限**，仍属读侧 | **`mean_frac_gold_leaf_texts_in_generator_context`**、EM；若 visited 本身未覆盖金叶则无效 | 中（需核对 **`max_nodes`/步数** 与内存；**勿与 Controller `accept_evidence` 混淆**） |
+| **B3：句级去重 / Jaccard anti-collapse** | 同质块挤占槽位；在 **证据文本或 context 列表** 上滤近重复 | **`_apply_evidence_controls` 或读侧去重** | **`mean_evidence_same_entity_as_first`**、过程噪声；若动在 Controller 前则可能影响 **`evidence_texts`** 长度 | 中高（阈值误杀；**`mean_pairwise_evidence_jaccard` 需先加诊断或离线抽样**） |
+| **B4：`rule` 分数混合 `cosine_probe`（小权重）** | 微调下钻序以抬高 **`frac_gold_leaf_ever_visited`** | **Router / Controller** | **`frac_gold_leaf_ever_visited_deduped`**、`gold_missing`（证据侧） | **高**：§9.12 已示 **纯 cosine 劣于 rule**，混合可能改善或 **进一步伤**；需 **500 + 全量过程指标**，列为 **P0-B** 更妥 |
+
+**判停与优先级（修订）**：  
+1. **先做 B1 → B2**（仍锚 **`rule` + `overlap_k4` 等价协议**）：以 **EM / `mean_frac_gold_leaf_texts_in_generator_context`** 为主判据；**`nav_success`** 维持 **≥0.98**（或主表约定 **1.0**）即停损。  
+2. **`frac_evidence_budget_saturated` 显著 < 1.0**：未必等于「探索不足」，也可能是 **`max_evidence` 下调 / 提前停导航**；须结合 **`mean_n_evidence`** 与 **`nav_success`** 解读，**不宜**作唯一熔断条件。  
+3. **B3** 在 B1/B2 **ctx-gold 仍顶不上去** 或 **同质化指标**明确后再开。  
+4. **B4** 仅在 **读侧触顶**（例如 Oracle 占比长期 **<40%** 且 gold_missing 仍主导）再纳入，并与 **§9.12 cosine** 结论 **对打** 设计（权重网格要小）。
+
+**可粘贴摘要（取代未校验的外部文案）**：**P0-A 优先验证读侧重排与 visited 窗口（B1/B2），以抬升生成器 ctx-gold 与 EM，且不冒认能单独解决 `gold_in_accepted` / `gold_missing`；证据槽级问题保留为 Controller 侧 P0-A′。混合 cosine（B4）因 §9.12 已证 cosine 劣于 rule，降级为高成本探索臂。**
 
 ### 10.3 批判性接收（RAPTOR / IRCoT 启发）
 
