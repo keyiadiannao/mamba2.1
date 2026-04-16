@@ -353,6 +353,68 @@ class PhaseARunnerTest(unittest.TestCase):
         self.assertEqual(payload["trace"]["exact_match"], 0)
         self.assertEqual(payload["trace"]["answer_f1"], 0.0)
         self.assertEqual(payload["trace"]["rouge_l_f1"], 0.0)
+        self.assertEqual(payload["trace"]["generation_error"], "skipped_due_to_context_error")
+        self.assertIsNone(payload["generator_prompt"])
+        self.assertEqual(payload["trace"]["failure_attribution"], "context_construction_failure")
+        self.assertEqual(payload["eval_mode"], "retrieval")
+
+    def test_context_build_failure_skips_generator_when_run_generator_true(self) -> None:
+        temp_dir = Path(tempfile.mkdtemp())
+        self.addCleanup(lambda: __import__("shutil").rmtree(temp_dir, ignore_errors=True))
+
+        tree_dir = temp_dir / "data" / "processed"
+        tree_dir.mkdir(parents=True, exist_ok=True)
+        tree_path = tree_dir / "demo_tree_payload.json"
+        tree_path.write_text(
+            json.dumps(
+                {
+                    "question": "What did Einstein propose in relativity?",
+                    "reference_answer": "Einstein proposed relativity, including special relativity and general relativity.",
+                    "root": {
+                        "node_id": "root",
+                        "text": "physics knowledge index",
+                        "children": [
+                            {
+                                "node_id": "branch_relativity",
+                                "text": "Einstein relativity branch",
+                                "children": [
+                                    {
+                                        "node_id": "leaf_relativity_1",
+                                        "text": "Einstein proposed relativity, including special relativity and general relativity.",
+                                        "leaf_index": 0,
+                                    }
+                                ],
+                            }
+                        ],
+                    },
+                },
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+
+        with patch("src.generator_bridge.runner.generate_answer") as mock_generate:
+            payload = run_navigation_sample(
+                root_dir=temp_dir,
+                config={
+                    "output_dir": "outputs/runs",
+                    "navigator_type": "mock",
+                    "routing_mode": "rule",
+                    "context_source": "oracle_item_leaves",
+                    "run_generator": True,
+                    "generator_type": "mock",
+                    "generator_inference_mode": "extractive_first_evidence",
+                },
+                question="What did Einstein propose in relativity?",
+                tree_path="data/processed/demo_tree_payload.json",
+                reference_answer="Einstein proposed relativity, including special relativity and general relativity.",
+                run_id_prefix="test_context_skip_gen",
+                sample_id="sample_context_skip_gen",
+            )
+
+        mock_generate.assert_not_called()
+        self.assertEqual(payload["trace"]["generation_error"], "skipped_due_to_context_error")
+        self.assertEqual(payload["eval_mode"], "generation")
 
     def test_generation_failure_scores_zero_in_end_to_end_mode(self) -> None:
         temp_dir = Path(tempfile.mkdtemp())

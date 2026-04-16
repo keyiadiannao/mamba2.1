@@ -1,10 +1,18 @@
 from __future__ import annotations
 
+import hashlib
 import json
+import logging
 import random
 import re
+from collections import Counter
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger(__name__)
+
+# English-style sentence boundary (2Wiki / wiki-longdoc are mostly English).
+_SENTENCE_BOUNDARY = re.compile(r"(?<=[.!?])\s+")
 
 
 def _slugify(value: str) -> str:
@@ -35,6 +43,89 @@ def _chunk_text(text: str, max_chars: int) -> list[str]:
     if current:
         chunks.append(" ".join(current))
     return chunks
+
+
+def _chunk_by_sentences(text: str, max_chars: int, *, overlap: int = 0) -> list[str]:
+    """Split document text into leaf-sized chunks on sentence boundaries.
+
+    Uses overlap=0 by default to avoid changing leaf counts vs sliding-window designs.
+    If a single sentence exceeds ``max_chars``, falls back to word-based ``_chunk_text``.
+    """
+    if overlap != 0:
+        raise ValueError("Only overlap=0 is supported for reproducible corpus builds.")
+    if max_chars <= 0:
+        raise ValueError("max_chars must be positive.")
+
+    stripped = " ".join(text.split())
+    if not stripped:
+        return []
+
+    sentences = [s.strip() for s in _SENTENCE_BOUNDARY.split(stripped) if s.strip()]
+    if not sentences:
+        sentences = [stripped]
+
+    chunks: list[str] = []
+    current: list[str] = []
+    current_len = 0
+
+    for sentence in sentences:
+        if len(sentence) > max_chars:
+            if current:
+                chunks.append(" ".join(current))
+                current = []
+                current_len = 0
+            chunks.extend(_chunk_text(sentence, max_chars=max_chars))
+            continue
+
+        additional = len(sentence) if not current else len(sentence) + 1
+        if current and current_len + additional > max_chars:
+            chunks.append(" ".join(current))
+            current = [sentence]
+            current_len = len(sentence)
+        else:
+            current.append(sentence)
+            current_len += additional
+    if current:
+        chunks.append(" ".join(current))
+    return chunks
+
+
+def _compute_tree_sha256(root: dict[str, Any]) -> str:
+    """Stable fingerprint of the navigation tree (root subtree only)."""
+    canonical = json.dumps({"root": root}, sort_keys=True, ensure_ascii=False)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def _inject_traversal_meta(
+    node: dict[str, Any],
+    *,
+    parent_id: str | None,
+    depth: int,
+    ancestor_ids: list[str],
+) -> None:
+    """Attach parent/depth/path into node metadata only (does not change node.text)."""
+    node_id = str(node.get("node_id", ""))
+    path_node_ids = ancestor_ids + [node_id]
+
+    metadata = node.get("metadata")
+    if not isinstance(metadata, dict):
+        metadata = {}
+        node["metadata"] = metadata
+    metadata["parent_id"] = parent_id
+    metadata["depth"] = depth
+    metadata["path_node_ids"] = list(path_node_ids)
+
+    children = node.get("children", [])
+    if not isinstance(children, list):
+        return
+    for child in children:
+        if isinstance(child, dict):
+            _inject_traversal_meta(
+                child,
+                parent_id=node_id,
+                depth=depth + 1,
+                ancestor_ids=path_node_ids,
+            )
 
 
 def _first_non_empty(*values: object) -> str | None:
@@ -120,23 +211,29 @@ def build_2wiki_subset(
     if limit <= 0:
         raise ValueError("limit must be positive.")
 
+    skip_counts: Counter[str] = Counter()
     filtered: list[dict[str, Any]] = []
     for sample_index, example in enumerate(sample_records):
         question = _first_non_empty(example.get("question"))
         if question is None:
+            skip_counts["missing_question"] += 1
             continue
         if require_answer and _first_non_empty(example.get("answer")) is None:
+            skip_counts["missing_answer"] += 1
             continue
 
         try:
             context_pages = _normalize_2wiki_context(example)
         except ValueError:
+            skip_counts["unsupported_context"] += 1
             continue
         supporting_facts = _normalize_2wiki_supporting_facts(example)
 
         if len(context_pages) < min_context_pages:
+            skip_counts["too_few_context_pages"] += 1
             continue
         if len(supporting_facts) < min_supporting_facts:
+            skip_counts["too_few_supporting_facts"] += 1
             continue
 
         sample_id = _first_non_empty(example.get("_id"), example.get("id")) or f"two_wiki_{sample_index:06d}"
@@ -145,9 +242,26 @@ def build_2wiki_subset(
             copied["_id"] = sample_id
         filtered.append(copied)
 
+    if skip_counts:
+        logger.info(
+            "build_2wiki_subset: filtered %d/%d examples (%s)",
+            sum(skip_counts.values()),
+            len(sample_records),
+            dict(skip_counts),
+        )
+
     rng = random.Random(seed)
     rng.shuffle(filtered)
-    return filtered[:limit]
+    selected = filtered[:limit]
+    if len(filtered) > limit:
+        logger.info(
+            "build_2wiki_subset: returning %d of %d after shuffle (limit=%d, seed=%d)",
+            len(selected),
+            len(filtered),
+            limit,
+            seed,
+        )
+    return selected
 
 
 def build_wiki_longdoc_samples_from_2wiki(
@@ -496,16 +610,21 @@ def build_tree_payload_from_corpus(
     root_children: list[dict[str, Any]] = []
     grouped_children: dict[str, dict[str, Any]] = {}
     leaf_index = 0
+    skipped_empty_text = 0
 
     for doc_index, record in enumerate(records):
         title = str(record.get("title") or record.get("doc_id") or f"document_{doc_index:03d}")
         doc_id = str(record.get("doc_id") or _slugify(title))
         text = str(record.get("text") or "").strip()
         if not text:
+            skipped_empty_text += 1
+            logger.debug("build_tree_payload_from_corpus: skipping empty text for doc_id=%s", doc_id)
             continue
 
         leaf_nodes: list[dict[str, Any]] = []
-        for chunk_index, chunk in enumerate(_chunk_text(text, max_chars=max_chars_per_leaf)):
+        for chunk_index, chunk in enumerate(
+            _chunk_by_sentences(text, max_chars_per_leaf, overlap=0)
+        ):
             leaf_nodes.append(
                 {
                     "node_id": f"leaf_{doc_id}_{chunk_index:03d}",
@@ -559,14 +678,24 @@ def build_tree_payload_from_corpus(
     if not root_children:
         raise ValueError("No valid documents with text were found in the corpus.")
 
+    if skipped_empty_text:
+        logger.info(
+            "build_tree_payload_from_corpus: skipped %d corpus records with empty text",
+            skipped_empty_text,
+        )
+
+    root_payload: dict[str, Any] = {
+        "node_id": root_node_id,
+        "text": root_text,
+        "metadata": {"title": "Corpus Root"},
+        "children": root_children,
+    }
+    _inject_traversal_meta(root_payload, parent_id=None, depth=0, ancestor_ids=[])
+
     payload: dict[str, Any] = {
         "question": question,
-        "root": {
-            "node_id": root_node_id,
-            "text": root_text,
-            "metadata": {"title": "Corpus Root"},
-            "children": root_children,
-        },
+        "root": root_payload,
+        "tree_sha256": _compute_tree_sha256(root_payload),
     }
     if reference_answer is not None:
         payload["reference_answer"] = reference_answer

@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import hashlib
+import json
 from dataclasses import asdict, dataclass, field
 from time import perf_counter
+from typing import Any
 
 
 FROZEN_TRACE_FIELDS = [
@@ -29,6 +32,49 @@ FROZEN_TRACE_FIELDS = [
     "entity_intersection_size",
     "entity_hit_rate",
 ]
+
+# Scalar / low-volume fields only — no long visit lists or evidence text bodies.
+TRACE_FINGERPRINT_FIELDS = [
+    "routing_mode",
+    "context_source",
+    "batch_id",
+    "navigator_type",
+    "leaf_indices_required",
+    "nav_target_leaf_index",
+    "nav_success",
+    "rollback_count",
+    "snapshot_stack_max_depth",
+    "snapshot_push_count",
+    "snapshot_restore_count",
+    "nav_wall_time_ms",
+    "context_build_error",
+    "exact_match",
+    "answer_f1",
+    "rouge_l_f1",
+    "postprocess_mode",
+    "postprocess_rule",
+    "entity_boost_alpha",
+    "question_entity_count",
+    "entity_intersection_size",
+    "entity_hit_rate",
+    "failure_attribution",
+    "generated_answer",
+    "generation_error",
+]
+
+
+def _fingerprint_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    fp: dict[str, Any] = {k: payload.get(k) for k in TRACE_FINGERPRINT_FIELDS}
+    fp["_n_evidence_texts"] = len(payload.get("evidence_texts") or [])
+    fp["_n_evidence_node_ids"] = len(payload.get("evidence_node_ids") or [])
+    fp["_n_context_texts"] = len(payload.get("context_texts") or [])
+    fp["_n_context_node_ids"] = len(payload.get("context_node_ids") or [])
+    fp["_n_visited_node_ids"] = len(payload.get("visited_node_ids") or [])
+    fp["_n_route_decisions"] = len(payload.get("route_decisions") or [])
+    fp["_n_event_log"] = len(payload.get("event_log") or [])
+    fp["_n_leaf_visits_ordered"] = len(payload.get("visited_leaf_visits_ordered") or [])
+    fp["_n_leaf_indices_deduped"] = len(payload.get("visited_leaf_indices_deduped") or [])
+    return fp
 
 
 @dataclass
@@ -79,4 +125,8 @@ class TraceRecord:
     def to_dict(self) -> dict[str, object]:
         payload = asdict(self)
         payload.pop("_start_time", None)
+        fp = _fingerprint_payload(payload)
+        payload["trace_fingerprint_sha256"] = hashlib.sha256(
+            json.dumps(fp, sort_keys=True, default=str).encode("utf-8")
+        ).hexdigest()
         return payload

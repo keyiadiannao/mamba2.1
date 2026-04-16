@@ -36,6 +36,17 @@ class NavigatorFactoryTest(unittest.TestCase):
         self.assertEqual(navigator.config.load_strategy, "hf_pretrained")
         self.assertEqual(navigator.config.pretrained_checkpoint, "state-spaces/mamba-370m-hf")
 
+    def test_build_navigator_passes_cache_and_continuity_flags(self) -> None:
+        navigator = build_navigator(
+            {
+                "navigator_type": "mamba2",
+                "navigator_query_cache_max_size": 128,
+                "navigator_use_ssm_continuity": True,
+            }
+        )
+        self.assertEqual(navigator.config.query_cache_max_size, 128)
+        self.assertTrue(navigator.config.use_ssm_continuity)
+
     def test_build_navigator_rejects_unknown_type(self) -> None:
         with self.assertRaises(ValueError):
             build_navigator({"navigator_type": "unknown"})

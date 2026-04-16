@@ -7,7 +7,7 @@ from .corpus_builder import (
     build_wiki_longdoc_samples_from_2wiki,
     load_corpus_jsonl,
 )
-from .json_loader import load_tree_from_json, load_tree_payload
+from .json_loader import load_tree_from_json, load_tree_from_payload, load_tree_payload
 from .simple_tree import DocumentTree, TreeNode
 
 __all__ = [
@@ -21,5 +21,6 @@ __all__ = [
     "build_wiki_longdoc_samples_from_2wiki",
     "load_corpus_jsonl",
     "load_tree_from_json",
+    "load_tree_from_payload",
     "load_tree_payload",
 ]

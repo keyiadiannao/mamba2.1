@@ -19,7 +19,7 @@ from src.tracing import (
     write_json,
     write_run_payload,
 )
-from src.tree_builder import load_tree_from_json, load_tree_payload
+from src.tree_builder import load_tree_from_payload, load_tree_payload
 
 
 def load_json(path: str | Path) -> dict[str, Any]:
@@ -214,14 +214,10 @@ def _build_context_from_trace(
     config: dict[str, Any],
     context_source: str,
     max_items: int,
+    *,
+    leaf_nodes: list[Any],
+    leaf_index_map: dict[int, Any],
 ) -> tuple[list[str], list[str], str | None]:
-    leaf_nodes = _collect_leaf_nodes(tree)
-    leaf_index_map = {
-        int(node.metadata["leaf_index"]): node
-        for node in leaf_nodes
-        if isinstance(node.metadata.get("leaf_index"), int)
-    }
-
     if context_source == "t1_visited_leaves_ordered":
         ordered_indices = _dedupe_preserve_order(list(trace.visited_leaf_visits_ordered or []))
         selected_nodes = [leaf_index_map[index] for index in ordered_indices if index in leaf_index_map]
@@ -272,7 +268,7 @@ def run_navigation_sample(
 ) -> dict[str, Any]:
     resolved_tree_path = root_dir / tree_path
     tree_payload = load_tree_payload(resolved_tree_path)
-    tree = load_tree_from_json(resolved_tree_path)
+    tree = load_tree_from_payload(tree_payload)
 
     final_question = question or str(tree_payload.get("question") or "")
     if not final_question:
@@ -286,9 +282,10 @@ def run_navigation_sample(
     trace.batch_id = batch_id
 
     question_entities = extract_question_entities(final_question)
+    leaf_nodes = _collect_leaf_nodes(tree)
     leaf_index_map = {
         int(node.metadata["leaf_index"]): node
-        for node in _collect_leaf_nodes(tree)
+        for node in leaf_nodes
         if isinstance(node.metadata.get("leaf_index"), int)
     }
     visited_leaf_texts = _collect_visited_leaf_texts(trace, leaf_index_map)
@@ -310,6 +307,8 @@ def run_navigation_sample(
         config=config,
         context_source=str(config.get("context_source", "t1_visited_leaves_ordered")),
         max_items=context_max_items,
+        leaf_nodes=leaf_nodes,
+        leaf_index_map=leaf_index_map,
     )
     trace.context_texts = context_texts
     trace.context_node_ids = context_node_ids
@@ -318,7 +317,13 @@ def run_navigation_sample(
         if not trace.failure_attribution:
             trace.failure_attribution = "context_construction_failure"
 
-    raw_generated_answer, prompt, generation_error = build_generator_result(config, final_question, context_texts)
+    run_generator = bool(config.get("run_generator", False))
+    if context_error:
+        raw_generated_answer, prompt, generation_error = None, None, "skipped_due_to_context_error"
+    else:
+        raw_generated_answer, prompt, generation_error = build_generator_result(
+            config, final_question, context_texts
+        )
     postprocessed_answer, postprocess_mode, postprocess_rule = _postprocess_generated_answer(
         question=final_question,
         generated_answer=raw_generated_answer,
@@ -330,17 +335,22 @@ def run_navigation_sample(
     trace.postprocess_mode = postprocess_mode
     trace.postprocess_rule = postprocess_rule
     trace.generation_error = generation_error
-    if generation_error and not trace.failure_attribution:
+    if generation_error and not context_error and not trace.failure_attribution:
         trace.failure_attribution = "generation_failure"
 
-    run_generator = bool(config.get("run_generator", False))
+    explicit_eval = str(config.get("eval_mode", "")).strip().lower()
+    if explicit_eval in ("generation", "retrieval"):
+        eval_mode = explicit_eval
+    else:
+        eval_mode = "generation" if run_generator else "retrieval"
+
     if isinstance(final_reference, str):
         if context_error:
             trace.exact_match = 0
             trace.answer_f1 = 0.0
             trace.rouge_l_f1 = 0.0
-        elif run_generator:
-            if generation_error:
+        elif eval_mode == "generation":
+            if not run_generator or generation_error:
                 trace.exact_match = 0
                 trace.answer_f1 = 0.0
                 trace.rouge_l_f1 = 0.0
@@ -366,6 +376,7 @@ def run_navigation_sample(
         "run_id": run_id,
         "sample_id": sample_id,
         "batch_id": batch_id,
+        "eval_mode": eval_mode,
         "config": config,
         "question": final_question,
         "tree_path": tree_path,
@@ -388,8 +399,9 @@ def run_navigation_sample(
     navigation_summary = build_navigation_summary(payload)
     write_json(output_path.parent / "registry_row.json", registry_row)
     write_json(output_path.parent / "navigation_summary.json", navigation_summary)
-    append_jsonl(root_dir / "outputs" / "reports" / "run_registry.jsonl", registry_row)
-    append_jsonl(root_dir / "outputs" / "reports" / "navigation_summary.jsonl", navigation_summary)
+    report_dir = root_dir / str(config.get("report_dir", "outputs/reports"))
+    append_jsonl(report_dir / "run_registry.jsonl", registry_row)
+    append_jsonl(report_dir / "navigation_summary.jsonl", navigation_summary)
 
     return payload
 

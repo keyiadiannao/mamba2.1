@@ -42,6 +42,8 @@ def build_navigator(config: dict[str, Any]) -> BaseNavigator:
                 dependency_module=str(
                     config.get("navigator_dependency_module", default_dependency_module)
                 ),
+                use_ssm_continuity=bool(config.get("navigator_use_ssm_continuity", False)),
+                query_cache_max_size=int(config.get("navigator_query_cache_max_size", 2048)),
             )
         )
 

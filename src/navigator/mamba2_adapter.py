@@ -1,12 +1,36 @@
 from __future__ import annotations
 
 import importlib
+from collections import OrderedDict
 from dataclasses import dataclass
 from typing import Any
 
 from src.tree_builder import TreeNode
 
 from .base import BaseNavigator, NavigatorState
+
+
+def _extract_last_hidden(outputs: Any) -> Any:
+    """Pick (B, D) last-token vector from HF-style outputs, raw tensors, or tuples."""
+    import torch
+
+    if hasattr(outputs, "last_hidden_state"):
+        hidden = outputs.last_hidden_state
+    elif isinstance(outputs, tuple) and outputs:
+        hidden = None
+        for item in outputs:
+            if isinstance(item, torch.Tensor) and item.dim() >= 2:
+                hidden = item
+                break
+        if hidden is None:
+            raise TypeError(f"No tensor found in outputs tuple (len={len(outputs)}).")
+    else:
+        hidden = outputs
+    if not isinstance(hidden, torch.Tensor):
+        raise TypeError(f"Expected hidden states as torch.Tensor, got {type(hidden)!r}.")
+    if hidden.dim() != 3:
+        raise ValueError(f"Expected 3D hidden states (B, S, D), got shape {tuple(hidden.shape)}.")
+    return hidden[:, -1, :]
 
 
 @dataclass
@@ -24,10 +48,17 @@ class Mamba2RuntimeConfig:
     d_state: int = 64
     d_conv: int = 4
     expand: int = 2
+    # Phase 1: keep each encode forward isolated from cross-call SSM caches (snapshot-safe).
+    use_ssm_continuity: bool = False
+    query_cache_max_size: int = 2048
 
 
 class Mamba2Navigator(BaseNavigator):
-    """Minimal real-backend integration for mamba2-style navigation smoke tests."""
+    """Minimal real-backend integration for mamba2-style navigation smoke tests.
+
+    ``NavigatorState.relevance_score`` is the navigator's own prior (lexical + semantic
+    bonus here); router scores in ``RouteDecision`` are computed separately in the controller.
+    """
 
     def __init__(self, config: Mamba2RuntimeConfig | None = None) -> None:
         self.config = config or Mamba2RuntimeConfig()
@@ -39,7 +70,21 @@ class Mamba2Navigator(BaseNavigator):
         self._embedding = None
         self._model = None
         self._tokenizer = None
-        self._query_cache: dict[str, list[float]] = {}
+        self._query_cache: OrderedDict[str, list[float]] = OrderedDict()
+
+    def clear_cache(self) -> None:
+        """Drop cached question encodings (e.g. after a batch) to cap memory."""
+        self._query_cache.clear()
+
+    def _clear_ssm_ephemeral_state(self) -> None:
+        """Best-effort clear of cross-call SSM caches when Phase 1 isolation is enabled."""
+        if self.config.use_ssm_continuity or self._model is None:
+            return
+        reset_fn = getattr(self._model, "reset_state", None)
+        if reset_fn is None:
+            reset_fn = getattr(self._model, "reset_cache", None)
+        if callable(reset_fn):
+            reset_fn()
 
     def init_state(self) -> NavigatorState:
         self._ensure_runtime_ready()
@@ -137,9 +182,16 @@ class Mamba2Navigator(BaseNavigator):
             self._summary_dim = int(getattr(self._model.config, "hidden_size", self.config.d_model))
 
     def _encode_query(self, question: str) -> list[float]:
-        if question not in self._query_cache:
-            self._query_cache[question] = self._encode_text(question, None)
-        return list(self._query_cache[question])
+        cached = self._query_cache.get(question)
+        if cached is not None:
+            self._query_cache.move_to_end(question)
+            return list(cached)
+        encoded = self._encode_text(question, None)
+        self._query_cache[question] = encoded
+        max_size = max(0, int(self.config.query_cache_max_size))
+        while len(self._query_cache) > max_size:
+            self._query_cache.popitem(last=False)
+        return list(encoded)
 
     def _encode_text(self, text: str, previous_summary: list[float] | None) -> list[float]:
         torch = self._ensure_runtime_ready()
@@ -164,8 +216,9 @@ class Mamba2Navigator(BaseNavigator):
                 ).view(1, 1, self.config.d_model)
                 embedded = torch.cat([summary_tensor, embedded], dim=1)
 
+            self._clear_ssm_ephemeral_state()
             outputs = self._model(embedded)
-            summary = outputs[:, -1, :].detach().float().cpu().squeeze(0).tolist()
+            summary = _extract_last_hidden(outputs).detach().float().cpu().squeeze(0).tolist()
 
         return [float(value) for value in summary]
 
@@ -180,9 +233,9 @@ class Mamba2Navigator(BaseNavigator):
         encoded = {key: value.to(self._device) for key, value in encoded.items()}
 
         with torch.no_grad():
+            self._clear_ssm_ephemeral_state()
             outputs = self._model(**encoded, return_dict=True)
-            hidden_states = outputs.last_hidden_state if hasattr(outputs, "last_hidden_state") else outputs[0]
-            summary = hidden_states[:, -1, :].detach().float().cpu().squeeze(0).tolist()
+            summary = _extract_last_hidden(outputs).detach().float().cpu().squeeze(0).tolist()
 
         if previous_summary is not None:
             summary = self._merge_summaries(previous_summary, summary)

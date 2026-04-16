@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 
 def make_run_id(prefix: str = "run") -> str:
-    return f"{prefix}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    """UTC timestamp suffix for stable ordering across hosts and containers."""
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    return f"{prefix}_{stamp}Z"
 
 
 def write_json(path: str | Path, payload: dict[str, Any]) -> Path:

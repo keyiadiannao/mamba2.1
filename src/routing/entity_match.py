@@ -11,8 +11,115 @@ from __future__ import annotations
 import re
 from typing import Any
 
+_BASE_STOPWORDS = frozenset(
+    {
+        "What", "Which", "Who", "Whom", "Whose", "Where", "When", "How",
+        "Why", "Does", "Do", "Did", "Is", "Are", "Was", "Were",
+        "The", "A", "An", "And", "Or", "But", "In", "On", "At", "To",
+        "For", "Of", "With", "By", "From", "Into", "During",
+        "This", "That", "These", "Those", "Not", "No",
+    }
+)
 
-def extract_question_entities(question: str) -> list[str]:
+# Lowercase: single-token Title-case spans equal to the first question token AND in
+# this set are dropped when ``filter_sentence_lead`` is True (local logic only).
+_LEAD_SINGLE_TOKEN_SKIP = frozenset(
+    {
+        "the",
+        "a",
+        "an",
+        "this",
+        "that",
+        "these",
+        "those",
+        "which",
+        "what",
+        "who",
+        "whom",
+        "whose",
+        "where",
+        "when",
+        "how",
+        "why",
+        "did",
+        "do",
+        "does",
+        "is",
+        "are",
+        "was",
+        "were",
+        "has",
+        "have",
+        "had",
+        "can",
+        "could",
+        "will",
+        "would",
+        "shall",
+        "should",
+        "may",
+        "might",
+        "must",
+        "here",
+        "there",
+        "it",
+        "its",
+        "if",
+        "as",
+        "so",
+        "we",
+        "you",
+        "he",
+        "she",
+        "they",
+    }
+)
+
+
+def _first_sentence_token(question: str) -> str | None:
+    """First alphabetic token of the question (leading punctuation skipped)."""
+    stripped = question.strip()
+    if not stripped:
+        return None
+    match = re.match(r"""[\s"']*([A-Za-z]+(?:'[A-Za-z]+)?)""", stripped)
+    if not match:
+        return None
+    return match.group(1).strip(".,?!:;\"'").strip()
+
+
+def _is_redundant_sentence_lead_token(
+    candidate: str,
+    first_token: str | None,
+    *,
+    filter_sentence_lead: bool,
+) -> bool:
+    """Drop a *single-token* span that only repeats a sentence-leading function word."""
+    if not filter_sentence_lead or not first_token:
+        return False
+    text = candidate.strip()
+    if not text or " " in text:
+        return False
+    if text.lower() != first_token.lower():
+        return False
+    return first_token.lower() in _LEAD_SINGLE_TOKEN_SKIP
+
+
+def entity_mentioned_in_text(entity: str, text_lower: str) -> bool:
+    """True if ``entity`` matches as whole word(s), avoiding substring false positives.
+
+    Examples: ``apple`` does not match inside ``pineapple``; multi-word entities
+    allow flexible whitespace between tokens.
+    """
+    parts = entity.lower().split()
+    if not parts:
+        return False
+    if len(parts) == 1:
+        return re.search(r"\b" + re.escape(parts[0]) + r"\b", text_lower) is not None
+    joined = r"\s+".join(re.escape(p) for p in parts)
+    return re.search(r"(?<!\w)" + joined + r"(?!\w)", text_lower) is not None
+
+
+def extract_question_entities(question: str, *, filter_sentence_lead: bool = True) -> list[str]:
     """Extract candidate entity spans from a question string.
 
     Strategy (ordered by priority):
@@ -20,29 +127,46 @@ def extract_question_entities(question: str) -> list[str]:
     2. Capitalized spans of length >= 2 — "Royal Treasure", "New York"
     3. Fallback: unique non-stopword tokens of length >= 4
 
+    Args:
+        filter_sentence_lead: If True (default), drop a *single-token* candidate that
+            only repeats the question's first token when that token is a common
+            sentence-leading function word (local rule; does not mutate stopword sets).
+
     Returns a deduplicated list of entity strings (original casing preserved).
     """
     entities: list[str] = []
+    first_tok = _first_sentence_token(question)
 
     # 1) Quoted strings
     quoted = re.findall(r'["\']([^"\']+)["\']', question)
-    entities.extend(quoted)
+    for span in quoted:
+        if _is_redundant_sentence_lead_token(span, first_tok, filter_sentence_lead=filter_sentence_lead):
+            continue
+        entities.append(span)
 
-    _STOPWORDS = {
-        "What", "Which", "Who", "Whom", "Whose", "Where", "When", "How",
-        "Why", "Does", "Do", "Did", "Is", "Are", "Was", "Were",
-        "The", "A", "An", "And", "Or", "But", "In", "On", "At", "To",
-        "For", "Of", "With", "By", "From", "Into", "During",
-        "This", "That", "These", "Those", "Not", "No",
-    }
+    _STOPWORDS = set(_BASE_STOPWORDS)
     # 2) Capitalized spans (at least 2 chars, starting with uppercase)
     cap_spans = re.findall(r"\b([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*)\b", question)
-    entities.extend(span for span in cap_spans if span not in _STOPWORDS)
+    for span in cap_spans:
+        if span in _STOPWORDS:
+            continue
+        if _is_redundant_sentence_lead_token(span, first_tok, filter_sentence_lead=filter_sentence_lead):
+            continue
+        entities.append(span)
+
+    # 2b) All-caps acronyms (2Wiki / news: NBA, USA, …)
+    acronyms = re.findall(r"\b([A-Z]{2,6})\b", question)
+    entities.extend(a for a in acronyms if a not in _STOPWORDS)
 
     # 3) Fallback: long non-stopword tokens
     if not entities:
         tokens = re.findall(r"\b([A-Za-z]{4,})\b", question)
-        entities.extend(t for t in tokens if t not in _STOPWORDS)
+        for t in tokens:
+            if t in _STOPWORDS:
+                continue
+            if _is_redundant_sentence_lead_token(t, first_tok, filter_sentence_lead=filter_sentence_lead):
+                continue
+            entities.append(t)
 
     # Deduplicate while preserving order
     seen: set[str] = set()
@@ -68,7 +192,7 @@ def compute_entity_match_score(
     if not question_entities:
         return 0.0
     node_lower = node_text.lower()
-    hits = sum(1 for ent in question_entities if ent.lower() in node_lower)
+    hits = sum(1 for ent in question_entities if entity_mentioned_in_text(ent, node_lower))
     return hits / len(question_entities)
 
 
@@ -88,7 +212,8 @@ def apply_entity_boost(
         get_node_text: Callable(node_id) -> str, returns node text for matching.
 
     Returns:
-        New list with updated "score" and added "entity_match_score" per child.
+        New list with updated "score", "raw_router_score" (pre-boost),
+        and "entity_match_score" per child when alpha > 0.
     """
     if alpha <= 0.0 or not question_entities:
         return scored_children
@@ -96,10 +221,12 @@ def apply_entity_boost(
     boosted: list[dict[str, Any]] = []
     for child in scored_children:
         child = dict(child)
+        raw = float(child.get("score", 0.0))
+        child["raw_router_score"] = raw
         node_text = get_node_text(child.get("node_id", ""))
         ems = compute_entity_match_score(question_entities, node_text)
         child["entity_match_score"] = ems
-        child["score"] = float(child.get("score", 0.0)) + alpha * ems
+        child["score"] = raw + alpha * ems
         boosted.append(child)
     return boosted
 
@@ -124,7 +251,7 @@ def compute_entity_hit_rate(
 
     all_text_lower = " ".join(visited_leaf_texts).lower()
     intersection_size = sum(
-        1 for ent in question_entities if ent.lower() in all_text_lower
+        1 for ent in question_entities if entity_mentioned_in_text(ent, all_text_lower)
     )
     hit_rate = intersection_size / len(question_entities)
     return hit_rate, intersection_size

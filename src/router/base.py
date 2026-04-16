@@ -44,11 +44,34 @@ def _cosine_similarity(left: dict[str, float], right: dict[str, float]) -> float
     return float(numerator / (left_norm * right_norm))
 
 
-def extract_router_features(question: str, node: TreeNode, state: NavigatorState) -> dict[str, float]:
-    question_terms = set(_tokenize_text(question))
+# Keys produced by ``extract_router_features`` (linear learned head must reference these only).
+ROUTER_LINEAR_FEATURE_KEYS = frozenset(
+    {
+        "lexical_overlap",
+        "cosine_probe",
+        "text_length_tokens",
+        "parent_relevance",
+        "child_is_leaf",
+    }
+)
+
+
+def extract_router_features(
+    question: str,
+    node: TreeNode,
+    state: NavigatorState,
+    *,
+    question_terms: set[str] | None = None,
+    question_vector: dict[str, float] | None = None,
+) -> dict[str, float]:
+    """Per-child routing features. Pass ``question_terms`` / ``question_vector`` to avoid
+    re-tokenizing / re-vectorizing the question for every sibling (same stable outputs).
+    """
+    q_terms = set(_tokenize_text(question)) if question_terms is None else set(question_terms)
+    q_vec = _text_vector(question) if question_vector is None else question_vector
     text_terms = set(_tokenize_text(node.text))
-    lexical_overlap = float(len(question_terms.intersection(text_terms)))
-    cosine_probe = _cosine_similarity(_text_vector(question), _text_vector(node.text))
+    lexical_overlap = float(len(q_terms.intersection(text_terms)))
+    cosine_probe = _cosine_similarity(q_vec, _text_vector(node.text))
     text_length_tokens = float(len(_tokenize_text(node.text)))
     parent_relevance = float(state.relevance_score)
     child_is_leaf = 1.0 if node.is_leaf else 0.0
@@ -59,6 +82,14 @@ def extract_router_features(question: str, node: TreeNode, state: NavigatorState
         "parent_relevance": parent_relevance,
         "child_is_leaf": child_is_leaf,
     }
+
+
+def _build_route_decision(children: list[TreeNode], scored: list[ChildScore]) -> RouteDecision:
+    """Stable ordering shared by all routers: score desc, ``node_id`` desc on ties."""
+    scored_sorted = sorted(scored, key=lambda item: (item.score, item.node_id), reverse=True)
+    score_map = {item.node_id: item.score for item in scored_sorted}
+    ordered = sorted(children, key=lambda node: (score_map[node.node_id], node.node_id), reverse=True)
+    return RouteDecision(ordered_children=ordered, child_scores=scored_sorted)
 
 
 class BaseRouter(ABC):
@@ -83,17 +114,18 @@ class RuleRouter(BaseRouter):
         children: list[TreeNode],
         state: NavigatorState,
     ) -> RouteDecision:
-        def score(node: TreeNode) -> tuple[float, str]:
-            return (extract_router_features(question, node, state)["lexical_overlap"], node.node_id)
-
+        q_terms = set(_tokenize_text(question))
+        q_vec = _text_vector(question)
         scored = [
-            ChildScore(node_id=node.node_id, score=score(node)[0])
+            ChildScore(
+                node_id=node.node_id,
+                score=extract_router_features(
+                    question, node, state, question_terms=q_terms, question_vector=q_vec
+                )["lexical_overlap"],
+            )
             for node in children
         ]
-        score_map = {item.node_id: item.score for item in scored}
-        ordered = sorted(children, key=lambda node: (score_map[node.node_id], node.node_id), reverse=True)
-        scored = sorted(scored, key=lambda item: (item.score, item.node_id), reverse=True)
-        return RouteDecision(ordered_children=ordered, child_scores=scored)
+        return _build_route_decision(children, scored)
 
 
 class CosineProbeRouter(BaseRouter):
@@ -106,17 +138,18 @@ class CosineProbeRouter(BaseRouter):
         children: list[TreeNode],
         state: NavigatorState,
     ) -> RouteDecision:
+        q_terms = set(_tokenize_text(question))
+        q_vec = _text_vector(question)
         scored = [
             ChildScore(
                 node_id=node.node_id,
-                score=extract_router_features(question, node, state)["cosine_probe"],
+                score=extract_router_features(
+                    question, node, state, question_terms=q_terms, question_vector=q_vec
+                )["cosine_probe"],
             )
             for node in children
         ]
-        score_map = {item.node_id: item.score for item in scored}
-        ordered = sorted(children, key=lambda node: (score_map[node.node_id], node.node_id), reverse=True)
-        scored = sorted(scored, key=lambda item: (item.score, item.node_id), reverse=True)
-        return RouteDecision(ordered_children=ordered, child_scores=scored)
+        return _build_route_decision(children, scored)
 
 
 class LearnedClassifierRouter(BaseRouter):
@@ -129,6 +162,19 @@ class LearnedClassifierRouter(BaseRouter):
         self.feature_names: list[str] = list(checkpoint["feature_names"])
         self.weights: list[float] = [float(value) for value in checkpoint["weights"]]
         self.bias: float = float(checkpoint.get("bias", 0.0))
+        if not self.feature_names:
+            raise ValueError("Checkpoint feature_names must be non-empty.")
+        if len(self.feature_names) != len(self.weights):
+            raise ValueError(
+                f"Checkpoint feature_names length {len(self.feature_names)} "
+                f"does not match weights length {len(self.weights)}."
+            )
+        unknown = set(self.feature_names) - ROUTER_LINEAR_FEATURE_KEYS
+        if unknown:
+            raise ValueError(
+                "Checkpoint contains unknown feature names (not produced by extract_router_features): "
+                f"{sorted(unknown)}"
+            )
 
     def rank_children(
         self,
@@ -137,15 +183,16 @@ class LearnedClassifierRouter(BaseRouter):
         children: list[TreeNode],
         state: NavigatorState,
     ) -> RouteDecision:
+        q_terms = set(_tokenize_text(question))
+        q_vec = _text_vector(question)
         scored = []
         for node in children:
-            features = extract_router_features(question, node, state)
+            features = extract_router_features(
+                question, node, state, question_terms=q_terms, question_vector=q_vec
+            )
             score_value = self.bias
             for feature_name, weight in zip(self.feature_names, self.weights):
                 score_value += weight * float(features.get(feature_name, 0.0))
             scored.append(ChildScore(node_id=node.node_id, score=float(score_value)))
 
-        score_map = {item.node_id: item.score for item in scored}
-        ordered = sorted(children, key=lambda node: (score_map[node.node_id], node.node_id), reverse=True)
-        scored = sorted(scored, key=lambda item: (item.score, item.node_id), reverse=True)
-        return RouteDecision(ordered_children=ordered, child_scores=scored)
+        return _build_route_decision(children, scored)

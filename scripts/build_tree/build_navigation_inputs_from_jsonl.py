@@ -72,6 +72,7 @@ def main() -> None:
                 "batch_output_path": str(batch_output_path),
                 "document_count": len(corpus_records),
                 "sample_count": len(batch_payload["samples"]),
+                "tree_sha256": tree_payload.get("tree_sha256"),
             },
             indent=2,
             ensure_ascii=False,

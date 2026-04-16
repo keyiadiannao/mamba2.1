@@ -6,6 +6,7 @@ from src.routing.entity_match import (
     apply_entity_boost,
     compute_entity_hit_rate,
     compute_entity_match_score,
+    entity_mentioned_in_text,
     extract_question_entities,
 )
 
@@ -25,6 +26,31 @@ class EntityMatchTest(unittest.TestCase):
         )
         self.assertEqual(score, 0.5)
 
+    def test_entity_word_boundary_avoids_substring_false_positive(self) -> None:
+        self.assertFalse(entity_mentioned_in_text("apple", "pineapple pie".lower()))
+        self.assertTrue(entity_mentioned_in_text("apple", "an apple pie".lower()))
+
+    def test_extract_question_entities_includes_acronyms(self) -> None:
+        entities = extract_question_entities("Did the NBA or NFL win more titles in the 1990s?")
+        lowered = [e.lower() for e in entities]
+        self.assertIn("nba", lowered)
+        self.assertIn("nfl", lowered)
+
+    def test_filter_sentence_lead_drops_isolated_lead_function_word(self) -> None:
+        entities = extract_question_entities(
+            "Here we only discuss Newton and Einstein.",
+            filter_sentence_lead=True,
+        )
+        self.assertNotIn("Here", entities)
+        self.assertTrue(any("Newton" in e for e in entities))
+
+    def test_filter_sentence_lead_can_be_disabled(self) -> None:
+        entities = extract_question_entities(
+            "Here we only discuss Newton and Einstein.",
+            filter_sentence_lead=False,
+        )
+        self.assertIn("Here", entities)
+
     def test_apply_entity_boost_and_hit_rate(self) -> None:
         scored_children = [
             {"node_id": "leaf_a", "score": 0.1},
@@ -43,6 +69,8 @@ class EntityMatchTest(unittest.TestCase):
         boosted_sorted = sorted(boosted, key=lambda row: row["score"], reverse=True)
         self.assertEqual(boosted_sorted[0]["node_id"], "leaf_b")
         self.assertEqual(boosted_sorted[0]["entity_match_score"], 1.0)
+        self.assertEqual(boosted_sorted[0]["raw_router_score"], 0.1)
+        self.assertEqual(boosted_sorted[1]["raw_router_score"], 0.1)
 
         hit_rate, intersection_size = compute_entity_hit_rate(
             question_entities=["Einstein", "Relativity"],

@@ -35,7 +35,12 @@ def load_tree_payload(path: str | Path) -> dict[str, Any]:
     return payload
 
 
-def load_tree_from_json(path: str | Path) -> DocumentTree:
-    payload = load_tree_payload(path)
+def load_tree_from_payload(payload: dict[str, Any]) -> DocumentTree:
+    if not isinstance(payload, dict):
+        raise ValueError("Tree payload must be a JSON object.")
     root_payload = payload.get("root", payload)
     return DocumentTree(root=_build_node(root_payload))
+
+
+def load_tree_from_json(path: str | Path) -> DocumentTree:
+    return load_tree_from_payload(load_tree_payload(path))

@@ -139,7 +139,7 @@ class SSGSController:
         )
 
         ordered = self.router.rank_children(question, node, node.children, next_state)
-        ordered, entity_score_map = self._apply_entity_boost(question_entities, node, ordered)
+        ordered, entity_route_audit = self._apply_entity_boost(question_entities, node, ordered)
         trace.route_decisions.append(
             {
                 "parent_node_id": node.node_id,
@@ -149,7 +149,12 @@ class SSGSController:
                     {
                         "node_id": child_score.node_id,
                         "score": float(child_score.score),
-                        "entity_match_score": entity_score_map.get(child_score.node_id),
+                        "raw_router_score": entity_route_audit.get(child_score.node_id, {}).get(
+                            "raw_router_score"
+                        ),
+                        "entity_match_score": entity_route_audit.get(child_score.node_id, {}).get(
+                            "entity_match_score"
+                        ),
                     }
                     for child_score in ordered.child_scores
                 ],
@@ -194,7 +199,7 @@ class SSGSController:
         question_entities: list[str],
         parent: TreeNode,
         route_decision: RouteDecision,
-    ) -> tuple[RouteDecision, dict[str, float | None]]:
+    ) -> tuple[RouteDecision, dict[str, dict[str, float | None]]]:
         child_lookup = {child.node_id: child for child in parent.children}
         scored_children = [
             {"node_id": child_score.node_id, "score": float(child_score.score)}
@@ -212,6 +217,18 @@ class SSGSController:
             reverse=True,
         )
 
+        audit_by_node: dict[str, dict[str, float | None]] = {}
+        for item in boosted_sorted:
+            nid = str(item.get("node_id", ""))
+            audit_by_node[nid] = {
+                "entity_match_score": float(item["entity_match_score"])
+                if "entity_match_score" in item
+                else None,
+                "raw_router_score": float(item["raw_router_score"])
+                if "raw_router_score" in item
+                else None,
+            }
+
         ordered_children = [
             child_lookup[item["node_id"]]
             for item in boosted_sorted
@@ -221,10 +238,4 @@ class SSGSController:
             ChildScore(node_id=str(item.get("node_id")), score=float(item.get("score", 0.0)))
             for item in boosted_sorted
         ]
-        entity_score_map = {
-            str(item.get("node_id")): (
-                float(item["entity_match_score"]) if "entity_match_score" in item else None
-            )
-            for item in boosted_sorted
-        }
-        return RouteDecision(ordered_children=ordered_children, child_scores=child_scores), entity_score_map
+        return RouteDecision(ordered_children=ordered_children, child_scores=child_scores), audit_by_node

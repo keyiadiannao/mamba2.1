@@ -45,6 +45,7 @@ class RegistryOutputsTest(unittest.TestCase):
         }
 
         row = build_registry_row(payload)
+        self.assertIsNone(row.get("eval_mode"))
         self.assertEqual(row["run_id"], "phase_a_demo_x")
         self.assertEqual(row["batch_id"], "batch_demo_x")
         self.assertEqual(row["navigator_type"], "mamba_ssm")

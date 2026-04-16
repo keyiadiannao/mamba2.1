@@ -46,6 +46,42 @@ class LearnedRouterTest(unittest.TestCase):
         )
         self.assertEqual(decision.ordered_children[0].node_id, "good")
 
+    def test_learned_classifier_rejects_unknown_checkpoint_features(self) -> None:
+        temp_dir = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, temp_dir, True)
+        checkpoint_path = temp_dir / "bad_router.json"
+        checkpoint_path.write_text(
+            json.dumps(
+                {
+                    "feature_names": ["lexical_overlap", "made_up_feature"],
+                    "weights": [1.0, 1.0],
+                    "bias": 0.0,
+                }
+            ),
+            encoding="utf-8",
+        )
+        with self.assertRaises(ValueError) as ctx:
+            LearnedClassifierRouter(checkpoint_path)
+        self.assertIn("unknown feature", str(ctx.exception).lower())
+
+    def test_extract_router_features_cached_question_matches_uncached(self) -> None:
+        state = NavigatorState(relevance_score=0.25)
+        node = TreeNode(node_id="n", text="Einstein and relativity.")
+        from src.router.base import _text_vector, _tokenize_text
+
+        question = "What is relativity about Einstein?"
+        q_terms = set(_tokenize_text(question))
+        q_vec = _text_vector(question)
+        full = extract_router_features(question, node, state)
+        cached = extract_router_features(
+            question,
+            node,
+            state,
+            question_terms=q_terms,
+            question_vector=q_vec,
+        )
+        self.assertEqual(full, cached)
+
 
 if __name__ == "__main__":
     unittest.main()
