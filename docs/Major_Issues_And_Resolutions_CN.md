@@ -127,7 +127,7 @@
   1. **`df -h`** 确认满的是哪一块挂载；**`du -sh outputs/runs outputs/reports`** 看占用。  
   2. **归档或删除**不再需要的旧 `outputs/runs/*`、旧 `end_to_end_batches/*`、HF 缓存重复副本、容器内无关大包。  
   3. 大实验前预留 **≥ 数十 GB**（与模型体积、批大小、是否保留全量 `run_payload` 成正比）；必要时 **只保留 `batch_summary.json` + 抽样 `run_payload`** 的运维策略。  
-  4. 串联多臂时：**每臂跑前检查剩余空间**；上一臂跑完后若空间仍紧，先清理再跑下一臂。  
+  4. 串联多臂时：**每臂跑前检查剩余空间**；上一臂跑完后若空间仍紧，先清理再跑下一臂。仓库脚本 **`scripts/run_eval/run_b_chain_phase2_three_arm.py`** 在剩余 **< 5 GiB** 时会在 stderr 打出警告（仍会继续，需人工判断是否中止）。  
 - **验证**：`df -h` 显示目标挂载有足够余量后，从失败臂 **重新跑**（或从断点样本继续，需自行脚本化）；新批 `generation_error` 与 `sample_count` 正常闭合。
 
 ---
@@ -143,3 +143,4 @@
 | 2026-04-16 | MI-001 补充：`generator_hf_model_name` 指向本机模型目录以绕过失效 `hf-mirror`。 |
 | 2026-04-18 | MI-006：仓库 overlap 默认 `context_select_k` bump 至 `4`；增加 demo 烟测配置与 `tests/test_demo_ctxsel_k_smoke_batch.py`。 |
 | 2026-04-18 | 新增 MI-007：磁盘满 `Errno 28` 与端到端批处置。 |
+| 2026-04-18 | MI-007：补充 Phase2 串联脚本在低磁盘余量时的 stderr 警告说明。 |
