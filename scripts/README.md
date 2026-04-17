@@ -9,7 +9,8 @@
 
 `diagnostics/`（过程指标，**不启动评测**）：
 
-- **`analyze_evidence_saturation.py`**：按 `run_registry.jsonl` 的 **`batch_id`**（或 `glob`）聚合 `run_payload.json`；加 **`--with-context-gold-metrics`** 时加载每条的 **`tree_path`**。用法见脚本顶部 docstring 与专档 **MI-003**；**非关键、低复用的一次性命令**不写入本 README，避免与实验记录双处维护。
+- **`analyze_evidence_saturation.py`**：按 `run_registry.jsonl` 的 **`batch_id`**（或 `glob`）聚合 `run_payload.json`；加 **`--with-context-gold-metrics`** 时加载每条的 **`tree_path`**。用法见脚本顶部 docstring 与专档 **MI-003**；**非关键、低复用的一次性命令**不写入本 README，避免与实验记录双处维护。  
+- **`print_trace_one_sample.py`**：对任意 batch 配置只跑 **一条** 样本，把 **`event_log` / 金叶是否进 accept** 等打印到 stdout，落盘仅在临时目录（见 **`--help`**）。用于 **`runs/` 太多打不开** 时的单样本走读。
 
 当前 `run_eval/` 目录中的第二阶段核心入口：
 
