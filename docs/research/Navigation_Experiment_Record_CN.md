@@ -300,12 +300,14 @@ rm -f /tmp/nav_smoke_rule.json /tmp/nav_smoke_learned.json
    bid = '粘贴batch_id'
    reg = Path('outputs/reports/run_registry.jsonl')
    errs = []
+   nrows = 0
    for line in reg.read_text(encoding='utf-8').splitlines():
        if not line.strip():
            continue
        r = json.loads(line)
        if r.get('batch_id') != bid:
            continue
+       nrows += 1
        od = r.get('output_run_dir')
        if not od:
            continue
@@ -316,7 +318,7 @@ rm -f /tmp/nav_smoke_rule.json /tmp/nav_smoke_learned.json
        ge = (d.get('trace') or {}).get('generation_error')
        if ge:
            errs.append((str(p), str(ge)))
-   print('rows_for_batch:', sum(1 for line in reg.read_text(encoding='utf-8').splitlines() if line.strip() and json.loads(line).get('batch_id')==bid))
+   print('registry_rows_for_batch:', nrows)
    print('payloads_with_generation_error:', len(errs))
    for path, msg in errs[:20]:
        print(path, '->', msg[:200])
