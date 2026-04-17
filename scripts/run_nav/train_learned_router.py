@@ -25,6 +25,12 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--epochs", type=int, default=200)
     parser.add_argument("--lr", type=float, default=0.05)
+    parser.add_argument(
+        "--pos-weight",
+        type=float,
+        default=None,
+        help="Multiply gradients for label==1 rows. Default: min(neg/pos, 200) when pos>0, else 1.",
+    )
     return parser.parse_args()
 
 
@@ -59,6 +65,15 @@ def main() -> None:
     ]
     labels = [float(row["label"]) for row in rows]
 
+    n_pos = int(sum(labels))
+    n_neg = len(labels) - n_pos
+    if args.pos_weight is not None:
+        pos_weight = float(args.pos_weight)
+    elif n_pos > 0:
+        pos_weight = min(float(n_neg) / float(n_pos), 200.0)
+    else:
+        pos_weight = 1.0
+
     weights = [0.0 for _ in feature_names]
     bias = 0.0
 
@@ -69,9 +84,10 @@ def main() -> None:
             logit = bias + sum(weight * feature for weight, feature in zip(weights, features))
             prediction = sigmoid(logit)
             error = prediction - label
+            sample_w = pos_weight if label >= 0.5 else 1.0
             for index, feature in enumerate(features):
-                grad_weights[index] += error * feature
-            grad_bias += error
+                grad_weights[index] += error * feature * sample_w
+            grad_bias += error * sample_w
 
         scale = 1.0 / max(len(feature_matrix), 1)
         for index in range(len(weights)):
@@ -85,6 +101,9 @@ def main() -> None:
         "epochs": args.epochs,
         "lr": args.lr,
         "row_count": len(rows),
+        "pos_weight": pos_weight,
+        "n_pos": n_pos,
+        "n_neg": n_neg,
     }
 
     output_path = ROOT / Path(args.output)
