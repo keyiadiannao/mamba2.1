@@ -42,6 +42,7 @@ def build_router(config: dict[str, Any]) -> BaseRouter:
             Path(str(checkpoint_path)),
             fallback_lexical_weight=float(config.get("router_lexical_weight", 1.0)),
             fallback_cosine_weight=float(config.get("router_cosine_weight", 0.0)),
+            blend_alpha=float(config.get("learned_root_blend_alpha", 0.25)),
         )
 
     raise ValueError(f"Unsupported routing_mode: {routing_mode}")

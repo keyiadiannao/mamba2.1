@@ -191,6 +191,13 @@ class LearnedClassifierRouter(BaseRouter):
                 f"{sorted(unknown)}"
             )
 
+    def score_from_features(self, features: dict[str, float]) -> float:
+        """Linear logit used for ranking (same as ``rank_children`` per child)."""
+        score_value = self.bias
+        for feature_name, weight in zip(self.feature_names, self.weights):
+            score_value += weight * float(features.get(feature_name, 0.0))
+        return float(score_value)
+
     def rank_children(
         self,
         question: str,
@@ -205,16 +212,20 @@ class LearnedClassifierRouter(BaseRouter):
             features = extract_router_features(
                 question, node, state, question_terms=q_terms, question_vector=q_vec
             )
-            score_value = self.bias
-            for feature_name, weight in zip(self.feature_names, self.weights):
-                score_value += weight * float(features.get(feature_name, 0.0))
-            scored.append(ChildScore(node_id=node.node_id, score=float(score_value)))
+            scored.append(
+                ChildScore(node_id=node.node_id, score=float(self.score_from_features(features)))
+            )
 
         return _build_route_decision(children, scored)
 
 
 class LearnedRootHybridRouter(BaseRouter):
-    """Use learned linear head only at root, fallback to rule elsewhere."""
+    """Use learned linear head only at root, fallback to rule elsewhere.
+
+    At root, optional **blend** with the same rule score used below root:
+    ``score = (1 - blend_alpha) * s_rule + blend_alpha * s_learned``.
+    ``blend_alpha=0`` is pure rule at root; ``1`` is pure learned (legacy behavior).
+    """
 
     def __init__(
         self,
@@ -222,12 +233,14 @@ class LearnedRootHybridRouter(BaseRouter):
         *,
         fallback_lexical_weight: float = 1.0,
         fallback_cosine_weight: float = 0.0,
+        blend_alpha: float = 0.25,
     ) -> None:
         self.root_router = LearnedClassifierRouter(checkpoint_path)
         self.fallback_router = RuleRouter(
             lexical_weight=fallback_lexical_weight,
             cosine_weight=fallback_cosine_weight,
         )
+        self.blend_alpha = float(min(max(blend_alpha, 0.0), 1.0))
 
     def rank_children(
         self,
@@ -237,6 +250,26 @@ class LearnedRootHybridRouter(BaseRouter):
         state: NavigatorState,
     ) -> RouteDecision:
         # ``state.path`` includes ``parent`` after navigator step in controller.
-        if len(state.path) <= 1:
+        if len(state.path) > 1:
+            return self.fallback_router.rank_children(question, parent, children, state)
+
+        if self.blend_alpha <= 0.0:
+            return self.fallback_router.rank_children(question, parent, children, state)
+        if self.blend_alpha >= 1.0:
             return self.root_router.rank_children(question, parent, children, state)
-        return self.fallback_router.rank_children(question, parent, children, state)
+
+        q_terms = set(_tokenize_text(question))
+        q_vec = _text_vector(question)
+        a = self.blend_alpha
+        scored: list[ChildScore] = []
+        for node in children:
+            feats = extract_router_features(
+                question, node, state, question_terms=q_terms, question_vector=q_vec
+            )
+            s_rule = self.fallback_router.lexical_weight * float(feats["lexical_overlap"]) + (
+                self.fallback_router.cosine_weight * float(feats["cosine_probe"])
+            )
+            s_learned = self.root_router.score_from_features(feats)
+            score = (1.0 - a) * s_rule + a * s_learned
+            scored.append(ChildScore(node_id=node.node_id, score=float(score)))
+        return _build_route_decision(children, scored)

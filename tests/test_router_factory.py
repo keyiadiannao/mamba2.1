@@ -6,7 +6,13 @@ import tempfile
 import unittest
 
 from src.navigator import NavigatorState
-from src.router import CosineProbeRouter, LearnedRootHybridRouter, RuleRouter, build_router
+from src.router import (
+    CosineProbeRouter,
+    LearnedClassifierRouter,
+    LearnedRootHybridRouter,
+    RuleRouter,
+    build_router,
+)
 from src.tree_builder import TreeNode
 
 
@@ -99,6 +105,61 @@ class RouterFactoryTest(unittest.TestCase):
             self.assertIsInstance(router, LearnedRootHybridRouter)
             self.assertEqual(router.fallback_router.lexical_weight, 1.0)
             self.assertEqual(router.fallback_router.cosine_weight, 0.7)
+            self.assertEqual(router.blend_alpha, 0.25)
+
+    def test_learned_root_blend_zero_matches_rule_at_root(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            checkpoint = Path(td) / "router.json"
+            self._write_checkpoint(checkpoint)
+            hybrid = build_router(
+                {
+                    "routing_mode": "learned_root_classifier",
+                    "router_checkpoint_path": str(checkpoint),
+                    "router_lexical_weight": 1.0,
+                    "router_cosine_weight": 0.7,
+                    "learned_root_blend_alpha": 0.0,
+                }
+            )
+            rule = RuleRouter(lexical_weight=1.0, cosine_weight=0.7)
+            parent = TreeNode(node_id="root", text="index")
+            child_a = TreeNode(node_id="a", text="relativity gravity spacetime")
+            child_b = TreeNode(node_id="b", text="apple banana fruit")
+            q = "What is gravity in relativity?"
+            state = NavigatorState(path=["root"], relevance_score=0.0)
+            children = [child_b, child_a]
+            d_h = hybrid.rank_children(q, parent, children, state)
+            d_r = rule.rank_children(q, parent, children, state)
+            self.assertEqual(
+                [c.node_id for c in d_h.ordered_children],
+                [c.node_id for c in d_r.ordered_children],
+            )
+
+    def test_learned_root_blend_one_matches_learned_at_root(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            checkpoint = Path(td) / "router.json"
+            self._write_checkpoint(checkpoint)
+            hybrid = build_router(
+                {
+                    "routing_mode": "learned_root_classifier",
+                    "router_checkpoint_path": str(checkpoint),
+                    "router_lexical_weight": 1.0,
+                    "router_cosine_weight": 0.7,
+                    "learned_root_blend_alpha": 1.0,
+                }
+            )
+            learned = LearnedClassifierRouter(checkpoint)
+            parent = TreeNode(node_id="root", text="index")
+            child_a = TreeNode(node_id="a", text="relativity gravity spacetime")
+            child_b = TreeNode(node_id="b", text="apple banana fruit")
+            q = "What is gravity in relativity?"
+            state = NavigatorState(path=["root"], relevance_score=0.0)
+            children = [child_b, child_a]
+            d_h = hybrid.rank_children(q, parent, children, state)
+            d_l = learned.rank_children(q, parent, children, state)
+            self.assertEqual(
+                [c.node_id for c in d_h.ordered_children],
+                [c.node_id for c in d_l.ordered_children],
+            )
 
     def test_learned_root_classifier_uses_fallback_below_root(self) -> None:
         with tempfile.TemporaryDirectory() as td:
