@@ -211,6 +211,29 @@ def _postprocess_generated_answer(
     return answer, mode, None
 
 
+def _context_build_max_items(config: dict[str, Any], context_max_items: int) -> int:
+    """Cap for how many items enter context *before* ``context_select_*`` ranking.
+
+    When ``context_select_mode`` is active (not ``off``), optional
+    ``context_select_pool_max_items`` can be set larger than ``context_max_items``
+    so ranking (overlap / entity / dedupe) sees more visited leaves while the
+    generator still receives at most ``context_select_k`` after selection.
+    """
+    mode = str(config.get("context_select_mode", "off")).strip().lower()
+    if mode in {"", "off", "none"}:
+        return context_max_items
+    raw = config.get("context_select_pool_max_items")
+    if raw is None:
+        return context_max_items
+    try:
+        pool = int(raw)
+    except (TypeError, ValueError):
+        return context_max_items
+    if pool <= 0:
+        return context_max_items
+    return max(context_max_items, pool)
+
+
 def _build_context_from_trace(
     tree,
     trace,
@@ -337,6 +360,7 @@ def run_navigation_sample(
 
     在写入 trace 的 context 之前，可按 ``context_select_mode`` / ``context_select_k`` 对证据列表做后处理
     （``off`` / ``first_k`` / ``dedupe_entity_then_k`` / ``question_overlap_topk`` / ``question_entity_match_topk``）；行为说明见 ``docs/Major_Issues_And_Resolutions_CN.md``（MI-006）。
+    若 ``context_select_mode`` 非 ``off``，可选用 ``context_select_pool_max_items``（≥ ``context_max_items``）扩大进入打分的候选条数，再截断到 ``context_select_k``。
     """
     resolved_tree_path = root_dir / tree_path
     tree_payload = load_tree_payload(resolved_tree_path)
@@ -372,13 +396,14 @@ def run_navigation_sample(
         final_reference = tree_reference if isinstance(tree_reference, str) else None
 
     context_max_items = int(config.get("context_max_items", config.get("max_evidence", 3)))
+    build_max_items = _context_build_max_items(config, context_max_items)
     context_texts, context_node_ids, context_error = _build_context_from_trace(
         tree=tree,
         trace=trace,
         question=final_question,
         config=config,
         context_source=str(config.get("context_source", "t1_visited_leaves_ordered")),
-        max_items=context_max_items,
+        max_items=build_max_items,
         leaf_nodes=leaf_nodes,
         leaf_index_map=leaf_index_map,
     )

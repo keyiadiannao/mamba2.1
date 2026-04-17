@@ -8,7 +8,11 @@ from pathlib import Path
 from unittest.mock import patch
 
 from src.pipeline import build_batch_summary, load_json, run_navigation_sample
-from src.pipeline.phase_a_runner import _apply_evidence_controls, _postprocess_generated_answer
+from src.pipeline.phase_a_runner import (
+    _apply_evidence_controls,
+    _context_build_max_items,
+    _postprocess_generated_answer,
+)
 
 
 class PhaseARunnerTest(unittest.TestCase):
@@ -536,6 +540,84 @@ class PhaseARunnerTest(unittest.TestCase):
 
         self.assertEqual(payload_overlap["generator_evidence_node_ids"][0], "leaf_generic")
         self.assertEqual(payload_entity["generator_evidence_node_ids"][0], "leaf_target")
+
+    def test_context_build_max_items_respects_pool_only_when_select_active(self) -> None:
+        self.assertEqual(
+            _context_build_max_items({"context_select_mode": "off", "context_select_pool_max_items": 99}, 8),
+            8,
+        )
+        self.assertEqual(
+            _context_build_max_items({"context_select_mode": "question_overlap_topk"}, 8),
+            8,
+        )
+        self.assertEqual(
+            _context_build_max_items(
+                {"context_select_mode": "question_overlap_topk", "context_select_pool_max_items": 20},
+                8,
+            ),
+            20,
+        )
+
+    def test_context_select_pool_max_items_widen_overlap_candidates(self) -> None:
+        """Larger pool feeds more leaves into overlap ranking before top-k."""
+        temp_dir = Path(tempfile.mkdtemp())
+        self.addCleanup(lambda: __import__("shutil").rmtree(temp_dir, ignore_errors=True))
+
+        children = []
+        for i in range(10):
+            if i < 3:
+                text = f"Misc filler paragraph {i} unrelated travel notes."
+            else:
+                text = f"Physics block {i}: Einstein relativity and gravity concepts."
+            children.append({"node_id": f"leaf_{i}", "text": text, "leaf_index": i})
+
+        tree_dir = temp_dir / "data" / "processed"
+        tree_dir.mkdir(parents=True, exist_ok=True)
+        tree_path = tree_dir / "demo_tree_payload.json"
+        tree_path.write_text(
+            json.dumps(
+                {
+                    "question": "What about Einstein relativity and gravity?",
+                    "reference_answer": "Einstein",
+                    "root": {"node_id": "root", "text": "root", "children": children},
+                },
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+
+        base_cfg: dict = {
+            "output_dir": "outputs/runs",
+            "navigator_type": "mock",
+            "routing_mode": "rule",
+            "context_source": "flat_leaf_concat",
+            "context_max_items": 3,
+            "context_select_mode": "question_overlap_topk",
+            "context_select_k": 2,
+            "run_generator": False,
+        }
+
+        payload_narrow = run_navigation_sample(
+            root_dir=temp_dir,
+            config=dict(base_cfg),
+            question="What about Einstein relativity and gravity?",
+            tree_path="data/processed/demo_tree_payload.json",
+            reference_answer="Einstein",
+            run_id_prefix="test_ctx_pool_narrow",
+            sample_id="sample_ctx_pool_narrow",
+        )
+        payload_wide = run_navigation_sample(
+            root_dir=temp_dir,
+            config={**base_cfg, "context_select_pool_max_items": 10},
+            question="What about Einstein relativity and gravity?",
+            tree_path="data/processed/demo_tree_payload.json",
+            reference_answer="Einstein",
+            run_id_prefix="test_ctx_pool_wide",
+            sample_id="sample_ctx_pool_wide",
+        )
+
+        self.assertEqual(payload_narrow["generator_evidence_node_ids"], ["leaf_0", "leaf_1"])
+        self.assertEqual(payload_wide["generator_evidence_node_ids"], ["leaf_3", "leaf_4"])
 
     def test_context_build_failure_scores_zero_instead_of_falling_back(self) -> None:
         temp_dir = Path(tempfile.mkdtemp())
