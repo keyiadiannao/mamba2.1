@@ -105,7 +105,22 @@ class BaseRouter(ABC):
 
 
 class RuleRouter(BaseRouter):
-    """Sort children by lexical overlap with the question."""
+    """Rank children primarily by lexical overlap with the question.
+
+    Optional ``cosine_weight`` blends in bag-of-words cosine (same feature as CosineProbeRouter)
+    to break ties and nudge order when many siblings share the same small integer overlap —
+    a common case on real corpus trees where pure lexical routing under-explores.
+    Defaults preserve historical behavior (lexical-only).
+    """
+
+    def __init__(
+        self,
+        *,
+        lexical_weight: float = 1.0,
+        cosine_weight: float = 0.0,
+    ) -> None:
+        self.lexical_weight = float(lexical_weight)
+        self.cosine_weight = float(cosine_weight)
 
     def rank_children(
         self,
@@ -116,15 +131,15 @@ class RuleRouter(BaseRouter):
     ) -> RouteDecision:
         q_terms = set(_tokenize_text(question))
         q_vec = _text_vector(question)
-        scored = [
-            ChildScore(
-                node_id=node.node_id,
-                score=extract_router_features(
-                    question, node, state, question_terms=q_terms, question_vector=q_vec
-                )["lexical_overlap"],
+        scored = []
+        for node in children:
+            feats = extract_router_features(
+                question, node, state, question_terms=q_terms, question_vector=q_vec
             )
-            for node in children
-        ]
+            score = self.lexical_weight * float(feats["lexical_overlap"]) + self.cosine_weight * float(
+                feats["cosine_probe"]
+            )
+            scored.append(ChildScore(node_id=node.node_id, score=float(score)))
         return _build_route_decision(children, scored)
 
 

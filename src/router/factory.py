@@ -10,7 +10,10 @@ def build_router(config: dict[str, Any]) -> BaseRouter:
     routing_mode = str(config.get("routing_mode", "rule")).lower()
 
     if routing_mode == "rule":
-        return RuleRouter()
+        return RuleRouter(
+            lexical_weight=float(config.get("router_lexical_weight", 1.0)),
+            cosine_weight=float(config.get("router_cosine_weight", 0.0)),
+        )
 
     if routing_mode == "cosine_probe":
         return CosineProbeRouter()

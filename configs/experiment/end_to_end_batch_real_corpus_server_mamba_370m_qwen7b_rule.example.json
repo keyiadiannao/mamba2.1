@@ -28,6 +28,8 @@
   "generator_do_sample": false,
   "run_generator": true,
   "routing_mode": "rule",
+  "router_lexical_weight": 1.0,
+  "router_cosine_weight": 0.35,
   "context_source": "t1_visited_leaves_ordered",
   "context_select_mode": "question_overlap_topk",
   "context_select_k": 4,
