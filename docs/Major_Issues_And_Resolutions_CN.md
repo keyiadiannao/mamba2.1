@@ -17,6 +17,7 @@
 | MI-005 | 「无效批次」不得进入配置优劣比较 | 已说明 |
 | MI-006 | 证据上下文排序与截断：`context_select_mode` | 已实现 |
 | MI-007 | 磁盘写满导致 `run_payload` / registry 写入失败（`OSError: 28`） | 已说明 |
+| MI-008 | `never_visit_gold` 主导失配；root 层召回与候选池串联瓶颈 | 已处置（策略冻结） |
 
 ---
 
@@ -175,6 +176,31 @@ git pull origin main
 
 ---
 
+## MI-008：`never_visit_gold` 主导失配与「看见但进不了 context」串联瓶颈
+
+- **日期**：2026-04  
+- **现象**（`pilot200` 导航批）：
+  - 基线（`cos0.7, probe0, e8, pool8`）中 `never_visit_gold` 约 `61%`。
+  - 进一步分解 `never_visit_gold`：`root-miss`（金叶所在 root 子枝完全未访问）占比约 **98.4%**，`in-root-miss` 约 `1.6%`。
+  - 开启更激进 root 探测（`probe2`）可降低 `never_visit_gold`，但新增样本主要转为 `visit_gold_but_outside_pool`，`in_context` 不升或回退。
+  - 仅扩大 `pool` 而不稳定提升 root 召回，收益有限；仅提升 root 召回而不放宽候选漏斗，收益也被截断。
+- **根因**：瓶颈是**串联**的两段：
+  1. **根层召回不足**（主矛盾，`root-miss` 主导）；  
+  2. **候选池 / context 漏斗截断**（次矛盾，新增召回未转化为 `in_context`）。
+- **涉及路径 / 配置**：
+  - `src/controller/ssgs_controller.py`（`explore_root_probe_top_m`、`explore_root_probe_budget_per_child`、`explore_top_m_root_children`）
+  - `src/pipeline/phase_a_runner.py`（`context_select_pool_max_items` 接线）
+  - 导航批配置：`router_cosine_weight`、`max_evidence`、`context_select_pool_max_items`、probe 开关。
+- **解决方案（冻结口径）**：
+  1. 先冻结启发式最优基线：`cos0.7 + probe1 + e8 + pool20`（用于后续 A/B 与回归基线）。  
+  2. 停止继续扩启发式大网格；把主线转入**学习式 root 路由**（目标直接打 `root-miss`）。  
+  3. 评估门槛固定为：`never_visit_gold` 下降 + `in_context` 上升，且 `B3->B1 <= B1->B3`。
+- **验证**：
+  - 导航批固定 `pilot200` 对比表：`never_visit_gold / outside_pool / in_pool_not_context / in_context` + `nav_ms`。  
+  - 若学习式 root 路由在相同预算下稳定降低 `root-miss`，再进入端到端批验证 EM/F1 传导。
+
+---
+
 ## 修订历史
 
 | 日期 | 说明 |
@@ -186,3 +212,4 @@ git pull origin main
 | 2026-04-16 | MI-001 补充：`generator_hf_model_name` 指向本机模型目录以绕过失效 `hf-mirror`。 |
 | 2026-04-18 | MI-006：仓库 overlap 默认 `context_select_k` bump 至 `4`；增加 demo 烟测配置与 `tests/test_demo_ctxsel_k_smoke_batch.py`。 |
 | 2026-04-18 | 新增 MI-007：磁盘满 `Errno 28` 与端到端批处置（正文已含串联脚本低余量 stderr 警告）。 |
+| 2026-04-17 | 新增 MI-008：确认 `root-miss` 为 `never_visit_gold` 主因；冻结启发式终版并切换学习式 root 路由主线。 |

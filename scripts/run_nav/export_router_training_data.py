@@ -27,6 +27,11 @@ def parse_args() -> argparse.Namespace:
         default="outputs/reports/router_training_data.jsonl",
         help="Output jsonl path.",
     )
+    parser.add_argument(
+        "--root-only",
+        action="store_true",
+        help="Only export root->child rows (target root routing first).",
+    )
     return parser.parse_args()
 
 
@@ -41,7 +46,14 @@ def subtree_leaf_indices(node) -> set[int]:
     return indices
 
 
-def walk_parent_child_rows(question: str, node, positive_leaf_indices: set[int], depth: int = 0):
+def walk_parent_child_rows(
+    question: str,
+    node,
+    positive_leaf_indices: set[int],
+    *,
+    depth: int = 0,
+    root_only: bool = False,
+):
     state = NavigatorState(relevance_score=float(depth))
     for child in node.children:
         child_leaf_indices = subtree_leaf_indices(child)
@@ -56,8 +68,14 @@ def walk_parent_child_rows(question: str, node, positive_leaf_indices: set[int],
             "child_leaf_indices": sorted(child_leaf_indices),
             "features": features,
         }
-        if not child.is_leaf:
-            yield from walk_parent_child_rows(question, child, positive_leaf_indices, depth + 1)
+        if not root_only and not child.is_leaf:
+            yield from walk_parent_child_rows(
+                question,
+                child,
+                positive_leaf_indices,
+                depth=depth + 1,
+                root_only=root_only,
+            )
 
 
 def main() -> None:
@@ -68,7 +86,12 @@ def main() -> None:
         tree = load_tree_from_json(ROOT / Path(sample["tree_path"]))
         question = str(sample["question"])
         positive_leaf_indices = {int(index) for index in sample.get("positive_leaf_indices", [])}
-        for row in walk_parent_child_rows(question, tree.root, positive_leaf_indices):
+        for row in walk_parent_child_rows(
+            question,
+            tree.root,
+            positive_leaf_indices,
+            root_only=bool(args.root_only),
+        ):
             row["sample_id"] = sample["sample_id"]
             row["question"] = question
             rows.append(row)

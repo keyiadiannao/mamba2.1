@@ -211,3 +211,32 @@ class LearnedClassifierRouter(BaseRouter):
             scored.append(ChildScore(node_id=node.node_id, score=float(score_value)))
 
         return _build_route_decision(children, scored)
+
+
+class LearnedRootHybridRouter(BaseRouter):
+    """Use learned linear head only at root, fallback to rule elsewhere."""
+
+    def __init__(
+        self,
+        checkpoint_path: str | Path,
+        *,
+        fallback_lexical_weight: float = 1.0,
+        fallback_cosine_weight: float = 0.0,
+    ) -> None:
+        self.root_router = LearnedClassifierRouter(checkpoint_path)
+        self.fallback_router = RuleRouter(
+            lexical_weight=fallback_lexical_weight,
+            cosine_weight=fallback_cosine_weight,
+        )
+
+    def rank_children(
+        self,
+        question: str,
+        parent: TreeNode,
+        children: list[TreeNode],
+        state: NavigatorState,
+    ) -> RouteDecision:
+        # ``state.path`` includes ``parent`` after navigator step in controller.
+        if len(state.path) <= 1:
+            return self.root_router.rank_children(question, parent, children, state)
+        return self.fallback_router.rank_children(question, parent, children, state)

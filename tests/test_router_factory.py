@@ -1,13 +1,35 @@
 from __future__ import annotations
 
+import json
+from pathlib import Path
+import tempfile
 import unittest
 
 from src.navigator import NavigatorState
-from src.router import CosineProbeRouter, RuleRouter, build_router
+from src.router import CosineProbeRouter, LearnedRootHybridRouter, RuleRouter, build_router
 from src.tree_builder import TreeNode
 
 
 class RouterFactoryTest(unittest.TestCase):
+    @staticmethod
+    def _write_checkpoint(path: Path) -> None:
+        payload = {
+            "feature_names": [
+                "child_is_leaf",
+                "cosine_probe",
+                "lexical_overlap",
+                "parent_relevance",
+                "text_length_tokens",
+            ],
+            # Favor larger lexical overlap heavily at root.
+            "weights": [-0.1, 0.2, 2.0, 0.0, -0.01],
+            "bias": 0.0,
+            "epochs": 1,
+            "lr": 0.1,
+            "row_count": 2,
+        }
+        path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
     def test_build_router_rule(self) -> None:
         router = build_router({"routing_mode": "rule"})
         self.assertIsInstance(router, RuleRouter)
@@ -61,6 +83,46 @@ class RouterFactoryTest(unittest.TestCase):
         self.assertIsInstance(router, RuleRouter)
         self.assertEqual(router.lexical_weight, 0.5)
         self.assertEqual(router.cosine_weight, 0.25)
+
+    def test_build_router_learned_root_classifier(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            checkpoint = Path(td) / "router.json"
+            self._write_checkpoint(checkpoint)
+            router = build_router(
+                {
+                    "routing_mode": "learned_root_classifier",
+                    "router_checkpoint_path": str(checkpoint),
+                    "router_lexical_weight": 1.0,
+                    "router_cosine_weight": 0.7,
+                }
+            )
+            self.assertIsInstance(router, LearnedRootHybridRouter)
+            self.assertEqual(router.fallback_router.lexical_weight, 1.0)
+            self.assertEqual(router.fallback_router.cosine_weight, 0.7)
+
+    def test_learned_root_classifier_uses_fallback_below_root(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            checkpoint = Path(td) / "router.json"
+            self._write_checkpoint(checkpoint)
+            router = build_router(
+                {
+                    "routing_mode": "learned_root_classifier",
+                    "router_checkpoint_path": str(checkpoint),
+                    "router_lexical_weight": 1.0,
+                    "router_cosine_weight": 0.0,
+                }
+            )
+            parent = TreeNode(node_id="branch", text="index")
+            child_a = TreeNode(node_id="a", text="test word")
+            child_b = TreeNode(node_id="b", text="test word " + "x " * 30)
+            decision = router.rank_children(
+                "test word",
+                parent,
+                [child_a, child_b],
+                NavigatorState(path=["root", "branch"], relevance_score=1.0),
+            )
+            # With fallback lexical-only at depth>0, tie-break remains node_id desc -> b first.
+            self.assertEqual(decision.ordered_children[0].node_id, "b")
 
 
 if __name__ == "__main__":
