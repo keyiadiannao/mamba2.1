@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from math import ceil
 
 from src.navigator import BaseNavigator, NavigatorState
 from src.router import BaseRouter, ChildScore, RouteDecision
@@ -21,6 +22,9 @@ class ControllerConfig:
     # 0 = disabled. When >0, cap how many accept_evidence entries may come from leaves under the same
     # direct child of the document root (root_branch), so navigation can spread across root subtrees.
     evidence_max_per_root_child: int = 0
+    # 0 = disabled. When >0, only explore top-M root children and allocate a soft per-root-child
+    # budget = ceil(max_evidence / M) to avoid early DFS lock-in on one root branch.
+    explore_top_m_root_children: int = 0
 
 
 class SSGSController:
@@ -73,6 +77,7 @@ class SSGSController:
         depth: int,
         question_entities: list[str],
         root_branch_anchor: str | None = None,
+        root_branch_budget: int | None = None,
     ) -> None:
         if len(trace.evidence_texts) >= self.config.max_evidence:
             return
@@ -110,7 +115,19 @@ class SSGSController:
             trace.visited_leaf_indices_deduped = cast_deduped
 
             if next_state.relevance_score >= self.config.min_relevance_score:
-                cap = int(self.config.evidence_max_per_root_child or 0)
+                cap_config = int(self.config.evidence_max_per_root_child or 0)
+                cap_budget = int(root_branch_budget or 0)
+                cap = 0
+                cap_source = "none"
+                if cap_config > 0 and cap_budget > 0:
+                    cap = min(cap_config, cap_budget)
+                    cap_source = "min(config,top_m_budget)"
+                elif cap_config > 0:
+                    cap = cap_config
+                    cap_source = "config"
+                elif cap_budget > 0:
+                    cap = cap_budget
+                    cap_source = "top_m_budget"
                 if cap > 0 and root_branch_anchor is not None:
                     n_same = sum(
                         1
@@ -128,6 +145,7 @@ class SSGSController:
                                 "score": float(next_state.relevance_score),
                                 "root_branch": root_branch_anchor,
                                 "cap": cap,
+                                "cap_source": cap_source,
                             }
                         )
                         return
@@ -187,7 +205,22 @@ class SSGSController:
                 ],
             }
         )
-        for child in ordered.ordered_children:
+        active_children = list(ordered.ordered_children)
+        top_m = int(self.config.explore_top_m_root_children or 0)
+        child_budget_for_depth = root_branch_budget
+        if depth == 0 and top_m > 0 and active_children:
+            active_children = active_children[: max(1, min(top_m, len(active_children)))]
+            child_budget_for_depth = int(ceil(self.config.max_evidence / len(active_children)))
+            trace.event_log.append(
+                {
+                    "event": "root_top_m_plan",
+                    "top_m": top_m,
+                    "active_root_children": [child.node_id for child in active_children],
+                    "per_root_child_budget": child_budget_for_depth,
+                }
+            )
+
+        for child in active_children:
             before_evidence = len(trace.evidence_texts)
             child_anchor = child.node_id if depth == 0 else root_branch_anchor
             self._explore_node(
@@ -198,6 +231,7 @@ class SSGSController:
                 depth + 1,
                 question_entities=question_entities,
                 root_branch_anchor=child_anchor,
+                root_branch_budget=child_budget_for_depth,
             )
             if len(trace.evidence_texts) == before_evidence:
                 trace.rollback_count += 1

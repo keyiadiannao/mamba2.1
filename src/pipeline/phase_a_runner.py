@@ -45,6 +45,7 @@ def build_controller(config: dict[str, Any]) -> SSGSController:
             max_nodes=int(config.get("max_nodes", 64)),
             entity_boost_alpha=float(config.get("entity_boost_alpha", 0.0)),
             evidence_max_per_root_child=int(config.get("evidence_max_per_root_child", 0)),
+            explore_top_m_root_children=int(config.get("explore_top_m_root_children", 0)),
         ),
     )
 

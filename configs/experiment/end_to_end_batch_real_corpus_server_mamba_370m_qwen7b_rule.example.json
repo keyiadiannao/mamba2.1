@@ -36,6 +36,7 @@
   "context_max_items": 8,
   "max_evidence": 8,
   "min_relevance_score": 1.0,
+  "explore_top_m_root_children": 0,
   "max_depth": 8,
   "max_nodes": 64
 }
