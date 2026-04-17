@@ -216,3 +216,4 @@ git pull origin main
 | 2026-04-17 | 新增 MI-008：确认 `root-miss` 为 `never_visit_gold` 主因；冻结启发式终版并切换学习式 root 路由主线。 |
 | 2026-04-17 | MI-008 补充：`learned_root_blend_alpha` 与 rule 分数混合为当前可用学习式 root 形态；记录见 `Navigation_Experiment_Record_CN.md` §6.5。 |
 | 2026-04-17 | MI-008：`500` 上 `α=0.5` 相对 `0.25` 金叶同量级、`nav_ms` 更优，工程默认 `learned_root_blend_alpha` 改为 **`0.5`**。 |
+| 2026-04-17 | MI-008：`α>0.5` 不设为常规必扫项（`α→1` 高风险、边际收益低）；例外见 `Navigation_Experiment_Record_CN.md` §6.5 末段。 |
