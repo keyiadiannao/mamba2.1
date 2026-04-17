@@ -13,10 +13,10 @@
 
 当前 `run_eval/` 目录中的第二阶段核心入口：
 
-- `run_end_to_end_batch.py`: 运行固定生成器的端到端 batch 评测  
+- `run_end_to_end_batch.py`: 运行固定生成器的端到端 batch 评测；**本机 Qwen 路径**可用 **`--generator-hf-model-name /path/to/Qwen2.5-7B-Instruct`** 或环境变量 **`GENERATOR_HF_MODEL_NAME`** 覆盖 JSON 中的 **`generator_hf_model_name`**（CLI 优先于 env）。  
 - **烟测（mock、无 GPU）**：`configs/experiment/end_to_end_batch_demo_smoke_ctxsel_overlap_k3.json`、**`..._overlap_k4.json`**、**`..._entity_k4.json`**（`question_entity_match_topk`），由 `tests/test_demo_ctxsel_k_smoke_batch.py` 覆盖。  
-- **B1 全量 500（与 §9.12 `rule` 仅差 `context_select_mode`）**：`configs/experiment/end_to_end_batch_real_corpus_server_mamba_370m_qwen7b_rule_ctxsel_entity_match_k4.example.json`（`question_entity_match_topk` + `k=4`）；本机 Qwen 路径仍用 **`run_end_to_end_batch.py --config ...`** 注入或编辑 JSON 内 **`generator_hf_model_name`**。  
+- **B1 全量 500（与 §9.12 `rule` 仅差 `context_select_mode`）**：`configs/experiment/end_to_end_batch_real_corpus_server_mamba_370m_qwen7b_rule_ctxsel_entity_match_k4.example.json`（`question_entity_match_topk` + `k=4`）；本机 Qwen 用 **`--generator-hf-model-name`** 或 **`GENERATOR_HF_MODEL_NAME`**，不必改 JSON。  
 - **B2（扩大打分池）**：在同上协议上增加 **`context_select_pool_max_items`**（例 **`…entity_match_k4_pool20.example.json`**，`pool_max=20`）。
-- `run_b_chain_phase2_three_arm.py`: **B 链 500** 三连跑（**rule** / **cosine_probe** / **oracle_item_leaves**），通过 `--generator-hf-model-name` 写入本机 Qwen 路径；支持 `--dry-run` 仅生成 `outputs/reports/tmp_phase2_configs/phase2_patch_*.json`。
+- `run_b_chain_phase2_three_arm.py`: **B 链 500** 三连跑（**rule** / **cosine_probe** / **oracle_item_leaves**）；本机 Qwen 用 **`--generator-hf-model-name`** 或仅设置 **`GENERATOR_HF_MODEL_NAME`**；支持 **`--dry-run`** 仅生成 `outputs/reports/tmp_phase2_configs/phase2_patch_*.json`。
 - `compare_end_to_end_reports.py`: 汇总端到端 `EM / F1 / ROUGE-L` 与导航过程指标
 - `export_end_to_end_diagnostics.py`: 从多个 batch 中导出对齐样本，便于人工诊断 `prompt / context / answer`

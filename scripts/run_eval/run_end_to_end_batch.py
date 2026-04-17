@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -14,11 +15,24 @@ from src.tracing import append_jsonl, make_run_id, write_json
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Run an end-to-end evaluation batch.")
+    parser = argparse.ArgumentParser(
+        description="Run an end-to-end evaluation batch.",
+        epilog=(
+            "Override generator path without editing JSON: "
+            "--generator-hf-model-name /path/to/Qwen2.5-7B-Instruct "
+            "or set env GENERATOR_HF_MODEL_NAME to the same path. "
+            "CLI wins over env over JSON."
+        ),
+    )
     parser.add_argument(
         "--config",
         required=True,
         help="Path to the end-to-end batch experiment config JSON.",
+    )
+    parser.add_argument(
+        "--generator-hf-model-name",
+        default=None,
+        help="Override config key generator_hf_model_name (local dir or Hub id).",
     )
     return parser.parse_args()
 
@@ -26,6 +40,9 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     config = load_json(ROOT / Path(args.config))
+    gen_override = (args.generator_hf_model_name or os.environ.get("GENERATOR_HF_MODEL_NAME") or "").strip()
+    if gen_override:
+        config["generator_hf_model_name"] = gen_override
     if not bool(config.get("run_generator", False)):
         raise ValueError("End-to-end batch config must set `run_generator` to true.")
 

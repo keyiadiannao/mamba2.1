@@ -29,7 +29,7 @@
 - **解决方案**：  
   1. 修复网络（代理、镜像、本机/服务器预下载并指向本地路径）。  
   2. 将该 `batch_id` 在实验结论中**单独标记为无效批次**，不参与与其它配置的优劣比较（见 MI-005）。  
-  3. **已有本机模型快照时**：把配置里的 `generator_hf_model_name`（或代码支持的 `generator_model_path`）设为**含 `config.json` 与权重的本地目录**（例如 AutoDL 的 `/root/autodl-tmp/models/Qwen2.5-7B-Instruct`），`transformers` 将直接 `from_pretrained(本地路径)`，不再访问 Hub / 镜像。若环境变量把端点指到不可达的 `hf-mirror.com`，应取消该设置或改为可用端点，否则仍可能在解析元数据时失败。  
+  3. **已有本机模型快照时**：把配置里的 `generator_hf_model_name`（或代码支持的 `generator_model_path`）设为**含 `config.json` 与权重的本地目录**（例如 AutoDL 的 `/root/autodl-tmp/models/Qwen2.5-7B-Instruct`），`transformers` 将直接 `from_pretrained(本地路径)`，不再访问 Hub / 镜像。亦可**不改 JSON**：对 `run_end_to_end_batch.py` 使用 **`--generator-hf-model-name <目录>`**，或导出环境变量 **`GENERATOR_HF_MODEL_NAME`**（CLI 优先于 env，二者均覆盖 JSON 中的同名字段）。若环境变量把端点指到不可达的 `hf-mirror.com`，应取消该设置或改为可用端点，否则仍可能在解析元数据时失败。  
 - **验证**：同配置在修复网络后复跑小批（如 20 条）应使 `generation_error` 归零或降至可接受比例；`run_payload.json` 中可抽查单条 `generation_error` 字段。
 
 ---

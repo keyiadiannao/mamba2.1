@@ -11,6 +11,10 @@ Requires a local generator snapshot path (AutoDL / offline HF), e.g.:
   python scripts/run_eval/run_b_chain_phase2_three_arm.py \\
     --generator-hf-model-name /root/autodl-tmp/models/Qwen2.5-7B-Instruct
 
+  # or only in shell:
+  export GENERATOR_HF_MODEL_NAME=/root/autodl-tmp/models/Qwen2.5-7B-Instruct
+  python scripts/run_eval/run_b_chain_phase2_three_arm.py
+
 Writes patched JSON under outputs/reports/tmp_phase2_configs/ then invokes
 run_end_to_end_batch.py for each arm in order.
 """
@@ -18,6 +22,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -48,8 +53,11 @@ def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument(
         "--generator-hf-model-name",
-        required=True,
-        help="Local directory or Hub id for Qwen (use local dir on AutoDL when Hub is unreachable).",
+        default=None,
+        help=(
+            "Local directory or Hub id for Qwen. If omitted, uses env GENERATOR_HF_MODEL_NAME "
+            "(required unless set)."
+        ),
     )
     p.add_argument(
         "--dry-run",
@@ -61,6 +69,15 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
+    gen = (args.generator_hf_model_name or os.environ.get("GENERATOR_HF_MODEL_NAME") or "").strip()
+    if not gen:
+        print(
+            "ERROR: set --generator-hf-model-name or environment variable GENERATOR_HF_MODEL_NAME "
+            "(local Qwen directory, e.g. /root/autodl-tmp/models/Qwen2.5-7B-Instruct).",
+            file=sys.stderr,
+        )
+        return 2
+
     free_gb = shutil.disk_usage(_REPO_ROOT).free / (1024**3)
     if free_gb < 5.0:
         print(
@@ -79,7 +96,7 @@ def main() -> int:
             print(f"Missing config: {src}", file=sys.stderr)
             return 2
         cfg = json.loads(src.read_text(encoding="utf-8"))
-        cfg["generator_hf_model_name"] = str(args.generator_hf_model_name).strip()
+        cfg["generator_hf_model_name"] = gen
         tmp = out_dir / f"phase2_patch_{label}.json"
         tmp.write_text(json.dumps(cfg, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
         rel = tmp.relative_to(_REPO_ROOT).as_posix()
@@ -91,7 +108,7 @@ def main() -> int:
         return 0
 
     for rel in rel_paths:
-        cmd = [sys.executable, str(runner), "--config", rel]
+        cmd = [sys.executable, str(runner), "--config", rel, "--generator-hf-model-name", gen]
         print("Running:", " ".join(cmd))
         subprocess.run(cmd, cwd=str(_REPO_ROOT), check=True)
     return 0
