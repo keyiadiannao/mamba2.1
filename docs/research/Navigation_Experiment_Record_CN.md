@@ -327,6 +327,15 @@ rm -f /tmp/nav_smoke_rule.json /tmp/nav_smoke_learned.json
 
    **排错：`exact_match_rate` / `avg_answer_f1` 全为 0 但 `nav_success_rate=1`**：常见原因是 **`reference_answer` 在 manifest 中为列表**（如 2Wiki 多答案），旧版 `run_end_to_end_batch` 用 ``str(list)`` 或管线未规范化，导致 **不参与 EM/F1 打分** 或参考串错误。仓库已统一 **`normalize_reference_for_scoring`**（`src/evaluation/reference_answer.py`）；**请 `git pull` 后重跑该端到端批** 再比 EM。若仍全零，再查 **`trace.generation_error`** 与 **`reference_answer`** 字段是否为空（任一样本 `run_payload.json`）。
 
+   **P0 端到端 `500` 实测（`Qwen2.5-7B-Instruct`，同 manifest / 同导航协议模版；2026-04-17）**  
+
+   | 臂 | `batch_id` | `exact_match_rate` | `avg_answer_f1` | `avg_nav_wall_time_ms` |
+   |:---|:---|---:|---:|---:|
+   | A `rule`（frozen nav） | `end_to_end_p0_real_corpus_370m_qwen7b_rule_frozen_nav_20260417_154358Z` | **0.186**（93/500） | **≈0.205** | **≈1247** |
+   | B `learned_root` + `blend=0.5` | `end_to_end_p0_real_corpus_370m_qwen7b_learned_root_blend05_20260417_160609Z` | **0.200**（100/500） | **≈0.221** | **≈1301** |
+
+   **结论**：**臂 B 相对臂 A：EM 与 F1 略升，`nav_ms` 略增**；与证据侧金叶摘要（`visited≈0.454` vs `≈0.428`）同向，支持 **「混合 root 不仅修导航过程指标，也传导到端到端答案质量」** 的阶段性判断（仍属小幅差距，不宜过度外推）。
+
 2. **导航侧回归（按需）**  
    - **`pilot200`** 或更大切片：用 **默认 `α=0.5`** 与 **rule** 各一批，对照 **`frac_gold_leaf_ever_visited_deduped` / `gold_missing` / `nav_ms`**，防止仅 `500` 子集偶然。
 

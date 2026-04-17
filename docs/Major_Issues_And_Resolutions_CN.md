@@ -218,3 +218,4 @@ git pull origin main
 | 2026-04-17 | MI-008：`500` 上 `α=0.5` 相对 `0.25` 金叶同量级、`nav_ms` 更优，工程默认 `learned_root_blend_alpha` 改为 **`0.5`**。 |
 | 2026-04-17 | MI-008：`α>0.5` 不设为常规必扫项（`α→1` 高风险、边际收益低）；例外见 `Navigation_Experiment_Record_CN.md` §6.5 末段。 |
 | 2026-04-17 | 端到端 EM 全零：manifest 中 **`reference_answer` 为 list** 时旧逻辑未规范化；已用 **`normalize_reference_for_scoring`** 修复（见 `Navigation_Experiment_Record_CN.md` §6.6 排错）。 |
+| 2026-04-17 | P0 端到端 `500`：`learned_root blend0.5` 相对 `rule` frozen，**EM 0.200 vs 0.186**，见 `Navigation_Experiment_Record_CN.md` §6.6 表。 |
