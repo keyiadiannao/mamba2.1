@@ -81,7 +81,9 @@ git fetch origin
 git pull origin main
 ```
 
-**注意**：第三方代理有**可用性 / 合规 / 单点故障**；部分环境 **`git push`** 经代理会失败，需改回 **`git@github.com:...`** 或直连 `https://github.com/...`；**LFS / submodule** 可能需额外配置。代理不可用时仍回到 **4** 的 `wget` 定点覆盖。  
+**若出现 `HTTP/2 stream ... was not closed cleanly: PROTOCOL_ERROR`**（经 `ghproxy` 等拉 `github.com` 时偶发）：在仓库目录执行 **`git config http.version HTTP/1.1`**（或 **`git config --global http.version HTTP/1.1`**）后重试 `fetch`/`pull`；仍失败则暂时 **`git remote set-url origin 'https://github.com/keyiadiannao/mamba2.1.git'`**（直连）或仅用 **4** 的 **`wget` raw** 补缺失文件。  
+
+**注意**：第三方代理有**可用性 / 合规 / 单点故障**；部分环境 **`git push`** 经代理会失败，需改回 **`git@github.com:...`** 或直连 `https://github.com/...`；**LFS / submodule** 可能需额外配置。代理不可用时仍回到 **4** 的 `wget` 定点覆盖。**`git pull` 失败时**若跑批报错 **`FileNotFoundError` 缺 `configs/experiment/*.json`**，用 **4** 对 `REL_PATH` 逐条 `wget` 即可，不必等整仓拉通。  
 
 - **验证**：服务器上关键文件与提交内容一致（哈希或 diff）；实验复跑与本地同提交结果可对照。
 
