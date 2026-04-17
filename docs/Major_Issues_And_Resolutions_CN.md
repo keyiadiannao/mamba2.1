@@ -85,6 +85,8 @@ git pull origin main
 
 **注意**：第三方代理有**可用性 / 合规 / 单点故障**；部分环境 **`git push`** 经代理会失败，需改回 **`git@github.com:...`** 或直连 `https://github.com/...`；**LFS / submodule** 可能需额外配置。代理不可用时仍回到 **4** 的 `wget` 定点覆盖。**`git pull` 失败时**若跑批报错 **`FileNotFoundError` 缺 `configs/experiment/*.json`**，用 **4** 对 `REL_PATH` 逐条 `wget` 即可，不必等整仓拉通。  
 
+7. **`git pull` 同时报「已跟踪文件本地修改将被覆盖」与「未跟踪文件将被覆盖」**：常见于先前 **`wget` 落在仓库内**、与远端**新纳入跟踪**的同名路径冲突，且 **`configs/*.json` 或文档**在服务器上被手改过。**以远端 `main` 为准**时：先把报错里列出的 **未跟踪** 路径移出仓库（如 **`mkdir -p /tmp/mamba_git_bak && mv <路径…> /tmp/mamba_git_bak/`**），再 **`git restore --worktree -- <已跟踪路径或目录>`** 丢弃本地修改，最后 **`git pull origin main`**。**须保留本地改动**时：先 **`git stash push -u -m autodl`**，再 **`git pull`**，最后 **`git stash pop`**（可能有冲突需手解）。  
+
 - **验证**：服务器上关键文件与提交内容一致（哈希或 diff）；实验复跑与本地同提交结果可对照。
 
 ---
