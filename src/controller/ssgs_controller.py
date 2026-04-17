@@ -25,6 +25,12 @@ class ControllerConfig:
     # 0 = disabled. When >0, only explore top-M root children and allocate a soft per-root-child
     # budget = ceil(max_evidence / M) to avoid early DFS lock-in on one root branch.
     explore_top_m_root_children: int = 0
+    # Root probe mode (safer than hard top-M truncation):
+    # 1) probe top-M root children with a tiny per-branch evidence budget,
+    # 2) explore non-probed root children normally,
+    # 3) revisit probed children normally if evidence slots remain.
+    explore_root_probe_top_m: int = 0
+    explore_root_probe_budget_per_child: int = 1
 
 
 class SSGSController:
@@ -115,6 +121,17 @@ class SSGSController:
             trace.visited_leaf_indices_deduped = cast_deduped
 
             if next_state.relevance_score >= self.config.min_relevance_score:
+                if node.node_id in trace.evidence_node_ids:
+                    trace.event_log.append(
+                        {
+                            "event": "skip_duplicate_evidence",
+                            "node_id": node.node_id,
+                            "leaf_index": leaf_index,
+                            "score": float(next_state.relevance_score),
+                            "root_branch": root_branch_anchor,
+                        }
+                    )
+                    return
                 cap_config = int(self.config.evidence_max_per_root_child or 0)
                 cap_budget = int(root_branch_budget or 0)
                 cap = 0
@@ -205,22 +222,7 @@ class SSGSController:
                 ],
             }
         )
-        active_children = list(ordered.ordered_children)
-        top_m = int(self.config.explore_top_m_root_children or 0)
-        child_budget_for_depth = root_branch_budget
-        if depth == 0 and top_m > 0 and active_children:
-            active_children = active_children[: max(1, min(top_m, len(active_children)))]
-            child_budget_for_depth = int(ceil(self.config.max_evidence / len(active_children)))
-            trace.event_log.append(
-                {
-                    "event": "root_top_m_plan",
-                    "top_m": top_m,
-                    "active_root_children": [child.node_id for child in active_children],
-                    "per_root_child_budget": child_budget_for_depth,
-                }
-            )
-
-        for child in active_children:
+        def _explore_child(child: TreeNode, child_budget: int | None) -> None:
             before_evidence = len(trace.evidence_texts)
             child_anchor = child.node_id if depth == 0 else root_branch_anchor
             self._explore_node(
@@ -231,7 +233,7 @@ class SSGSController:
                 depth + 1,
                 question_entities=question_entities,
                 root_branch_anchor=child_anchor,
-                root_branch_budget=child_budget_for_depth,
+                root_branch_budget=child_budget,
             )
             if len(trace.evidence_texts) == before_evidence:
                 trace.rollback_count += 1
@@ -254,6 +256,61 @@ class SSGSController:
                     }
                 )
 
+            if len(trace.evidence_texts) >= self.config.max_evidence:
+                return
+
+        ordered_children = list(ordered.ordered_children)
+
+        if depth == 0 and ordered_children:
+            probe_top_m = int(self.config.explore_root_probe_top_m or 0)
+            probe_budget = int(self.config.explore_root_probe_budget_per_child or 0)
+            if probe_top_m > 0 and probe_budget > 0:
+                probe_children = ordered_children[: max(1, min(probe_top_m, len(ordered_children)))]
+                probe_ids = {child.node_id for child in probe_children}
+                non_probe_children = [child for child in ordered_children if child.node_id not in probe_ids]
+                trace.event_log.append(
+                    {
+                        "event": "root_probe_plan",
+                        "probe_top_m": probe_top_m,
+                        "probe_budget_per_child": probe_budget,
+                        "probe_root_children": [child.node_id for child in probe_children],
+                        "non_probe_root_children": [child.node_id for child in non_probe_children],
+                    }
+                )
+                # Phase 1: cheap probe on top-M
+                for child in probe_children:
+                    _explore_child(child, probe_budget)
+                    if len(trace.evidence_texts) >= self.config.max_evidence:
+                        return
+                # Phase 2: cover non-probe branches normally
+                for child in non_probe_children:
+                    _explore_child(child, root_branch_budget)
+                    if len(trace.evidence_texts) >= self.config.max_evidence:
+                        return
+                # Phase 3: revisit probed branches without probe cap if slots remain
+                for child in probe_children:
+                    _explore_child(child, root_branch_budget)
+                    if len(trace.evidence_texts) >= self.config.max_evidence:
+                        return
+                return
+
+        active_children = ordered_children
+        top_m = int(self.config.explore_top_m_root_children or 0)
+        child_budget_for_depth = root_branch_budget
+        if depth == 0 and top_m > 0 and active_children:
+            active_children = active_children[: max(1, min(top_m, len(active_children)))]
+            child_budget_for_depth = int(ceil(self.config.max_evidence / len(active_children)))
+            trace.event_log.append(
+                {
+                    "event": "root_top_m_plan",
+                    "top_m": top_m,
+                    "active_root_children": [child.node_id for child in active_children],
+                    "per_root_child_budget": child_budget_for_depth,
+                }
+            )
+
+        for child in active_children:
+            _explore_child(child, child_budget_for_depth)
             if len(trace.evidence_texts) >= self.config.max_evidence:
                 break
 
