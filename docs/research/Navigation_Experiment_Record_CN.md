@@ -168,8 +168,54 @@
 **小样本扫参（与全量同一 manifest、同一 checkpoint）**：
 
 - 使用 `scripts/run_nav/run_navigation_batch.py` 的 **`--max-samples N`**（仅截取 manifest 前 `N` 条，**不修改** manifest 文件）。
-- 建议 `N=50`；`α ∈ {0, 0.25, 0.5}` + **rule 冻结基线** 各跑一批，`batch_id_prefix` 带 `smoke50_blend_a000` 等后缀便于检索。
-- 服务器可复制脚本：`scripts/run_nav/run_blend_alpha_smoke.sh`（环境变量 `NAV_SMOKE_N`、`REPO_ROOT` 可调）。
+- 建议 `N=50`；`α ∈ {0, 0.25, 0.5}` + **rule 冻结基线** 各跑一批，`batch_id_prefix` 带时间/后缀便于检索。
+- **不必依赖独立 `.sh`**：在终端用短 **`python -c`** 写出临时配置再跑即可（见下）；跑完可删 `/tmp/nav_smoke_*.json`，避免配置碎片堆积。
+
+**终端粘贴示例（仓库根目录、`N=50`；每段跑完再贴下一段；`STAMP` 自行改成固定字符串亦可）**：
+
+```bash
+cd /root/autodl-tmp/mamba2.1
+export STAMP=$(date -u +%Y%m%d_%H%M%SZ)
+export NAV_SMOKE_N=50
+```
+
+Rule 冻结基线一批：
+
+```bash
+python <<'PY'
+import json
+from pathlib import Path
+import os
+n, stamp = int(os.environ["NAV_SMOKE_N"]), os.environ["STAMP"]
+c = json.loads(Path("configs/experiment/navigation_batch_real_corpus_rule_frozen_heuristic_cos07_probe1_e8_pool20.example.json").read_text(encoding="utf-8"))
+c["batch_id_prefix"] = c["run_id_prefix"] = f"nav_smoke{n}_rule_{stamp}"
+Path("/tmp/nav_smoke_rule.json").write_text(json.dumps(c, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+PY
+python scripts/run_nav/run_navigation_batch.py --config /tmp/nav_smoke_rule.json --max-samples "$NAV_SMOKE_N"
+```
+
+Learned 一批（改 **`BLEND_ALPHA`** 为 `0.0`、`0.25`、`0.5` 各跑一次）：
+
+```bash
+export BLEND_ALPHA=0.25
+python <<'PY'
+import json
+from pathlib import Path
+import os
+n, stamp = int(os.environ["NAV_SMOKE_N"]), os.environ["STAMP"]
+a = float(os.environ["BLEND_ALPHA"])
+c = json.loads(Path("configs/experiment/navigation_batch_real_corpus_learned_root_v2.example.json").read_text(encoding="utf-8"))
+c["learned_root_blend_alpha"] = a
+tag = str(a).replace(".", "_")
+c["batch_id_prefix"] = c["run_id_prefix"] = f"nav_smoke{n}_blend_a{tag}_{stamp}"
+Path("/tmp/nav_smoke_learned.json").write_text(json.dumps(c, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+PY
+python scripts/run_nav/run_navigation_batch.py --config /tmp/nav_smoke_learned.json --max-samples "$NAV_SMOKE_N"
+```
+
+```bash
+rm -f /tmp/nav_smoke_rule.json /tmp/nav_smoke_learned.json
+```
 
 ---
 
