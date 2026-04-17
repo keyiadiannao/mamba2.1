@@ -233,7 +233,7 @@ class LearnedRootHybridRouter(BaseRouter):
         *,
         fallback_lexical_weight: float = 1.0,
         fallback_cosine_weight: float = 0.0,
-        blend_alpha: float = 0.25,
+        blend_alpha: float = 0.5,
     ) -> None:
         self.root_router = LearnedClassifierRouter(checkpoint_path)
         self.fallback_router = RuleRouter(

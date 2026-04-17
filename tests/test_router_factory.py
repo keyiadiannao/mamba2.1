@@ -105,7 +105,7 @@ class RouterFactoryTest(unittest.TestCase):
             self.assertIsInstance(router, LearnedRootHybridRouter)
             self.assertEqual(router.fallback_router.lexical_weight, 1.0)
             self.assertEqual(router.fallback_router.cosine_weight, 0.7)
-            self.assertEqual(router.blend_alpha, 0.25)
+            self.assertEqual(router.blend_alpha, 0.5)
 
     def test_learned_root_blend_zero_matches_rule_at_root(self) -> None:
         with tempfile.TemporaryDirectory() as td:

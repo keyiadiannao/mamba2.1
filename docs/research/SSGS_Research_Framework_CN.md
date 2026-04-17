@@ -778,7 +778,7 @@ mamba2.1/
 - `B3->B1 <= B1->B3`；  
 - 在可接受 `nav_ms` 增量下成立（同预算对照）。
 
-**工程结论（2026-04）**：在 **全 fan-out** 下 **纯线性 root 头**不可用；**`learned_root_blend_alpha`**（与 rule 混合）为当前可行形态；小样本扫参时用 **`run_navigation_batch.py --max-samples N`** 保持 **同一 manifest 与同一 checkpoint**，只调 **`α`** 与 **`batch_id_prefix`**（见 **`Navigation_Experiment_Record_CN.md` §6.5**）。
+**工程结论（2026-04）**：在 **全 fan-out** 下 **纯线性 root 头**不可用；**`learned_root_blend_alpha`**（与 rule 混合）为当前可行形态；**`500` 复验后默认 `α=0.5`**（相对 `0.25` 金叶同量级、**`nav_ms` 更优**）。小样本扫参时用 **`run_navigation_batch.py --max-samples N`** 保持 **同一 manifest 与同一 checkpoint**，只调 **`α`** 与 **`batch_id_prefix`**（见 **`Navigation_Experiment_Record_CN.md` §6.5**）。
 
 ### 16.3 工程与运维增量（2026-04，与论文叙事并行）
 

@@ -154,14 +154,16 @@
 
 **主结果批（`N=500`，`real_corpus_navigation_batch.json`）**：
 
-| 项 | 值 |
-|:---|:---|
-| `batch_id` | `nav_real_corpus_mamba370m_learned_root_v2_cap128_train_20260417_131511Z` |
-| `learned_root_blend_alpha` | `0.25`（约 75% rule + 25% learned） |
-| `nav_success_rate` | `1.0` |
-| `avg_nav_wall_time_ms` | `≈1913` |
-| `exact_match_rate` | `0.11`（55/500） |
-| `analyze_evidence_saturation`（同 `batch_id`） | `frac_gold_leaf_ever_visited_deduped≈0.456`，`frac_gold_in_accepted_evidence≈0.392`，`sample_count_gold_missing_from_evidence=304` |
+| 项 | `α=0.25` | `α=0.5`（**仓库默认**，2026-04-17 500 复验） |
+|:---|:---|:---|
+| `batch_id` | `nav_real_corpus_mamba370m_learned_root_v2_cap128_train_20260417_131511Z` | `nav_real_corpus_mamba370m_learned_root_blend_a0_5_500_20260417_144435Z_20260417_144435Z` |
+| `nav_success_rate` | `1.0` | `1.0` |
+| `exact_match_rate` | `0.11` | `0.112`（同量级） |
+| `avg_nav_wall_time_ms` | `≈1913` | **`≈1352`**（明显更快） |
+| `analyze_evidence_saturation` | `visited≈0.456`，`accepted≈0.392`，`gold_missing=304` | `visited≈0.454`，`accepted≈0.394`，`gold_missing=303`（同量级） |
+| 全量金叶报告 json（示例） | — | `outputs/reports/evidence_sat_blend_a0_5_500_144435Z.json` |
+
+**默认 `α` 选择**：金叶过程指标在 **500** 上 **`0.25` 与 `0.5` 无实质差异**；**`0.5` 在 `nav_ms` 上显著更优**、EM 不降，故 **工程默认改为 `learned_root_blend_alpha=0.5`**（未写配置键时 `factory` 回退默认亦为 `0.5`）。若需复现 **`0.25`** 行为，在 JSON 中显式写 **`0.25`**。
 
 **对照锚点**：同一协议下 **纯 `learned_root_classifier`（`learned_root_blend_alpha=1` 或未实现混合前的行为）** 在 `500` 上金叶访问近零（`frac_gold_leaf_ever_visited_deduped` 约 `0.002` 量级），与上表差异来自 **混合而非再训练**。
 
@@ -228,7 +230,7 @@ rm -f /tmp/nav_smoke_rule.json /tmp/nav_smoke_learned.json
 | `0.3` | `nav_smoke50_blend_a0_3_20260417_141228Z_20260417_143159Z` |
 | `0.5` | `nav_smoke50_blend_a0_5_20260417_141228Z_20260417_142841Z` |
 
-过程指标请用 `scripts/diagnostics/analyze_evidence_saturation.py --batch-id '<上表>'` 自行汇总；若某 `α` 在 `50` 条上金叶与 `nav_ms` 均不劣于 `α=0.25`，再考虑上 **`N=500`** 复验。
+过程指标请用 `scripts/diagnostics/analyze_evidence_saturation.py --batch-id '<上表>'` 自行汇总；**`N=50` 烟测**通过后已在 **`N=500`** 上复验 **`α=0.5`**（见上表）。
 
 ---
 

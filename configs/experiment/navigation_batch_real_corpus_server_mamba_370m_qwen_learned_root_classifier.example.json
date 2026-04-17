@@ -21,7 +21,7 @@
   "generator_type": "qwen",
   "generator_model_name": "qwen",
   "routing_mode": "learned_root_classifier",
-  "learned_root_blend_alpha": 0.25,
+  "learned_root_blend_alpha": 0.5,
   "router_checkpoint_path": "configs/router/learned_root_router_real_corpus.json",
   "router_lexical_weight": 1.0,
   "router_cosine_weight": 0.7,
