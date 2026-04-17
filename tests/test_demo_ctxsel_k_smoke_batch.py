@@ -41,6 +41,7 @@ class DemoCtxselKSmokeBatchTests(unittest.TestCase):
         for rel in (
             "configs/experiment/end_to_end_batch_demo_smoke_ctxsel_overlap_k3.json",
             "configs/experiment/end_to_end_batch_demo_smoke_ctxsel_overlap_k4.json",
+            "configs/experiment/end_to_end_batch_demo_smoke_ctxsel_entity_k4.json",
         ):
             summary, payloads = _run_demo_batch(rel)
             self.assertEqual(summary["sample_count"], 3, msg=rel)
