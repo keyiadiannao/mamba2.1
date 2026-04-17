@@ -234,6 +234,31 @@ rm -f /tmp/nav_smoke_rule.json /tmp/nav_smoke_learned.json
 
 过程指标请用 `scripts/diagnostics/analyze_evidence_saturation.py --batch-id '<上表>'` 自行汇总；**`N=50` 烟测**通过后已在 **`N=500`** 上复验 **`α=0.5`**（见上表）。
 
+### 6.6 下一阶段计划（维护决策，2026-04）
+
+以下顺序为 **默认主线**；**不再把 `α>0.5` 常规化**（见 §6.5 末段）。
+
+**P0（优先，验证「导航改进是否传到终点」）**
+
+1. **端到端一批（`500` 或当前主 manifest）**  
+   - **臂 A**：冻结启发式 **`routing_mode=rule`**（与现 frozen 模版一致）。  
+   - **臂 B**：**`learned_root_classifier` + `learned_root_blend_alpha=0.5`**（与现默认一致）。  
+   - **固定**：同 **`samples_path`**、同生成器配置、同 **`context_select_*`**；只改 **`routing_mode` / `learned_root_blend_alpha` / `batch_id_prefix`**。  
+   - **验收**：`generation_error` 统计、`EM/F1`、可选 **`analyze_evidence_saturation.py --with-context-gold-metrics`** 看 ctx-gold。  
+
+2. **导航侧回归（按需）**  
+   - **`pilot200`** 或更大切片：用 **默认 `α=0.5`** 与 **rule** 各一批，对照 **`frac_gold_leaf_ever_visited_deduped` / `gold_missing` / `nav_ms`**，防止仅 `500` 子集偶然。
+
+**P1（仅当 P0 显示瓶颈仍在「读侧 / 上下文」）**
+
+3. **读侧与候选池**（与 MI-003 / MI-006 叙事一致）：在导航臂已固定的前提下，评估 **`context_select_mode` / `context_select_pool_max_items`** 等 **不改变 Controller 接受逻辑** 的改动。  
+
+**P2（不默认排期）**
+
+4. **学习式 root 再增强**：仅当产品/论文需要 **更强 learned 分量** 时，再开 **`max-root-children`↑、cap 外 hard negatives、listwise 目标细化`**；**不与 `α>0.5` 扫参混在同一里程碑**。  
+
+5. **`α` 上界研究**：仅论文需要时 **烟测 `0.6`～`0.7` + 金叶闸门**，不纳入常规迭代。
+
 ---
 
 ## 7. Learned Head 记录
