@@ -828,6 +828,41 @@ class PhaseARunnerTest(unittest.TestCase):
         for call in mock_run_navigation_sample.call_args_list[1:]:
             self.assertIs(call.kwargs["controller"], shared_controller)
 
+    def test_navigation_batch_max_samples_truncates(self) -> None:
+        config_path = Path("configs/experiment/navigation_batch_demo.json").resolve()
+
+        def fake_build_controller(config):
+            return object()
+
+        with patch("src.pipeline.build_controller", side_effect=fake_build_controller), patch(
+            "src.pipeline.run_navigation_sample"
+        ) as mock_run_navigation_sample, patch(
+            "src.tracing.make_run_id",
+            return_value="batch_test_max2",
+        ), patch("src.tracing.write_json") as mock_write, patch("src.tracing.append_jsonl"):
+            mock_run_navigation_sample.side_effect = [
+                {"run_id": "r1", "sample_id": "s1", "trace": {"nav_success": True}},
+                {"run_id": "r2", "sample_id": "s2", "trace": {"nav_success": True}},
+            ]
+
+            with patch(
+                "sys.argv",
+                [
+                    "run_navigation_batch.py",
+                    "--config",
+                    str(config_path),
+                    "--max-samples",
+                    "2",
+                ],
+            ):
+                runpy.run_module("scripts.run_nav.run_navigation_batch", run_name="__main__")
+
+        self.assertEqual(mock_run_navigation_sample.call_count, 2)
+        written = mock_write.call_args[0][1]
+        self.assertEqual(written["manifest_sample_count"], 3)
+        self.assertEqual(written["max_samples"], 2)
+        self.assertEqual(written["sample_count"], 2)
+
 
 if __name__ == "__main__":
     unittest.main()

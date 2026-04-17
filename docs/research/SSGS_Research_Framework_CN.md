@@ -709,7 +709,7 @@ mamba2.1/
 
 ### 15.3 当前阶段对 learned head 的定位
 
-当前 learned classifier 的系统地位可以固定为：
+当前 **全树线性 `learned_classifier`** 的系统地位可以固定为：
 
 1. 已完成接入
 - 代码、训练脚本、checkpoint 与真实语料运行链都已打通
@@ -717,9 +717,10 @@ mamba2.1/
 2. 已完成真实语料验证
 - 它不再只是概念接口，而是真正在真实子集上跑过的一条 routing arm
 
-3. 暂不进入主结果表
-- 当前真实子集实验显示其回溯次数显著偏高，且 evidence budget 基本被打满
-- 因此，更适合把它放在补充实验、负结果或消融部分，而不是当前阶段的主推 routing
+3. 单独作为主 routing 仍不成立
+- 历史实验显示回溯与证据形态问题仍在；**纯 learned** 不适合无约束主推
+
+**补充（2026-04）**：**`learned_root_classifier` + `learned_root_blend_alpha`**（根上与 `RuleRouter` 分数混合）在 **`500`** 上已恢复与冻结启发式同量级的金叶过程指标与可接受的终点 EM（见 **`Navigation_Experiment_Record_CN.md` §6.5**）。叙事上应区分 **「纯 learned」** 与 **「混合 root」**，后者可作为当前阶段 **有限主线的工程选项**，并固定 **`α` 与训练导出 cap**。
 
 ---
 
@@ -776,6 +777,8 @@ mamba2.1/
 - `in_context` 上升；  
 - `B3->B1 <= B1->B3`；  
 - 在可接受 `nav_ms` 增量下成立（同预算对照）。
+
+**工程结论（2026-04）**：在 **全 fan-out** 下 **纯线性 root 头**不可用；**`learned_root_blend_alpha`**（与 rule 混合）为当前可行形态；小样本扫参时用 **`run_navigation_batch.py --max-samples N`** 保持 **同一 manifest 与同一 checkpoint**，只调 **`α`** 与 **`batch_id_prefix`**（见 **`Navigation_Experiment_Record_CN.md` §6.5**）。
 
 ### 16.3 工程与运维增量（2026-04，与论文叙事并行）
 

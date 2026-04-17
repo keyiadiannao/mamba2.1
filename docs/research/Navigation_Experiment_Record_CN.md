@@ -142,6 +142,35 @@
 - 不应把“谁绝对更快”写成过强结论
 - 不应把 learned classifier 当前结果写成主线收益
 
+### 6.5 学习式 root + rule 混合（`learned_root_blend_alpha`，2026-04）
+
+**目的**：在冻结启发式协议（`cos0.7 + probe1 + e8 + pool20`）下，验证 **线性 root 头** 在真实语料上是否可用；结论为 **纯 learned 不可用，必须与 `RuleRouter` 分数混合**。
+
+**训练数据口径（与扫参对照无关，须固定）**：
+
+- 导出：`scripts/run_nav/export_router_training_data.py` 的 **`--root-only`** + **`--max-root-children 128`**（示例输出 `router_training_data_root_v2.jsonl`）。
+- 训练：`scripts/run_nav/train_learned_router.py`，**`--loss listwise_softmax`**（默认），写出 **`configs/router/learned_root_router_real_corpus.json`**。
+- **扫 `α` 或换 rule 对照臂时，不要改上述 jsonl / checkpoint**，除非明确在做「新训练数据消融」；否则只改导航配置里的 **`learned_root_blend_alpha`** 与 **`batch_id_prefix`**。
+
+**主结果批（`N=500`，`real_corpus_navigation_batch.json`）**：
+
+| 项 | 值 |
+|:---|:---|
+| `batch_id` | `nav_real_corpus_mamba370m_learned_root_v2_cap128_train_20260417_131511Z` |
+| `learned_root_blend_alpha` | `0.25`（约 75% rule + 25% learned） |
+| `nav_success_rate` | `1.0` |
+| `avg_nav_wall_time_ms` | `≈1913` |
+| `exact_match_rate` | `0.11`（55/500） |
+| `analyze_evidence_saturation`（同 `batch_id`） | `frac_gold_leaf_ever_visited_deduped≈0.456`，`frac_gold_in_accepted_evidence≈0.392`，`sample_count_gold_missing_from_evidence=304` |
+
+**对照锚点**：同一协议下 **纯 `learned_root_classifier`（`learned_root_blend_alpha=1` 或未实现混合前的行为）** 在 `500` 上金叶访问近零（`frac_gold_leaf_ever_visited_deduped` 约 `0.002` 量级），与上表差异来自 **混合而非再训练**。
+
+**小样本扫参（与全量同一 manifest、同一 checkpoint）**：
+
+- 使用 `scripts/run_nav/run_navigation_batch.py` 的 **`--max-samples N`**（仅截取 manifest 前 `N` 条，**不修改** manifest 文件）。
+- 建议 `N=50`；`α ∈ {0, 0.25, 0.5}` + **rule 冻结基线** 各跑一批，`batch_id_prefix` 带 `smoke50_blend_a000` 等后缀便于检索。
+- 服务器可复制脚本：`scripts/run_nav/run_blend_alpha_smoke.sh`（环境变量 `NAV_SMOKE_N`、`REPO_ROOT` 可调）。
+
 ---
 
 ## 7. Learned Head 记录
@@ -155,13 +184,13 @@
 - evidence budget 基本打满
 - 暂不适合作为当前主结果组
 
-因此，当前建议把 learned classifier 定位为：
+因此，当前建议把 **全树单一线性 `learned_classifier`** 定位为：
 
 - `补充实验`
-- `负结果`
+- `负结果`（若不做结构修复）
 - `后续优化接口`
 
-而不是当前阶段主表方案。
+**补充（2026-04）**：**`learned_root_classifier` + `learned_root_blend_alpha`（与 rule 分数混合）** 在 `500` 上已恢复与启发式同量级的金叶可达性与可接受的 EM（见 **§6.5**）。主表若引用学习式 root，应写明 **混合系数 `α`** 与 **训练导出 cap**，避免与「纯 learned」混淆。
 
 ---
 

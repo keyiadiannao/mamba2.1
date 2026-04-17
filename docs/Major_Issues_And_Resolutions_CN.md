@@ -195,6 +195,7 @@ git pull origin main
   1. 先冻结启发式最优基线：`cos0.7 + probe1 + e8 + pool20`（用于后续 A/B 与回归基线）。  
   2. 停止继续扩启发式大网格；把主线转入**学习式 root 路由**（目标直接打 `root-miss`）。  
   3. 评估门槛固定为：`never_visit_gold` 下降 + `in_context` 上升，且 `B3->B1 <= B1->B3`。
+- **补充（2026-04，已验证）**：在真实语料 **全 fan-out** 下，**仅线性 root 头**（`learned_root_classifier` 且 **`learned_root_blend_alpha=1`**）会出现金叶访问近零；**必须与 `RuleRouter` 同特征下的规则分数混合**：配置键 **`learned_root_blend_alpha`**（例如 **`0.25`**，即约 75% rule + 25% learned）。训练数据仍用 **`--root-only` + `--max-root-children 128`** 导出与 **listwise** checkpoint；**扫 `α` 或做 rule 对照时勿换训练 jsonl/checkpoint**，除非单独开「训练数据消融」。详见 **`docs/research/Navigation_Experiment_Record_CN.md` §6.5**。
 - **验证**：
   - 导航批固定 `pilot200` 对比表：`never_visit_gold / outside_pool / in_pool_not_context / in_context` + `nav_ms`。  
   - 若学习式 root 路由在相同预算下稳定降低 `root-miss`，再进入端到端批验证 EM/F1 传导。
@@ -213,3 +214,4 @@ git pull origin main
 | 2026-04-18 | MI-006：仓库 overlap 默认 `context_select_k` bump 至 `4`；增加 demo 烟测配置与 `tests/test_demo_ctxsel_k_smoke_batch.py`。 |
 | 2026-04-18 | 新增 MI-007：磁盘满 `Errno 28` 与端到端批处置（正文已含串联脚本低余量 stderr 警告）。 |
 | 2026-04-17 | 新增 MI-008：确认 `root-miss` 为 `never_visit_gold` 主因；冻结启发式终版并切换学习式 root 路由主线。 |
+| 2026-04-17 | MI-008 补充：`learned_root_blend_alpha` 与 rule 分数混合为当前可用学习式 root 形态；记录见 `Navigation_Experiment_Record_CN.md` §6.5。 |
