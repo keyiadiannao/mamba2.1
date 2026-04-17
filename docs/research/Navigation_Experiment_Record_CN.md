@@ -325,6 +325,8 @@ rm -f /tmp/nav_smoke_rule.json /tmp/nav_smoke_learned.json
    "
    ```
 
+   **排错：`exact_match_rate` / `avg_answer_f1` 全为 0 但 `nav_success_rate=1`**：常见原因是 **`reference_answer` 在 manifest 中为列表**（如 2Wiki 多答案），旧版 `run_end_to_end_batch` 用 ``str(list)`` 或管线未规范化，导致 **不参与 EM/F1 打分** 或参考串错误。仓库已统一 **`normalize_reference_for_scoring`**（`src/evaluation/reference_answer.py`）；**请 `git pull` 后重跑该端到端批** 再比 EM。若仍全零，再查 **`trace.generation_error`** 与 **`reference_answer`** 字段是否为空（任一样本 `run_payload.json`）。
+
 2. **导航侧回归（按需）**  
    - **`pilot200`** 或更大切片：用 **默认 `α=0.5`** 与 **rule** 各一批，对照 **`frac_gold_leaf_ever_visited_deduped` / `gold_missing` / `nav_ms`**，防止仅 `500` 子集偶然。
 

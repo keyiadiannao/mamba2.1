@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from src.controller import ControllerConfig, SSGSController
-from src.evaluation import answer_f1, exact_match, rouge_l_f1
+from src.evaluation import answer_f1, exact_match, normalize_reference_for_scoring, rouge_l_f1
 from src.generator_bridge import build_generator_result
 from src.navigator import build_navigator
 from src.router import build_router
@@ -394,10 +394,9 @@ def run_navigation_sample(
     trace.entity_intersection_size = entity_intersection_size
     trace.entity_hit_rate = entity_hit_rate
 
-    final_reference = reference_answer
+    final_reference = normalize_reference_for_scoring(reference_answer)
     if final_reference is None:
-        tree_reference = tree_payload.get("reference_answer")
-        final_reference = tree_reference if isinstance(tree_reference, str) else None
+        final_reference = normalize_reference_for_scoring(tree_payload.get("reference_answer"))
 
     context_max_items = int(config.get("context_max_items", config.get("max_evidence", 3)))
     build_max_items = _context_build_max_items(config, context_max_items)

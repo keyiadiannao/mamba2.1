@@ -134,6 +134,17 @@ def _first_non_empty(*values: object) -> str | None:
             stripped = value.strip()
             if stripped:
                 return stripped
+        if isinstance(value, list):
+            parts: list[str] = []
+            for item in value:
+                if isinstance(item, str):
+                    chunk = item.strip()
+                else:
+                    chunk = str(item).strip() if item is not None else ""
+                if chunk:
+                    parts.append(chunk)
+            if parts:
+                return " ".join(parts)
     return None
 
 

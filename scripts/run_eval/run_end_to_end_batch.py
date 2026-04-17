@@ -10,6 +10,7 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from src.evaluation import normalize_reference_for_scoring
 from src.pipeline import build_batch_summary, build_controller, load_json, run_navigation_sample
 from src.tracing import append_jsonl, make_run_id, write_json
 
@@ -76,7 +77,7 @@ def main() -> None:
             config=config,
             question=str(sample.get("question") or config.get("question") or ""),
             tree_path=str(sample.get("tree_path") or config["tree_path"]),
-            reference_answer=str(sample["reference_answer"]) if sample.get("reference_answer") else None,
+            reference_answer=normalize_reference_for_scoring(sample.get("reference_answer")),
             run_id_prefix=f"{config.get('run_id_prefix', 'end_to_end')}_{sample_id}",
             sample_id=sample_id,
             batch_id=batch_id,
