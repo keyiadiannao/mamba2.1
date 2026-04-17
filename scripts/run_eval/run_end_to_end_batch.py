@@ -34,6 +34,12 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Override config key generator_hf_model_name (local dir or Hub id).",
     )
+    parser.add_argument(
+        "--max-samples",
+        type=int,
+        default=None,
+        help="Use only the first N samples from the manifest (smoke). Does not change the manifest file.",
+    )
     return parser.parse_args()
 
 
@@ -49,8 +55,16 @@ def main() -> None:
     samples_path = ROOT / str(config["samples_path"])
     samples_payload = load_json(samples_path)
     samples = list(samples_payload.get("samples", []))
+    manifest_sample_count = len(samples)
     if not samples:
         raise ValueError("End-to-end batch config requires a non-empty samples list.")
+
+    max_samples = args.max_samples
+    if max_samples is not None:
+        n = int(max_samples)
+        if n <= 0:
+            raise ValueError("--max-samples must be positive.")
+        samples = samples[:n]
 
     batch_id = make_run_id(str(config.get("batch_id_prefix", "end_to_end_batch")))
     controller = build_controller(config)
@@ -74,6 +88,8 @@ def main() -> None:
     batch_summary = build_batch_summary(batch_id, sample_payloads)
     batch_summary["config"] = config
     batch_summary["samples_path"] = str(config["samples_path"])
+    batch_summary["manifest_sample_count"] = manifest_sample_count
+    batch_summary["max_samples"] = max_samples
 
     batch_output_dir = ROOT / str(config.get("batch_output_dir", "outputs/reports/end_to_end_batches"))
     write_json(batch_output_dir / batch_id / "batch_summary.json", batch_summary)

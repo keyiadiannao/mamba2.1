@@ -246,6 +246,83 @@ rm -f /tmp/nav_smoke_rule.json /tmp/nav_smoke_learned.json
    - **固定**：同 **`samples_path`**、同生成器配置、同 **`context_select_*`**；只改 **`routing_mode` / `learned_root_blend_alpha` / `batch_id_prefix`**。  
    - **验收**：`generation_error` 统计、`EM/F1`、可选 **`analyze_evidence_saturation.py --with-context-gold-metrics`** 看 ctx-gold。  
 
+   **已落盘模版（仓库内，与导航 frozen 协议对齐）**：
+
+   - 臂 A：`configs/experiment/end_to_end_batch_real_corpus_server_mamba_370m_qwen7b_p0_rule_frozen_nav.example.json`  
+   - 臂 B：`configs/experiment/end_to_end_batch_real_corpus_server_mamba_370m_qwen7b_p0_learned_root_blend05.example.json`  
+
+   **终端（仓库根目录）**：生成器路径可用 **`--generator-hf-model-name`** 或环境变量 **`GENERATOR_HF_MODEL_NAME`** 覆盖 JSON 中的 Hub id（与 `run_end_to_end_batch.py` 帮助一致）。建议 **先烟测再全量**：
+
+   ```bash
+   cd /root/autodl-tmp/mamba2.1
+   git pull origin main
+
+   # 烟测（各 10 条，确认无 generation_error 堆积）
+   python scripts/run_eval/run_end_to_end_batch.py \
+     --config configs/experiment/end_to_end_batch_real_corpus_server_mamba_370m_qwen7b_p0_rule_frozen_nav.example.json \
+     --max-samples 10
+
+   python scripts/run_eval/run_end_to_end_batch.py \
+     --config configs/experiment/end_to_end_batch_real_corpus_server_mamba_370m_qwen7b_p0_learned_root_blend05.example.json \
+     --max-samples 10
+
+   # 全量 500（去掉 --max-samples）
+   python scripts/run_eval/run_end_to_end_batch.py \
+     --config configs/experiment/end_to_end_batch_real_corpus_server_mamba_370m_qwen7b_p0_rule_frozen_nav.example.json
+
+   python scripts/run_eval/run_end_to_end_batch.py \
+     --config configs/experiment/end_to_end_batch_real_corpus_server_mamba_370m_qwen7b_p0_learned_root_blend05.example.json
+   ```
+
+   **登记结果**：每臂终端会打印 **`batch_id`**；摘要写入 **`outputs/reports/end_to_end_batches/<batch_id>/batch_summary.json`**，并追加 **`outputs/reports/end_to_end_batch_summary.jsonl`**。  
+   **金叶 / 证据（与导航批同一脚本）**：
+
+   ```bash
+   python scripts/diagnostics/analyze_evidence_saturation.py \
+     --registry-jsonl outputs/reports/run_registry.jsonl \
+     --batch-id '粘贴该臂batch_id' \
+     --out-json outputs/reports/evidence_sat_p0_<臂标签>.json
+
+   # 可选：生成器 context 含金文
+   python scripts/diagnostics/analyze_evidence_saturation.py \
+     --registry-jsonl outputs/reports/run_registry.jsonl \
+     --batch-id '粘贴该臂batch_id' \
+     --with-context-gold-metrics \
+     --out-json outputs/reports/evidence_sat_p0_<臂标签>_ctxgold.json
+   ```
+
+   **`generation_error` 粗扫**（按 `run_registry.jsonl` 里该 `batch_id` 的 `output_run_dir` 读 `run_payload.json`）：
+
+   ```bash
+   python -c "
+   import json
+   from pathlib import Path
+   bid = '粘贴batch_id'
+   reg = Path('outputs/reports/run_registry.jsonl')
+   errs = []
+   for line in reg.read_text(encoding='utf-8').splitlines():
+       if not line.strip():
+           continue
+       r = json.loads(line)
+       if r.get('batch_id') != bid:
+           continue
+       od = r.get('output_run_dir')
+       if not od:
+           continue
+       p = Path(od) / 'run_payload.json'
+       if not p.is_file():
+           continue
+       d = json.loads(p.read_text(encoding='utf-8'))
+       ge = (d.get('trace') or {}).get('generation_error')
+       if ge:
+           errs.append((str(p), str(ge)))
+   print('rows_for_batch:', sum(1 for line in reg.read_text(encoding='utf-8').splitlines() if line.strip() and json.loads(line).get('batch_id')==bid))
+   print('payloads_with_generation_error:', len(errs))
+   for path, msg in errs[:20]:
+       print(path, '->', msg[:200])
+   "
+   ```
+
 2. **导航侧回归（按需）**  
    - **`pilot200`** 或更大切片：用 **默认 `α=0.5`** 与 **rule** 各一批，对照 **`frac_gold_leaf_ever_visited_deduped` / `gold_missing` / `nav_ms`**，防止仅 `500` 子集偶然。
 
