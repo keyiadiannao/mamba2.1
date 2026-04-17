@@ -194,7 +194,7 @@ PY
 python scripts/run_nav/run_navigation_batch.py --config /tmp/nav_smoke_rule.json --max-samples "$NAV_SMOKE_N"
 ```
 
-Learned 一批（改 **`BLEND_ALPHA`** 为 `0.0`、`0.25`、`0.5` 各跑一次）：
+Learned 一批（改 **`BLEND_ALPHA`** 为 `0.0`、`0.25`、`0.5` 各跑一次；若需更细网格可再加 **`0.1`、`0.3`** 等）：
 
 ```bash
 export BLEND_ALPHA=0.25
@@ -216,6 +216,19 @@ python scripts/run_nav/run_navigation_batch.py --config /tmp/nav_smoke_learned.j
 ```bash
 rm -f /tmp/nav_smoke_rule.json /tmp/nav_smoke_learned.json
 ```
+
+**台账：`N=50`、blend `α` 小网格（2026-04-17，服务器）**  
+说明：`batch_id` 由配置里的 `batch_id_prefix` 与 `make_run_id` 追加时间戳拼接而成，故出现 **两段日期后缀** 属正常。
+
+| `learned_root_blend_alpha` | `batch_id`（完整字符串） |
+|---:|:---|
+| `0.0` | `nav_smoke50_blend_a0_0_20260417_141228Z_20260417_142316Z` |
+| `0.1` | `nav_smoke50_blend_a0_1_20260417_141228Z_20260417_143013Z` |
+| `0.25` | `nav_smoke50_blend_a0_25_20260417_141228Z_20260417_142547Z` |
+| `0.3` | `nav_smoke50_blend_a0_3_20260417_141228Z_20260417_143159Z` |
+| `0.5` | `nav_smoke50_blend_a0_5_20260417_141228Z_20260417_142841Z` |
+
+过程指标请用 `scripts/diagnostics/analyze_evidence_saturation.py --batch-id '<上表>'` 自行汇总；若某 `α` 在 `50` 条上金叶与 `nav_ms` 均不劣于 `α=0.25`，再考虑上 **`N=500`** 复验。
 
 ---
 
