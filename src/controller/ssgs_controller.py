@@ -18,6 +18,9 @@ class ControllerConfig:
     max_depth: int = 8
     max_nodes: int = 64
     entity_boost_alpha: float = 0.0
+    # 0 = disabled. When >0, cap how many accept_evidence entries may come from leaves under the same
+    # direct child of the document root (root_branch), so navigation can spread across root subtrees.
+    evidence_max_per_root_child: int = 0
 
 
 class SSGSController:
@@ -50,6 +53,7 @@ class SSGSController:
                 trace,
                 depth=0,
                 question_entities=question_entities,
+                root_branch_anchor=None,
             )
         except Exception as exc:
             trace.context_build_error = str(exc)
@@ -68,6 +72,7 @@ class SSGSController:
         trace: TraceRecord,
         depth: int,
         question_entities: list[str],
+        root_branch_anchor: str | None = None,
     ) -> None:
         if len(trace.evidence_texts) >= self.config.max_evidence:
             return
@@ -105,6 +110,27 @@ class SSGSController:
             trace.visited_leaf_indices_deduped = cast_deduped
 
             if next_state.relevance_score >= self.config.min_relevance_score:
+                cap = int(self.config.evidence_max_per_root_child or 0)
+                if cap > 0 and root_branch_anchor is not None:
+                    n_same = sum(
+                        1
+                        for ev in trace.event_log
+                        if isinstance(ev, dict)
+                        and ev.get("event") == "accept_evidence"
+                        and ev.get("root_branch") == root_branch_anchor
+                    )
+                    if n_same >= cap:
+                        trace.event_log.append(
+                            {
+                                "event": "reject_leaf_branch_cap",
+                                "node_id": node.node_id,
+                                "leaf_index": leaf_index,
+                                "score": float(next_state.relevance_score),
+                                "root_branch": root_branch_anchor,
+                                "cap": cap,
+                            }
+                        )
+                        return
                 trace.evidence_texts.append(node.text)
                 trace.evidence_node_ids.append(node.node_id)
                 trace.event_log.append(
@@ -113,6 +139,7 @@ class SSGSController:
                         "node_id": node.node_id,
                         "leaf_index": leaf_index,
                         "score": float(next_state.relevance_score),
+                        "root_branch": root_branch_anchor,
                     }
                 )
             else:
@@ -162,6 +189,7 @@ class SSGSController:
         )
         for child in ordered.ordered_children:
             before_evidence = len(trace.evidence_texts)
+            child_anchor = child.node_id if depth == 0 else root_branch_anchor
             self._explore_node(
                 question,
                 child,
@@ -169,6 +197,7 @@ class SSGSController:
                 trace,
                 depth + 1,
                 question_entities=question_entities,
+                root_branch_anchor=child_anchor,
             )
             if len(trace.evidence_texts) == before_evidence:
                 trace.rollback_count += 1
