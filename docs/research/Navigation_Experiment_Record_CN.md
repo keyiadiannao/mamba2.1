@@ -333,7 +333,7 @@ done
 
 **过程与 `audit`（与导航满 500 `probe2` 同向）**：两臂 **`frac_gold_leaf_ever_visited_deduped` / `frac_gold_in_accepted_evidence` / `audit`** 与 **§6.6 导航 `probe2` 表**（`041200Z` / `042544Z`）一致量级；**`mean_frac_gold_leaf_texts_in_generator_context`**：`rule` **≈0.159**、`learned` **≈0.170**（相对 **§9.12** `overlap_k4` 批 **`≈0.127`**，**ctx-gold 均值抬升**）。**`audit`**：`never_visit` **0.58 / 0.55**，`branch_cap` **44 / 41**。
 
-**P0-B′：`rule` + `entity_boost_alpha=0.05` 组合臂（导航、不跑 7B 生成；2026-04-18 冻结）** — 主模版：`configs/experiment/navigation_batch_real_corpus_p0_visit_rule_entity_boost_a005.example.json`。单因子消融：`configs/experiment/navigation_batch_real_corpus_p0_visit_rule_entity_boost_a005_abl_{probudget_1,minrel_1p0,maxev_8,ctx_overlap_k4,maxnodes_64}.example.json`（各相对主模版**仅改一项**，小样本对照）。
+**P0-B′：`rule` + `entity_boost_alpha=0.05` 组合臂（导航、不跑 7B 生成；2026-04-18 冻结）** — 主模版：`configs/experiment/navigation_batch_real_corpus_p0_visit_rule_entity_boost_a005.example.json`。单因子消融：`configs/experiment/navigation_batch_real_corpus_p0_visit_rule_entity_boost_a005_abl_{probudget_1,minrel_1p0,maxev_8,ctx_overlap_k4,maxnodes_64}.example.json`（各相对主模版**仅改一项**，小样本对照）。**`α>0.15` 探索**（仅建议 **N=200 烟测** + 诊断，看 **`visit…missing_accept` / `cap`** 是否熔断）：`navigation_batch_real_corpus_p0_visit_rule_entity_boost_{a020,a030}.example.json`。
 
 | 批 | `n` | 检索 `EM` | `audit`：`never_visit` | `reject_leaf_branch_cap` / `reject_leaf_min_relevance`（叶次） | `mean_frac_gold_leaves_in_context` | `sum_accepted_gold_not_in_context` | 备注 |
 |:---|---:|---:|---:|---:|---:|---:|:---|
