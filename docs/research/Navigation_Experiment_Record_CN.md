@@ -341,6 +341,13 @@ done
 
 **过程与 `audit`（与导航满 500 `probe2` 同向）**：两臂 **`frac_gold_leaf_ever_visited_deduped` / `frac_gold_in_accepted_evidence` / `audit`** 与 **§6.6 导航 `probe2` 表**（`041200Z` / `042544Z`）一致量级；**`mean_frac_gold_leaf_texts_in_generator_context`**：`rule` **≈0.159**、`learned` **≈0.170**（相对 **§9.12** `overlap_k4` 批 **`≈0.127`**，**ctx-gold 均值抬升**）。**`audit`**：`never_visit` **0.58 / 0.55**，`branch_cap` **44 / 41**。
 
+**下一步（执行顺序，2026-04）** — **P0-A′（`probe_budget`）已闭合**（导航 **`probe1`/`probe2`** + e2e **`probe2`** 终点表见上）。
+
+1. **工程（可选）**：若团队同意把 **`rule` 主线默认**切到 **`probe2`**，再改仓库 **`…p0_rule_frozen_nav.example.json`**（及 CI/烟测依赖的 demo）里 **`explore_root_probe_budget_per_child: 2`**，并在 **§6.6 P0 主表** 用新 **`batch_id`** 替换「基线」行；**`learned_root` 暂不默认 `probe2`**（EM 未升）。  
+2. **研究主线**：压 **`frac_samples_never_visit_any_gold`（~0.55～0.58）** — **Router / 探索序 / `max_nodes` 与回溯**、**非 root** 上的排序或预算；**不**再开 **`context_select` / pool / k`** 大网格（P1 已收口）。每臂仍 **导航满 500 或 e2e 500 + `audit` + saturation（可加 ctx-gold）**，**单变量**、**MI-004/005** 判停。  
+3. **冻结**：**accept 侧**（`min_relevance`、`evidence_max_per_root_child` 等）**不盲扫**；下一轮须先有 **visit 指标**或 **失败归因** 再动刀。  
+4. **附录（低优）**：**`learned` + `probe2`** 可再 **复跑 1～2 次** 看 EM 是否稳定略优，再决定是否写进主表。
+
 ```bash
 conda activate mamba2
 cd ~/autodl-tmp/mamba2.1
