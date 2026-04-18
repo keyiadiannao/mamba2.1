@@ -1,75 +1,16 @@
 # Navigation 实验记录（阶段一）
 
-## 1. 文档目的
+## 1. 文档目的与边界
 
-本记录用于固定当前阶段导航实验的关键事实，避免结果只保留在终端输出和临时交流里。  
-目标不是完整论文草稿，而是形成一份可追溯、可复述、可继续追加的实验台账。
-
----
-
-## 2. 当前阶段实验目标
-
-当前阶段的实验目标已经从“框架能否跑通”推进到“框架在真实公开数据子集上是否稳定运行”。
-
-当前主线任务：
-
-1. 打通真实数据入口
-2. 跑通 `370M` 预训练导航器
-3. 比较轻量 routing 方案
-4. 确定哪些结果可以进入主结果表
+固定 **导航相关** 实验事实（`batch_id`、模版路径、关键表），避免结果散在终端。**不**承担完整论文叙事：判停细则、MI 口径、第二阶段总叙事以 **`Major_Issues_And_Resolutions_CN.md`**、**`SSGS_Research_Framework_CN.md`** 为准；本文件 **§9 起** 多为 **历史表归档**，新决策优先看 **§6.5～6.6**。
 
 ---
 
-## 3. 数据与预处理链
+## 2. 阶段背景（压缩）
 
-当前真实数据来源：
-
-- `2WikiMultiHopQA`
-
-当前采用的标准预处理链：
-
-1. `extract_2wiki_subset.py`
-- 从完整 `2Wiki` 文件中抽取可复现实验子集
-
-2. `prepare_2wiki_subset.py`
-- 把 `2Wiki` 原始格式转成 `wiki-longdoc` 中间格式
-
-3. `prepare_wiki_longdoc_subset.py`
-- 把 `wiki-longdoc` 样本展开为 `corpus jsonl + qa jsonl`
-
-4. `build_navigation_inputs_from_jsonl.py`
-- 生成 `tree payload + navigation batch manifest`
-
----
-
-## 4. 当前主线配置
-
-当前主线只保留两组：
-
-1. `370M + rule`
-2. `370M + cosine_probe`
-
-当前不进入主结果表的组：
-
-1. `smoke + rule`
-- 仅用于验证真实链路可运行
-
-2. `370M + learned_classifier`
-- 已完成系统接入与真实语料实验
-- 但当前表现更适合作为补充实验或负结果
-
----
-
-## 5. 关键实现进展
-
-当前阶段已经完成的关键工程节点：
-
-1. `Mamba` 导航器已支持 smoke 后端与 `370M hf_pretrained`
-2. batch runner 已修复为“批内共享 controller”
-- 避免每个样本重复加载 `370M` 权重
-
-3. trace / registry / navigation summary 已支持批次追踪
-4. 真实语料预处理链已可在服务器完整执行
+- **目标**：真实子集上稳定跑通 **`370M` + 轻量 routing**；主对比 **`rule` / `cosine_probe`**（**`learned_classifier` 全树** 作补充/负结果，不进主表）。  
+- **数据**：`2WikiMultiHopQA` → `extract_2wiki_subset` → `prepare_2wiki_subset` → `prepare_wiki_longdoc_subset` → `build_navigation_inputs_from_jsonl`（树 + manifest）。  
+- **工程**：`Mamba` smoke/`370m hf_pretrained`、批内 **共享 Controller**、`run_registry` / `navigation_summary`、服务器可跑通预处理链。
 
 ---
 
@@ -234,294 +175,41 @@ rm -f /tmp/nav_smoke_rule.json /tmp/nav_smoke_learned.json
 
 过程指标请用 `scripts/diagnostics/analyze_evidence_saturation.py --batch-id '<上表>'` 自行汇总；**`N=50` 烟测**通过后已在 **`N=500`** 上复验 **`α=0.5`**（见上表）。
 
-### 6.6 下一阶段计划（维护决策，2026-04）
+### 6.6 维护台账与下一阶段（2026-04，精简要）
 
-以下顺序为 **默认主线**；**不再把 `α>0.5` 常规化**（见 §6.5 末段）。
+**别混三件事**：① **导航金叶**（visited / accepted / `gold_missing`）由 **`SSGSController` + Router**；② **`context_select_*`** 只重排 **已访问叶 → context**，P1 已实证 **pool / k 不改金叶**，`entity_match` 仅 **2/200** 检索 EM 波动；③ **`oracle_item_leaves`** = 金叶直灌 context 的 **上界**，非可部署导航；**已有 Oracle 500 e2e 时不必再跑** 导航批 Oracle 200（除非写附录同切片表）。**`α>0.5` 不常规化**（§6.5 末）。
 
-**P0（优先，验证「导航改进是否传到终点」）**
+**P0 端到端（`500`，已完成）** — 模版：`end_to_end_batch_real_corpus_server_mamba_370m_qwen7b_p0_rule_frozen_nav.example.json` / `…p0_learned_root_blend05.example.json`。脚本：`run_end_to_end_batch.py`（建议先 `--max-samples 10`）。摘要：`outputs/reports/end_to_end_batches/<batch_id>/batch_summary.json`。金叶 / ctx-gold：`analyze_evidence_saturation.py --registry-jsonl outputs/reports/run_registry.jsonl --batch-id '<id>'`（可加 `--with-context-gold-metrics`）。**`EM` 全零**：manifest **`reference_answer` 为 list** → **`normalize_reference_for_scoring`**（**MI-008**）。
 
-1. **端到端一批（`500` 或当前主 manifest）**  
-   - **臂 A**：冻结启发式 **`routing_mode=rule`**（与现 frozen 模版一致）。  
-   - **臂 B**：**`learned_root_classifier` + `learned_root_blend_alpha=0.5`**（与现默认一致）。  
-   - **固定**：同 **`samples_path`**、同生成器配置、同 **`context_select_*`**；只改 **`routing_mode` / `learned_root_blend_alpha` / `batch_id_prefix`**。  
-   - **验收**：`generation_error` 统计、`EM/F1`、可选 **`analyze_evidence_saturation.py --with-context-gold-metrics`** 看 ctx-gold。  
+| 臂 | `batch_id` | EM | F1 | `nav_ms` |
+|:---|:---|---:|---:|---:|
+| A `rule` frozen | `end_to_end_p0_real_corpus_370m_qwen7b_rule_frozen_nav_20260417_154358Z` | **0.186** | **≈0.205** | **≈1247** |
+| B `learned_root` `α=0.5` | `end_to_end_p0_real_corpus_370m_qwen7b_learned_root_blend05_20260417_160609Z` | **0.200** | **≈0.221** | **≈1301** |
 
-   **已落盘模版（仓库内，与导航 frozen 协议对齐）**：
+**P0-2 导航批 `N=200`（已完成）** — 模版：`navigation_batch_real_corpus_p0_frozen_nav_reg200_{rule,learned_root_blend05}.example.json`；`run_navigation_batch.py --max-samples 200`。
 
-   - 臂 A：`configs/experiment/end_to_end_batch_real_corpus_server_mamba_370m_qwen7b_p0_rule_frozen_nav.example.json`  
-   - 臂 B：`configs/experiment/end_to_end_batch_real_corpus_server_mamba_370m_qwen7b_p0_learned_root_blend05.example.json`  
+| 臂 | `batch_id` | visited | `gold_missing` | 检索 EM | `nav_ms` |
+|:---|:---|:---:|:---:|:---:|:---:|
+| A `rule` | `nav_p0_reg200_rule_frozen_20260418_014016Z` | 0.41 | 130 | 0.11 | ≈1363 |
+| B blend 0.5 | `nav_p0_reg200_learned_root_blend05_20260418_014536Z` | 0.445 | 122 | 0.125 | ≈1353 |
 
-   **终端（仓库根目录）**：生成器路径可用 **`--generator-hf-model-name`** 或环境变量 **`GENERATOR_HF_MODEL_NAME`** 覆盖 JSON 中的 Hub id（与 `run_end_to_end_batch.py` 帮助一致）。建议 **先烟测再全量**：
+（accepted、饱和等见各批 `analyze_evidence_saturation` 落盘 json。）
 
-   ```bash
-   cd /root/autodl-tmp/mamba2.1
-   git pull origin main
+**P1 读侧（`rule`、`N=200`，已收口）**
 
-   # 烟测（各 10 条，确认无 generation_error 堆积）
-   python scripts/run_eval/run_end_to_end_batch.py \
-     --config configs/experiment/end_to_end_batch_real_corpus_server_mamba_370m_qwen7b_p0_rule_frozen_nav.example.json \
-     --max-samples 10
+| 项 | `batch_id` | 改动 | 金叶 vs P0-2 rule | 检索 EM |
+|:---|:---|:---|:---|:---|
+| P1-1 pool | `nav_p1_reg200_rule_pool32_20260418_022308Z` | pool 32 | 同 | 同 |
+| P1-2 k | `nav_p1_reg200_rule_overlap_k5_20260418_023920Z` | k 5 | 同 | 同 |
+| P1-3 mode | `nav_p1_reg200_rule_entity_match_k4_20260418_030137Z` | entity_match | 同 | 0.12（+2/200） |
 
-   python scripts/run_eval/run_end_to_end_batch.py \
-     --config configs/experiment/end_to_end_batch_real_corpus_server_mamba_370m_qwen7b_p0_learned_root_blend05.example.json \
-     --max-samples 10
+配置目录名：`…p1_rule_frozen_nav_reg200_pool32` / `…overlap_k5` / `…entity_match_k4`。
 
-   # 全量 500（去掉 --max-samples）
-   python scripts/run_eval/run_end_to_end_batch.py \
-     --config configs/experiment/end_to_end_batch_real_corpus_server_mamba_370m_qwen7b_p0_rule_frozen_nav.example.json
+**Oracle 导航批 200（附录）**：`navigation_batch_real_corpus_nav_reg200_oracle_item_leaves.example.json`。
 
-   python scripts/run_eval/run_end_to_end_batch.py \
-     --config configs/experiment/end_to_end_batch_real_corpus_server_mamba_370m_qwen7b_p0_learned_root_blend05.example.json
-   ```
+**导航侧下一阶段（由前到后）**：可学习 gap = 抬 visited、降 `gold_missing`、抬 accepted（不用 oracle 作弊）。**已做**：根层 **`LearnedRootHybridRouter`**（更深仍 rule，`src/router/base.py`）。**建议**：① **非 root 路由/学习**（单臂+闸门）；② **`SSGSController` 探索与预算**（`explore_*`、`evidence_max_per_root_child`、`max_nodes`…一次一类）；③ **接受/证据槽（P0-A′）** 单独立项，与 MI-006 读侧解耦。
 
-   **登记结果**：每臂终端会打印 **`batch_id`**；摘要写入 **`outputs/reports/end_to_end_batches/<batch_id>/batch_summary.json`**，并追加 **`outputs/reports/end_to_end_batch_summary.jsonl`**。  
-   **金叶 / 证据（与导航批同一脚本）**：
-
-   ```bash
-   python scripts/diagnostics/analyze_evidence_saturation.py \
-     --registry-jsonl outputs/reports/run_registry.jsonl \
-     --batch-id '粘贴该臂batch_id' \
-     --out-json outputs/reports/evidence_sat_p0_<臂标签>.json
-
-   # 可选：生成器 context 含金文
-   python scripts/diagnostics/analyze_evidence_saturation.py \
-     --registry-jsonl outputs/reports/run_registry.jsonl \
-     --batch-id '粘贴该臂batch_id' \
-     --with-context-gold-metrics \
-     --out-json outputs/reports/evidence_sat_p0_<臂标签>_ctxgold.json
-   ```
-
-   **`generation_error` 粗扫**（按 `run_registry.jsonl` 里该 `batch_id` 的 `output_run_dir` 读 `run_payload.json`）：
-
-   ```bash
-   python -c "
-   import json
-   from pathlib import Path
-   bid = '粘贴batch_id'
-   reg = Path('outputs/reports/run_registry.jsonl')
-   errs = []
-   nrows = 0
-   for line in reg.read_text(encoding='utf-8').splitlines():
-       if not line.strip():
-           continue
-       r = json.loads(line)
-       if r.get('batch_id') != bid:
-           continue
-       nrows += 1
-       od = r.get('output_run_dir')
-       if not od:
-           continue
-       p = Path(od) / 'run_payload.json'
-       if not p.is_file():
-           continue
-       d = json.loads(p.read_text(encoding='utf-8'))
-       ge = (d.get('trace') or {}).get('generation_error')
-       if ge:
-           errs.append((str(p), str(ge)))
-   print('registry_rows_for_batch:', nrows)
-   print('payloads_with_generation_error:', len(errs))
-   for path, msg in errs[:20]:
-       print(path, '->', msg[:200])
-   "
-   ```
-
-   **排错：`exact_match_rate` / `avg_answer_f1` 全为 0 但 `nav_success_rate=1`**：常见原因是 **`reference_answer` 在 manifest 中为列表**（如 2Wiki 多答案），旧版 `run_end_to_end_batch` 用 ``str(list)`` 或管线未规范化，导致 **不参与 EM/F1 打分** 或参考串错误。仓库已统一 **`normalize_reference_for_scoring`**（`src/evaluation/reference_answer.py`）；**请 `git pull` 后重跑该端到端批** 再比 EM。若仍全零，再查 **`trace.generation_error`** 与 **`reference_answer`** 字段是否为空（任一样本 `run_payload.json`）。
-
-   **P0 端到端 `500` 实测（`Qwen2.5-7B-Instruct`，同 manifest / 同导航协议模版；2026-04-17）**  
-
-   | 臂 | `batch_id` | `exact_match_rate` | `avg_answer_f1` | `avg_nav_wall_time_ms` |
-   |:---|:---|---:|---:|---:|
-   | A `rule`（frozen nav） | `end_to_end_p0_real_corpus_370m_qwen7b_rule_frozen_nav_20260417_154358Z` | **0.186**（93/500） | **≈0.205** | **≈1247** |
-   | B `learned_root` + `blend=0.5` | `end_to_end_p0_real_corpus_370m_qwen7b_learned_root_blend05_20260417_160609Z` | **0.200**（100/500） | **≈0.221** | **≈1301** |
-
-   **结论**：**臂 B 相对臂 A：EM 与 F1 略升，`nav_ms` 略增**；与证据侧金叶摘要（`visited≈0.454` vs `≈0.428`）同向，支持 **「混合 root 不仅修导航过程指标，也传导到端到端答案质量」** 的阶段性判断（仍属小幅差距，不宜过度外推）。
-
-2. **导航侧回归（P0-2，推荐在端到端 `500` 之后立刻做）**  
-   - **目的**：用 **前 `200` 条**（或全 manifest 的 **`pilot200` 切片**，若你本地另有该文件）跑 **仅导航批**（无生成器负载），对照 **`frac_gold_leaf_ever_visited_deduped` / `gold_missing` / `nav_ms`**，防止端到端 `500` 子集偶然。  
-   - **协议**：与 **§6.6 项 1** 的 P0 端到端 **frozen nav** 一致（`context_select_pool_max_items=20`、`explore_root_probe_*`、`explore_top_m_root_children=0`）；两臂仅差 **`routing_mode` / `learned_root_*`**。  
-   - **仓库模版**（`run_navigation_batch.py` + **`--max-samples 200`**）：  
-     - 臂 A：`configs/experiment/navigation_batch_real_corpus_p0_frozen_nav_reg200_rule.example.json`  
-     - 臂 B：`configs/experiment/navigation_batch_real_corpus_p0_frozen_nav_reg200_learned_root_blend05.example.json`  
-
-   ```bash
-   cd /root/autodl-tmp/mamba2.1
-   git pull origin main
-
-   python scripts/run_nav/run_navigation_batch.py \
-     --config configs/experiment/navigation_batch_real_corpus_p0_frozen_nav_reg200_rule.example.json \
-     --max-samples 200
-
-   python scripts/run_nav/run_navigation_batch.py \
-     --config configs/experiment/navigation_batch_real_corpus_p0_frozen_nav_reg200_learned_root_blend05.example.json \
-     --max-samples 200
-   ```
-
-   终端会打印 **`batch_id`**；摘要目录 **`outputs/reports/batches/<batch_id>/batch_summary.json`**。金叶汇总：
-
-   ```bash
-   python scripts/diagnostics/analyze_evidence_saturation.py \
-     --registry-jsonl outputs/reports/run_registry.jsonl \
-     --batch-id '粘贴该臂 batch_id' \
-     --out-json outputs/reports/evidence_sat_nav_p0_reg200_<臂标签>.json
-   ```
-
-   **登记（`N=200` 前缀切片，`manifest_sample_count=500`；2026-04-18）**：
-
-   | 臂 | `batch_id` | `nav_success_rate` | 金叶 `frac_gold_leaf_ever_visited_deduped` | `sample_count_gold_missing_from_evidence` | `avg_nav_wall_time_ms` |
-   |:---|:---|:---:|:---:|:---:|:---:|
-   | A `rule` frozen | `nav_p0_reg200_rule_frozen_20260418_014016Z` | **1.0** | **0.41** | **130** | **≈1363** |
-   | B `learned_root` `α=0.5` | `nav_p0_reg200_learned_root_blend05_20260418_014536Z` | **1.0** | **0.445** | **122** | **≈1353** |
-
-   **金叶补充（同批 `analyze_evidence_saturation.py` summary）**：`frac_gold_in_accepted_evidence` **0.35**（A）vs **0.39**（B）；`mean_gold_index_first_in_visits` **≈2.46**（A）vs **≈1.79**（B）。证据槽饱和两臂均为 **`frac_evidence_budget_saturated=1.0`**、`mean_n_evidence=8`。
-
-   **检索口径打分**（导航批默认无生成器，`eval_mode=retrieval`）：`exact_match_rate` **0.11**（22/200）vs **0.125**（25/200）；`avg_answer_f1` **≈0.121** vs **≈0.137**。
-
-   **结论**：与 **§6.6 项 1** 端到端 `500` **同向**——臂 B **金叶 visited / accepted 更高、`gold_missing` 更少**，检索 EM/F1 略升；本切片上 **`nav_ms` 略低于臂 A**（与全量端到端里 B 略慢不完全一致，属子集方差可接受范围）。**P0-2 回归通过**。
-
-   **P0 端到端 ctx-gold（可选，对齐 §6.6 项 1 已跑通 `batch_id`）**  
-   用于核对 **「生成器上下文是否含金文」** 与 **EM/F1** 是否同向；在跑批机器上执行（终端会打印 `summary` JSON）：
-
-   ```bash
-   cd /root/autodl-tmp/mamba2.1
-
-   python scripts/diagnostics/analyze_evidence_saturation.py \
-     --registry-jsonl outputs/reports/run_registry.jsonl \
-     --batch-id 'end_to_end_p0_real_corpus_370m_qwen7b_rule_frozen_nav_20260417_154358Z' \
-     --with-context-gold-metrics \
-     --out-json outputs/reports/evidence_sat_p0_e2e_rule_ctxgold.json
-
-   python scripts/diagnostics/analyze_evidence_saturation.py \
-     --registry-jsonl outputs/reports/run_registry.jsonl \
-     --batch-id 'end_to_end_p0_real_corpus_370m_qwen7b_learned_root_blend05_20260417_160609Z' \
-     --with-context-gold-metrics \
-     --out-json outputs/reports/evidence_sat_p0_e2e_blend05_ctxgold.json
-   ```
-
-**P1（读侧；P0 / P0-2 已闭合后默认入口）**
-
-3. **P1-1：扩大 overlap 候选池（仅 `rule` 臂，对照 P0-2 基线）**  
-   - **动机**：P0-2 两臂 **`frac_evidence_budget_saturated=1.0`**，读侧 **`context_select_pool_max_items`** 可能是低成本杠杆（**不改变** `max_evidence` / Controller 接受逻辑）。  
-   - **对照**：**基线** = `navigation_batch_real_corpus_p0_frozen_nav_reg200_rule.example.json`（**`pool=20`**）；**P1-1** = `navigation_batch_real_corpus_p1_rule_frozen_nav_reg200_pool32.example.json`（**`pool=32`**，其余与 P0 frozen 一致）。  
-   - **跑法**（与 P0-2 同切片，便于直接比）：
-
-   ```bash
-   cd /root/autodl-tmp/mamba2.1
-   git pull origin main
-
-   python scripts/run_nav/run_navigation_batch.py \
-     --config configs/experiment/navigation_batch_real_corpus_p1_rule_frozen_nav_reg200_pool32.example.json \
-     --max-samples 200
-
-   python scripts/diagnostics/analyze_evidence_saturation.py \
-     --registry-jsonl outputs/reports/run_registry.jsonl \
-     --batch-id '粘贴本批 batch_id' \
-     --out-json outputs/reports/evidence_sat_nav_p1_pool32.json
-   ```
-
-   **登记（`N=200`，2026-04-18）——P1-1 相对 P0-2 rule 基线（`pool=20`）**  
-
-   | 臂 | `batch_id` | `context_select_pool_max_items` | 金叶 `frac_gold_leaf_ever_visited_deduped` | `frac_gold_in_accepted_evidence` | `sample_count_gold_missing_from_evidence` | `avg_nav_wall_time_ms` | `exact_match_rate`（检索） |
-   |:---|:---|:---:|:---:|:---:|:---:|:---:|:---:|
-   | P0-2 `rule` 基线 | `nav_p0_reg200_rule_frozen_20260418_014016Z` | **20** | **0.41** | **0.35** | **130** | **≈1363** | **0.11** |
-   | P1-1 `rule` | `nav_p1_reg200_rule_pool32_20260418_022308Z` | **32** | **0.41** | **0.35** | **130** | **≈1286** | **0.11** |
-
-   **结论**：**`pool` 20→32 在本切片上未改变金叶 visited / accepted / `gold_missing` 与检索 EM**（与 MI-006 一致：扩大 overlap **候选池**只影响「已访问叶子里谁进 overlap 打分」，**不增加**访问过的叶子集合本身）。**`nav_ms` 略降**更宜视为机器负载方差，**不作为 pool 收益认定**。**不必**为 pool32 再开端到端全量；**下一读侧臂**单独试 **`context_select_k`** 或 **`context_select_mode`**（仍一次只动一类）。
-
-4. **P1-2：`context_select_k` 单臂（冻结 `rule`、`pool=20`、`k=4`→`5`）**  
-   - **对照基线**：P0-2 **`nav_p0_reg200_rule_frozen_*`**（`question_overlap_topk`、`k=4`）。  
-   - **模版**：`configs/experiment/navigation_batch_real_corpus_p1_rule_frozen_nav_reg200_overlap_k5.example.json`（仅 **`context_select_k=5`** 与 `batch_id_prefix` / `run_id_prefix` 不同）。  
-   - **终端**（`N=200` 与 P0-2 / P1-1 同切片）：
-
-   ```bash
-   cd /root/autodl-tmp/mamba2.1
-   git pull origin main
-
-   python scripts/run_nav/run_navigation_batch.py \
-     --config configs/experiment/navigation_batch_real_corpus_p1_rule_frozen_nav_reg200_overlap_k5.example.json \
-     --max-samples 200
-
-   BID="$(ls -td outputs/reports/batches/nav_p1_reg200_rule_overlap_k5_* 2>/dev/null | head -1 | xargs basename)"
-   export BID
-   echo "batch_id=$BID"
-
-   python scripts/diagnostics/analyze_evidence_saturation.py \
-     --registry-jsonl outputs/reports/run_registry.jsonl \
-     --batch-id "$BID" \
-     --out-json outputs/reports/evidence_sat_nav_p1_overlap_k5.json
-   ```
-
-   **登记（`N=200`，2026-04-18）**：
-
-   | 臂 | `batch_id` | `context_select_k` | 金叶 `frac_gold_leaf_ever_visited_deduped` | `sample_count_gold_missing_from_evidence` | `avg_nav_wall_time_ms` | `exact_match_rate`（检索） |
-   |:---|:---|:---:|:---:|:---:|:---:|:---:|
-   | P0-2 `rule` 基线 | `nav_p0_reg200_rule_frozen_20260418_014016Z` | **4** | **0.41** | **130** | **≈1363** | **0.11** |
-   | P1-2 `rule` | `nav_p1_reg200_rule_overlap_k5_20260418_023920Z` | **5** | **0.41** | **130** | **≈1323** | **0.11** |
-
-   **金叶补充**：`frac_gold_in_accepted_evidence` **0.35**（与基线同）；`mean_gold_index_first_in_visits` **≈2.46**（与基线同）；饱和仍为 **`frac_evidence_budget_saturated=1.0`**。
-
-   **结论**：**`k` 4→5 在本切片上与基线金叶 / 检索 EM 完全一致**（读侧多取 overlap 条目 **不改变**「曾否访问金叶 / 金叶是否进接受证据」的统计）。**`nav_ms` 介于** P0-2 与 P1-1 **之间**，视为方差即可。**不必**再扫 **`k=6/8`** 作为常规主线；**下一刀**走 **P1-3 `context_select_mode`**（单臂），或把主线精力放回 **混合 root** / 端到端读侧组合，而非 overlap **`k`** 网格。
-
-5. **P1-3（下一优先）**：**`context_select_mode`** 单臂——**`question_entity_match_topk`**，**`k=4`、`pool=20`** 与 P0-2 对齐，仅相对基线把 **`question_overlap_topk` → `question_entity_match_topk`**。  
-   - **模版**：`configs/experiment/navigation_batch_real_corpus_p1_rule_frozen_nav_reg200_entity_match_k4.example.json`  
-   - **终端**（`N=200`）：
-
-   ```bash
-   cd /root/autodl-tmp/mamba2.1
-   git pull origin main
-
-   python scripts/run_nav/run_navigation_batch.py \
-     --config configs/experiment/navigation_batch_real_corpus_p1_rule_frozen_nav_reg200_entity_match_k4.example.json \
-     --max-samples 200
-
-   BID="$(ls -td outputs/reports/batches/nav_p1_reg200_rule_entity_match_k4_* 2>/dev/null | head -1 | xargs basename)"
-   export BID
-   echo "batch_id=$BID"
-
-   python scripts/diagnostics/analyze_evidence_saturation.py \
-     --registry-jsonl outputs/reports/run_registry.jsonl \
-     --batch-id "$BID" \
-     --out-json outputs/reports/evidence_sat_nav_p1_entity_match_k4.json
-   ```
-
-   **登记（`N=200`，2026-04-18）——P1-3 相对 P0-2 rule（`question_overlap_topk`）**  
-
-   | 臂 | `batch_id` | `context_select_mode` | 金叶 `frac_gold_leaf_ever_visited_deduped` | `frac_gold_in_accepted_evidence` | `sample_count_gold_missing_from_evidence` | `exact_match_rate` | `avg_answer_f1` | `avg_nav_wall_time_ms` |
-   |:---|:---|:---|:---:|:---:|:---:|:---:|:---:|:---:|
-   | P0-2 `rule` 基线 | `nav_p0_reg200_rule_frozen_20260418_014016Z` | **`question_overlap_topk`** | **0.41** | **0.35** | **130** | **0.11**（22/200） | **≈0.121** | **≈1363** |
-   | P1-3 `rule` | `nav_p1_reg200_rule_entity_match_k4_20260418_030137Z` | **`question_entity_match_topk`** | **0.41** | **0.35** | **130** | **0.12**（24/200） | **≈0.131** | **≈1335** |
-
-   **结论**：**金叶过程量**（visited / accepted / `gold_missing`）与 overlap 基线 **仍完全一致**；**检索口径** EM **0.11→0.12** 仅为 **2/200** 量级，**不作为主线优化目标**。**P1 读侧三刀在 `N=200` 上已收口**；主线回到 **导航侧**（见下节「由前到后」），**不默认**再开 **`rule` 下单臂读侧** 或 **为 entity_match 单独开 e2e 长跑**，除非产品明确要追这一小增益。
-
-   **Oracle 上下文上界（导航批 `N=200`，附录级；非必跑）**  
-   - **与已有 Oracle 500 端到端的关系**：仓库里 **`oracle_item_leaves`** 在 **端到端 `500`** 上已给出 **强上界**（与 **§9.x** 表一致）；**若仅为了再证「gap 大」**，**不必**再跑本节的 **导航批 Oracle 200**——信息增量有限。仅当需要 **「与 P0-2 前 200 条逐条严格同切片」** 写附录表时，才用下面模版。  
-   - **在测什么**：**`context_source=oracle_item_leaves`** 时，**打分用 context 直接含金叶文本**（manifest **`positive_leaf_indices`**），测的是 **证据上界**，**不是**可部署导航；且 **Oracle 终点 EM 仍显著低于 1**，说明除导航外 **生成器、参考答案、叶文本质量** 也参与天花板，**Oracle 本身并非「满分真理」**。  
-   - **模版**：`configs/experiment/navigation_batch_real_corpus_nav_reg200_oracle_item_leaves.example.json`  
-   - **终端**（按需）：
-
-   ```bash
-   cd /root/autodl-tmp/mamba2.1
-   git pull origin main
-
-   python scripts/run_nav/run_navigation_batch.py \
-     --config configs/experiment/navigation_batch_real_corpus_nav_reg200_oracle_item_leaves.example.json \
-     --max-samples 200
-   ```
-
-   **对比**：读 **`outputs/reports/batches/<batch_id>/batch_summary.json`** 的 **`exact_match_rate` / `avg_answer_f1`**，与 **P0-2 rule** 并置；**不要把该臂当作「导航更接近 Oracle」**——**可学习**地缩小 gap 仍靠 **降低 `gold_missing` / 提高 visited / 改善接受**（见下节），而非偷看金叶。
-
-   **导航侧下一阶段（由前到后；缩小与 Oracle 的「可学习」差距；2026-04）**  
-   - **统一口径**：「接近 Oracle」= 在 **不用 `oracle_item_leaves`** 的前提下，抬高 **`frac_gold_leaf_ever_visited_deduped`**、压低 **`sample_count_gold_missing_from_evidence`**、并争取 **`frac_gold_in_accepted_evidence`**；仍以 **`analyze_evidence_saturation.py`** + **`nav_ms`** 为闸门。  
-   - **已做（root）**：**`learned_root_classifier` + `learned_root_blend_alpha`**；实现上 **`LearnedRootHybridRouter`** 仅在 **根下第一层** 与 rule 混合，**`state.path` 更深时回退 rule**（见 **`src/router/base.py` `LearnedRootHybridRouter.rank_children`**）。  
-   - **建议顺序（与代码结构一致，逐步加难度）**：  
-     1. **根之后（非 root 路由）**：在 **冻结当前 root 混合** 的前提下，设计 **更深节点的排序/学习**（新 Router 契约或扩展现有 hybrid 深度），**单臂、金叶闸门、对照 `nav_ms`**；**不与** P1 读侧、`learned_classifier` 全树线混在同一里程碑。  
-     2. **探索与预算（`SSGSController`，仍属导航）**：在 **与 P0 frozen 对齐** 的配置族上，小步评估 **`explore_root_probe_*` / `explore_top_m_root_children` / `evidence_max_per_root_child` / `max_nodes`（及必要时 `max_depth`）** 对 **`gold_missing` / 饱和** 的影响；**每次只动一类旋钮**。  
-     3. **接受与证据槽（高难度）**：若 (1)(2) 触顶，再 **单独立项** 讨论 **Controller 接受逻辑、`max_evidence`、反塌缩**（文档历史上称 **P0-A′**），与 **读侧后处理（MI-006）** 解耦，避免归因混乱。
-
-**P2（不默认排期）**
-
-6. **学习式 root 再增强**：仅当产品/论文需要 **更强 learned 分量** 时，再开 **`max-root-children`↑、cap 外 hard negatives、listwise 目标细化`**；**不与 `α>0.5` 扫参混在同一里程碑**。  
-
-7. **`α` 上界研究**：仅论文需要时 **烟测 `0.6`～`0.7` + 金叶闸门**，不纳入常规迭代。
+**P2（不默认）**：root 训练增强、`α>0.5` 烟测 — 见 §6.5 末、**MI-008**。
 
 ---
 
@@ -546,22 +234,15 @@ rm -f /tmp/nav_smoke_rule.json /tmp/nav_smoke_learned.json
 
 ---
 
-## 8. 当前阶段结论
+## 8. 当前阶段结论（压缩）
 
-当前可以正式确认：
-
-1. 基础导航框架已经构建完成
-2. 真实公开数据子集实验已经跑通
-3. `370M` 预训练导航器已经进入主线
-4. 主线 routing 目前可稳定比较的对象是：
-- `rule`
-- `cosine_probe`
-
-因此，当前阶段已经从“框架搭建期”进入“结果整理与写作收束期”。
+框架与真实子集已跑通；**`370M`** 进主线；轻量 routing 主对比 **`rule` / `cosine_probe`**。阶段重心已可迁到 **端到端 + 过程诊断**（详见 §9 表与 **SSGS**）。
 
 ---
 
-## 9. 第二阶段推进方案
+## 9. 第二阶段推进方案（历史归档）
+
+以下 **§9.1～§9.12、§10** 保留 **`batch_id` 与主表**，便于对照 Git 旧版全文；**判停阈值、MI 细则、与当前默认键** 以 **`Major_Issues_And_Resolutions_CN.md`**、**`SSGS_Research_Framework_CN.md`** 为准。**新执行项** 以 **§6.6** 为准。
 
 当前建议正式进入第二阶段，但优先级应明确固定为：
 
