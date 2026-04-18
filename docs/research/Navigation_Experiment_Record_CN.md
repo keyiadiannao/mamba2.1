@@ -378,15 +378,55 @@ rm -f /tmp/nav_smoke_rule.json /tmp/nav_smoke_learned.json
 
    **结论**：与 **§6.6 项 1** 端到端 `500` **同向**——臂 B **金叶 visited / accepted 更高、`gold_missing` 更少**，检索 EM/F1 略升；本切片上 **`nav_ms` 略低于臂 A**（与全量端到端里 B 略慢不完全一致，属子集方差可接受范围）。**P0-2 回归通过**。
 
-**P1（仅当 P0 显示瓶颈仍在「读侧 / 上下文」）**
+   **P0 端到端 ctx-gold（可选，对齐 §6.6 项 1 已跑通 `batch_id`）**  
+   用于核对 **「生成器上下文是否含金文」** 与 **EM/F1** 是否同向；在跑批机器上执行（终端会打印 `summary` JSON）：
 
-3. **读侧与候选池**（与 MI-003 / MI-006 叙事一致）：在导航臂已固定的前提下，评估 **`context_select_mode` / `context_select_pool_max_items`** 等 **不改变 Controller 接受逻辑** 的改动。  
+   ```bash
+   cd /root/autodl-tmp/mamba2.1
+
+   python scripts/diagnostics/analyze_evidence_saturation.py \
+     --registry-jsonl outputs/reports/run_registry.jsonl \
+     --batch-id 'end_to_end_p0_real_corpus_370m_qwen7b_rule_frozen_nav_20260417_154358Z' \
+     --with-context-gold-metrics \
+     --out-json outputs/reports/evidence_sat_p0_e2e_rule_ctxgold.json
+
+   python scripts/diagnostics/analyze_evidence_saturation.py \
+     --registry-jsonl outputs/reports/run_registry.jsonl \
+     --batch-id 'end_to_end_p0_real_corpus_370m_qwen7b_learned_root_blend05_20260417_160609Z' \
+     --with-context-gold-metrics \
+     --out-json outputs/reports/evidence_sat_p0_e2e_blend05_ctxgold.json
+   ```
+
+**P1（读侧；P0 / P0-2 已闭合后默认入口）**
+
+3. **P1-1：扩大 overlap 候选池（仅 `rule` 臂，对照 P0-2 基线）**  
+   - **动机**：P0-2 两臂 **`frac_evidence_budget_saturated=1.0`**，读侧 **`context_select_pool_max_items`** 可能是低成本杠杆（**不改变** `max_evidence` / Controller 接受逻辑）。  
+   - **对照**：**基线** = `navigation_batch_real_corpus_p0_frozen_nav_reg200_rule.example.json`（**`pool=20`**）；**P1-1** = `navigation_batch_real_corpus_p1_rule_frozen_nav_reg200_pool32.example.json`（**`pool=32`**，其余与 P0 frozen 一致）。  
+   - **跑法**（与 P0-2 同切片，便于直接比）：
+
+   ```bash
+   cd /root/autodl-tmp/mamba2.1
+   git pull origin main
+
+   python scripts/run_nav/run_navigation_batch.py \
+     --config configs/experiment/navigation_batch_real_corpus_p1_rule_frozen_nav_reg200_pool32.example.json \
+     --max-samples 200
+
+   python scripts/diagnostics/analyze_evidence_saturation.py \
+     --registry-jsonl outputs/reports/run_registry.jsonl \
+     --batch-id '粘贴本批 batch_id' \
+     --out-json outputs/reports/evidence_sat_nav_p1_pool32.json
+   ```
+
+   **验收**：相对 **`nav_p0_reg200_rule_frozen_*`（pool=20）**，若 **`frac_gold_leaf_ever_visited_deduped` / `frac_gold_in_accepted_evidence` 上升且 `gold_missing` 下降**，再考虑 **端到端烟测 `10`**（拷贝 P0 rule frozen e2e 模版，只改 `context_select_pool_max_items` 与 `batch_id_prefix`）；若金叶无改善或 **`nav_ms`** 显著变差，则 **回退 pool** 或改试 **`context_select_k`**（单独开臂，勿与 pool 同时盲扫）。
+
+4. **其它读侧旋钮**（与 MI-003 / MI-006 叙事一致）：在 **P1-1 有结论后**，再评估 **`context_select_mode` / `context_select_k`** 等；仍须 **冻结路由臂**，一次只动一类读侧参数。
 
 **P2（不默认排期）**
 
-4. **学习式 root 再增强**：仅当产品/论文需要 **更强 learned 分量** 时，再开 **`max-root-children`↑、cap 外 hard negatives、listwise 目标细化`**；**不与 `α>0.5` 扫参混在同一里程碑**。  
+5. **学习式 root 再增强**：仅当产品/论文需要 **更强 learned 分量** 时，再开 **`max-root-children`↑、cap 外 hard negatives、listwise 目标细化`**；**不与 `α>0.5` 扫参混在同一里程碑**。  
 
-5. **`α` 上界研究**：仅论文需要时 **烟测 `0.6`～`0.7` + 金叶闸门**，不纳入常规迭代。
+6. **`α` 上界研究**：仅论文需要时 **烟测 `0.6`～`0.7` + 金叶闸门**，不纳入常规迭代。
 
 ---
 

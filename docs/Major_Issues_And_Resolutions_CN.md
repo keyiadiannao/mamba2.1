@@ -220,3 +220,4 @@ git pull origin main
 | 2026-04-17 | 端到端 EM 全零：manifest 中 **`reference_answer` 为 list** 时旧逻辑未规范化；已用 **`normalize_reference_for_scoring`** 修复（见 `Navigation_Experiment_Record_CN.md` §6.6 排错）。 |
 | 2026-04-17 | P0 端到端 `500`：`learned_root blend0.5` 相对 `rule` frozen，**EM 0.200 vs 0.186**，见 `Navigation_Experiment_Record_CN.md` §6.6 表。 |
 | 2026-04-18 | P0-2 导航批 `N=200`：金叶 **visited 0.445 vs 0.41**、`gold_missing` **122 vs 130**；检索 EM **0.125 vs 0.11**；`batch_id` 见 `Navigation_Experiment_Record_CN.md` §6.6。 |
+| 2026-04-18 | P1 读侧第一步：导航批模版 **`navigation_batch_real_corpus_p1_rule_frozen_nav_reg200_pool32.example.json`**（`pool=32` 对照 P0-2 `pool=20`）；执行顺序与 ctx-gold 命令见 `Navigation_Experiment_Record_CN.md` §6.6。 |

@@ -780,6 +780,8 @@ mamba2.1/
 
 **工程结论（2026-04）**：在 **全 fan-out** 下 **纯线性 root 头**不可用；**`learned_root_blend_alpha`**（与 rule 混合）为当前可行形态；**`500` 复验后默认 `α=0.5`**（相对 `0.25` 金叶同量级、**`nav_ms` 更优**）。小样本扫参时用 **`run_navigation_batch.py --max-samples N`** 保持 **同一 manifest 与同一 checkpoint**，只调 **`α`** 与 **`batch_id_prefix`**（见 **`Navigation_Experiment_Record_CN.md` §6.5**）。
 
+**P0 端到端 + P0-2 导航回归（2026-04-17～18，见 `Navigation_Experiment_Record_CN.md` §6.6）**：同 manifest 上 **`rule` frozen** 与 **`learned_root` + `blend=0.5`** 的 **`500` 端到端**已闭合（**终点 EM/F1 略有利于混合臂**；**`nav_ms` 混合臂略增**）；**前 `200` 条**导航批回归与 **`500` 金叶叙事同向**（visited / accepted、`gold_missing`、检索 EM）。**下一阶段默认入口**：在 **冻结混合 root（`α=0.5`）** 前提下，按 **`Navigation_Experiment_Record_CN.md` §6.6 P1** 做小步 **读侧** 实验（首刀 **`context_select_pool_max_items`**）；**可选**对已固定的端到端 **`batch_id`** 补跑 **`analyze_evidence_saturation.py --with-context-gold-metrics`**，核对 **ctx-gold 与 EM** 是否一致。
+
 ### 16.3 工程与运维增量（2026-04，与论文叙事并行）
 
 下列内容不改变 RQ 表述，但影响**可复现性、归因清晰度与线上排障**，建议在实验记录中随手标注「当时代码版本」。
