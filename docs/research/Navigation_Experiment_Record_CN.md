@@ -186,6 +186,15 @@ rm -f /tmp/nav_smoke_rule.json /tmp/nav_smoke_learned.json
 | A `rule` frozen | `end_to_end_p0_real_corpus_370m_qwen7b_rule_frozen_nav_20260417_154358Z` | **0.186** | **≈0.205** | **≈1247** |
 | B `learned_root` `α=0.5` | `end_to_end_p0_real_corpus_370m_qwen7b_learned_root_blend05_20260417_160609Z` | **0.200** | **≈0.221** | **≈1301** |
 
+**Accept 门审计（`audit_accept_gate.py`，与上表同一两 `batch_id`，`n=500`）** — 见 `scripts/diagnostics/audit_accept_gate.py`。指标含义：`frac_samples_never_visit_any_gold` = 有金标注但 **从未 visit 任一金叶** 的样本占比；`frac_samples_visit_gold_but_missing_accept_for_some_visited_gold` = **visit 到金叶但至少有一片已 visit 金叶未进 `accept_evidence`** 的样本占比；`visited_not_accepted_dispositions_aggregated` = 未 accept 金叶次数按 **`reject_leaf`（阈值）/ `reject_leaf_branch_cap`（配额）** 粗归因。
+
+| 臂 | `frac_samples_never_visit_any_gold` | `frac_samples_visit_gold_but_missing_accept…` | `sum_gold_leaves_never_visited` / `…_visited_not_accepted` | `reject_leaf_branch_cap` / `reject_leaf_min_relevance`（叶次） |
+|:---|:---:|:---:|:---:|:---:|
+| A `rule` frozen | **0.572** | **0.16** | **1432** / **118** | **85** / **33** |
+| B `learned_root` `α=0.5` | **0.546** | **0.154** | **1427** / **109** | **76** / **33** |
+
+**读法**：**主矛盾仍是「根本 visit 不到金叶」**（~55%～57% 样本）；**Accept 门**在「已 visit 金叶却未进槽」子问题上约占 **15%～16% 样本**，叶次上 **`reject_leaf_branch_cap` 多于 `min_relevance`**，调 **`evidence_max_per_root_child` / explore 预算** 可能比单降 **`min_relevance_score`** 更对症，但仍须 **单变量** 烟测。**B 臂**相对 A：**未 visit 样本占比略降**、**分支 cap 挡掉的叶次略少**，与混合 root 改善 visit 的叙事一致。
+
 **P0-2 导航批 `N=200`（已完成）** — 模版：`navigation_batch_real_corpus_p0_frozen_nav_reg200_{rule,learned_root_blend05}.example.json`；`run_navigation_batch.py --max-samples 200`。
 
 | 臂 | `batch_id` | visited | `gold_missing` | 检索 EM | `nav_ms` |
@@ -207,7 +216,7 @@ rm -f /tmp/nav_smoke_rule.json /tmp/nav_smoke_learned.json
 
 **Oracle 导航批 200（附录）**：`navigation_batch_real_corpus_nav_reg200_oracle_item_leaves.example.json`。
 
-**导航侧下一阶段（由前到后）**：可学习 gap = 抬 visited、降 `gold_missing`、抬 accepted（不用 oracle 作弊）。**已做**：根层 **`LearnedRootHybridRouter`**（更深仍 rule，`src/router/base.py`）。**建议**：先跑 **Accept 门审计**（纯离线）：`python scripts/diagnostics/audit_accept_gate.py --registry-jsonl outputs/reports/run_registry.jsonl --batch-id '<batch_id>' --out-json outputs/reports/accept_gate_audit.json` —— 汇总「有金标注样本」上 **从未 visit 金叶** vs **visit 了但未进 `accept_evidence`**，并对后者聚合 **`reject_leaf` / `reject_leaf_branch_cap` / `skip_duplicate_evidence`** 计数；再决定 **P0-A′** 最小改动（**勿**用 `leaf_indices_required` 做推理期作弊放行）。其后按需：**非 root**、**探索与预算**。
+**导航侧下一阶段（由前到后）**：可学习 gap = 抬 visited、降 `gold_missing`、抬 accepted（不用 oracle 作弊）。**已做**：根层 **`LearnedRootHybridRouter`**（更深仍 rule，`src/router/base.py`）。**Accept 门审计**（上表）已跑通；**P0-A′** 若动刀：优先 **单变量** 试 **`evidence_max_per_root_child` / explore 与 cap 相关键**（与 **`reject_leaf_branch_cap` 主导** 对齐），再视情况试 **`min_relevance_score`**（与 **`reject_leaf_min_relevance`** 对齐）；**勿**用 `leaf_indices_required` 做推理期作弊。其后按需：**非 root**、**探索与预算**大网格仍次于「未 visit 金叶」主因。
 
 **P2（不默认）**：root 训练增强、`α>0.5` 烟测 — 见 §6.5 末、**MI-008**。
 
