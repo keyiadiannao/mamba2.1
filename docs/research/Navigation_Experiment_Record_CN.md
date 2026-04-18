@@ -485,14 +485,12 @@ rm -f /tmp/nav_smoke_rule.json /tmp/nav_smoke_learned.json
 
    **登记（`N=200`，2026-04-18）——P1-3 相对 P0-2 rule（`question_overlap_topk`）**  
 
-   | 臂 | `batch_id` | `context_select_mode` | 金叶 `frac_gold_leaf_ever_visited_deduped` | `frac_gold_in_accepted_evidence` | `sample_count_gold_missing_from_evidence` |
-   |:---|:---|:---|:---:|:---:|:---:|
-   | P0-2 `rule` 基线 | `nav_p0_reg200_rule_frozen_20260418_014016Z` | **`question_overlap_topk`** | **0.41** | **0.35** | **130** |
-   | P1-3 `rule` | `nav_p1_reg200_rule_entity_match_k4_20260418_030137Z` | **`question_entity_match_topk`** | **0.41** | **0.35** | **130** |
+   | 臂 | `batch_id` | `context_select_mode` | 金叶 `frac_gold_leaf_ever_visited_deduped` | `frac_gold_in_accepted_evidence` | `sample_count_gold_missing_from_evidence` | `exact_match_rate` | `avg_answer_f1` | `avg_nav_wall_time_ms` |
+   |:---|:---|:---|:---:|:---:|:---:|:---:|:---:|:---:|
+   | P0-2 `rule` 基线 | `nav_p0_reg200_rule_frozen_20260418_014016Z` | **`question_overlap_topk`** | **0.41** | **0.35** | **130** | **0.11**（22/200） | **≈0.121** | **≈1363** |
+   | P1-3 `rule` | `nav_p1_reg200_rule_entity_match_k4_20260418_030137Z` | **`question_entity_match_topk`** | **0.41** | **0.35** | **130** | **0.12**（24/200） | **≈0.131** | **≈1335** |
 
-   **`exact_match_rate` / `avg_nav_wall_time_ms`**：见该批 **`outputs/reports/batches/<batch_id>/batch_summary.json`**（金叶过程量与基线一致时，检索 EM 通常与 P0-2 同量级 **0.11**）。
-
-   **结论**：**`entity_match` 与 `overlap` 在本切片上金叶过程指标完全一致**——仍与 P1-1/P1-2 同一结论：**在 `routing_mode=rule`、访问轨迹不变时，仅换 context 重排策略难以撼动 `visited` / `gold_missing` / accepted 统计**；ctx-gold 在导航批上是否分化需看 **`batch_summary`** 或端到端 **`--with-context-gold-metrics`**。**P1 读侧三刀（`pool` / `k` / `mode`）在 `N=200` 上可收口**，后续主线优先 **混合 root**、**Oracle 上界对照** 或 **端到端读侧组合**，而非继续 **`rule` 下单臂读侧网格**。
+   **结论**：**金叶过程量**（visited / accepted / `gold_missing`）与 overlap 基线 **仍完全一致**，与 P1-1/P1-2 同向；**检索口径** EM **0.11→0.12**、F1 **略升**，来自 **context 重排后参与打分的文本序/集合权重变化**（**2/200** 条由错变对量级），**不改变**「导航访问轨迹未动」的判断。是否值得 **端到端跟一条**（例如 P0 e2e 模版只改 `context_select_mode`、**`--max-samples` 烟测**）取决于产品优先级；**不必**在纯导航批上继续 **`rule` 下单臂读侧大网格**。**P1 读侧三刀在 `N=200` 上可收口**；后续主线优先 **混合 root**、**Oracle 上界** 或 **e2e 上验证 entity_match**。
 
    **Oracle 上下文上界（导航批 `N=200`，诊断用，非可部署策略）**  
    - **在测什么**：与 **P0-2 同 manifest、同前 `200` 条**，但 **`context_source=oracle_item_leaves`**——**构造给打分用的 context 时直接用金叶**（manifest 的 **`positive_leaf_indices`**），**不等价于**「把导航本身做成 Oracle」。导航仍会跑（`rule`），用于与真实管线对齐的 **耗时/轨迹** 记录；**检索口径 EM/F1** 反映的是 **「若证据里必有金叶」** 时的上界，用来和 **P0-2 rule**（`nav_p0_reg200_rule_frozen_20260418_014016Z`）比 **gap**，见 **`SSGS_Research_Framework_CN.md`** 与 **§9.x** 里对 Oracle 的用法。  
