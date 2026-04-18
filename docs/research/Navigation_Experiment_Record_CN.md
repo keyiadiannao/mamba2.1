@@ -265,22 +265,12 @@ for id in "$BATCH_ID_RULE" "$BATCH_ID_LEARNED"; do
     --out-json "outputs/reports/evidence_saturation_${id}.json"
   python scripts/diagnostics/audit_accept_gate.py \
     --registry-jsonl outputs/reports/run_registry.jsonl \
-    --batch-id "$id"
+    --batch-id "$id" --root . \
+    --out-json "outputs/reports/accept_gate_audit_${id}.json"
 done
 ```
 
-**`batch_id` 免手抄（不增加仓库脚本）**：`run_navigation_batch.py` / `run_end_to_end_batch.py` 结束时会多打一行 **`__SSGS_BATCH_ID__=<id>`**（便于 `grep`/`sed`）。非主链路实验**不维护**独立 shell，避免脚本堆积；需要时自行一行解析，例如跑完导航立刻诊断：
-
-```bash
-id=$(python scripts/run_nav/run_navigation_batch.py \
-  --config configs/experiment/navigation_batch_real_corpus_p0_probe_budget2_rule.example.json 2>&1 \
-  | sed -n 's/^__SSGS_BATCH_ID__=//p' | tail -n1)
-python scripts/diagnostics/analyze_evidence_saturation.py \
-  --registry-jsonl outputs/reports/run_registry.jsonl --batch-id "$id" \
-  --out-json "outputs/reports/evidence_saturation_${id}.json"
-python scripts/diagnostics/audit_accept_gate.py \
-  --registry-jsonl outputs/reports/run_registry.jsonl --batch-id "$id"
-```
+**`batch_id` 免手抄**：`run_navigation_batch.py` / `run_end_to_end_batch.py` 结束时会打印 **`__SSGS_BATCH_ID__=<id>`**；`audit_accept_gate.py` **须加 `--root .`**（并建议 **`--out-json`**），否则 **`context_*` 金叶列**为空；多份报告可用 **`scripts/diagnostics/print_diagnostic_summaries.py`** 终端打表。
 
 **满 manifest（与端到端主表同条数；当前 manifest 为 500）**：上面两条 `run_navigation_batch.py` **不要加** **`--max-samples`**（或显式 **`--max-samples 500`** 与 manifest 一致）。**P0-A′ `probe_budget2` 满量台账**即按此协议在 AutoDL 跑出（见下表 `sample_count=500`）。
 
@@ -343,21 +333,24 @@ done
 
 **过程与 `audit`（与导航满 500 `probe2` 同向）**：两臂 **`frac_gold_leaf_ever_visited_deduped` / `frac_gold_in_accepted_evidence` / `audit`** 与 **§6.6 导航 `probe2` 表**（`041200Z` / `042544Z`）一致量级；**`mean_frac_gold_leaf_texts_in_generator_context`**：`rule` **≈0.159**、`learned` **≈0.170**（相对 **§9.12** `overlap_k4` 批 **`≈0.127`**，**ctx-gold 均值抬升**）。**`audit`**：`never_visit` **0.58 / 0.55**，`branch_cap` **44 / 41**。
 
-**下一步（执行顺序，2026-04，已更新）** — **P0-A′（`probe_budget`）已闭合**（导航 **`probe1`/`probe2`** + e2e **`probe2`** 终点表见上）。
+**P0-B′：`rule` + `entity_boost_alpha=0.05` 组合臂（导航、不跑 7B 生成；2026-04-18 冻结）** — 主模版：`configs/experiment/navigation_batch_real_corpus_p0_visit_rule_entity_boost_a005.example.json`。单因子消融：`configs/experiment/navigation_batch_real_corpus_p0_visit_rule_entity_boost_a005_abl_{probudget_1,minrel_1p0,maxev_8,ctx_overlap_k4,maxnodes_64}.example.json`（各相对主模版**仅改一项**，小样本对照）。
 
-1. **工程**：**`rule` 默认 `probe2` 已合入仓库**（见上 **「仓库默认」**）。**待办**：用更新后的 **`…p0_rule_frozen_nav.example.json`** **重跑 e2e 500**，把新 **`batch_id` / EM / F1** 写入上表 **A 行**（或并列保留 **`060702Z`** 作「默认 probe2 首次全量」）。**`learned_root` 模版仍为 `probe_budget=1`**（EM 未升）。  
-2. **P0-B visit（主线）**：压 **`frac_samples_never_visit_any_gold`**、抬 **`frac_gold_leaf_ever_visited_deduped`**；**单变量**（与当前 **`probe2` 默认**叠加时 **一次只改一项**）：  
-   - **第一刀（已跑，见下表）**：**`explore_root_probe_top_m: 1 → 2`**，**`batch_id`** **`nav_p0_visit_rule_root_probe_top_m2_20260418_071832Z`**；落盘 **`outputs/reports/evidence_saturation_nav_p0_visit_rule_root_probe_top_m2_20260418_071832Z.json`**。相对 **`nav_p0_probe_budget2_rule_20260418_041200Z`**：**`never_visit` 0.58→0.566**、**`visited_deduped` 0.42→0.434**（visit 略好），但 **`visit…missing_accept` 0.116→0.14**、**`reject_leaf_branch_cap` 44→60**、**`frac_gold_in_accepted_evidence` 0.388→0.386**（accept/cap 回弹）。**结论**：**trade-off**，**不**把 **`probe_top_m=2`** 与 **`probe_budget=2` 默认**一并冻成终版；**维持 `probe_top_m=1`**，下一单变量见下 **「扫参约束」**。  
-   - **其后候选**（须读 **`src/controller/ssgs_controller.py`** 根分支：**`explore_root_probe_*` 与 `explore_top_m_root_children` 互斥**，勿混改）：**`entity_boost_alpha` → `max_nodes` / `max_depth`**、**非 root Router**、**`learned_root` 更深**。  
-3. **冻结**：**accept 侧**仍 **不盲扫**（**MI-004/005**）。  
-4. **附录**：**`learned` + `probe2`** 可再复跑 1～2 次再议是否改模版。
+| 批 | `n` | 检索 `EM` | `audit`：`never_visit` | `reject_leaf_branch_cap` / `reject_leaf_min_relevance`（叶次） | `mean_frac_gold_leaves_in_context` | `sum_accepted_gold_not_in_context` | 备注 |
+|:---|---:|---:|---:|---:|---:|---:|:---|
+| `nav_p0_visit_rule_entity_boost_a005_20260418_075320Z` | 500 | 0.116 | — | — | — | — | 旋钮旧版（`min_rel=1.0`、`max_evidence=8`、`overlap_topk` k=4 等） |
+| `nav_p0_visit_rule_entity_boost_a005_20260418_081727Z` | 500 | **0.126** | **0.488** | **63 / 10** | **0.210** | **49** | **冻结主行**（`min_rel=0.6`、`max_evidence=12`、`max_nodes=80`、`question_entity_match_topk` k=6、pool 24、`probe_budget=2`） |
+| `…085815Z` 及 `…_abl_*`（`20260418`） | 100 | — | ≈0.53 簇 | — | — | — | **`probudget_1` / `maxev_8` / `minrel_1.0` / `overlap_k4` 不占优**；`avg_nav_wall_time_ms` 满量约 **1660**（较 `075320Z` ↑） |
 
-**P0-B 扫参约束（可套用，精简）** — 相对导航基线 **`nav_p0_probe_budget2_rule_20260418_041200Z`**（**`never_visit=0.58`**，**`reject_leaf_branch_cap` 叶次 `44`**，**`visit…missing_accept=0.116`**）。  
-1. **顺序**：先 **`entity_boost_alpha`**（**`0.05`→`0.1`→`0.15`**，路由偏置；**`probe_top_m=1`** 下不稀释 **`probe_budget`**，cap 失控风险相对低）；再 **`max_nodes`**（**`64`→`96`**，硬扩图，同步盯 **`avg_nav_wall_time_ms` / 尾延迟**）。**`max_nodes`** 仅作 **α 网格后的天花板压力测试**；若 **α 连续两格已熔断**，**收口**、**不**扫第三格。**首格模版**：**`…p0_visit_rule_entity_boost_a005.example.json`**（**`α=0.05`**）。  
+**读法**：相对 **`probe2` rule 满 500（`041200Z`，`never_visit≈0.58`）**，本臂 **`never_visit` 约 −9pp**，主矛盾仍约 **半数样本未 visit 任一金叶**；`saturation` 上 **`gold_missing` 且预算饱和** 仍常见。**下一刀（仍单变量、导航无生成）**：按下 **「扫参约束」** 顺序，**只升** `entity_boost_alpha` **→ `0.1`**（复制主模版仅改 `entity_boost_alpha` 与 `batch_id_prefix` / `run_id_prefix`；`N≥200` 再定是否满 500）；若 **cap 熔断** 再议 **`max_nodes=96`**。**`learned_root` / e2e** 与检索 EM **分列**，勿与上表混为主 KPI。
+
+**P0-B 扫参约束（可套用，精简）** — 相对导航基线 **`nav_p0_probe_budget2_rule_20260418_041200Z`**（**`never_visit=0.58`**，**`reject_leaf_branch_cap` 叶次 `44`**，**`visit…missing_accept=0.116`**）；**实体偏置臂**验收时可对照 **P0-B′ 冻结行 `081727Z`**（**`never_visit=0.488`**，**cap/minrel 63/10**）。  
+1. **顺序**：先 **`entity_boost_alpha`**（**`0.05`→`0.1`→`0.15`**，路由偏置；**`probe_top_m=1`** 下不稀释 **`probe_budget`**，cap 失控风险相对低）；再 **`max_nodes`**（**`80`→`96`**，硬扩图，同步盯 **`avg_nav_wall_time_ms` / 尾延迟**）。**`max_nodes`** 仅作 **α 网格后的天花板压力测试**；若 **α 连续两格已熔断**，**收口**、**不**扫第三格。**当前已冻结首格**：**`…p0_visit_rule_entity_boost_a005.example.json`**（**`α=0.05`**，`081727Z`）。  
 2. **导航批验收 / 熔断**：**通过（可进 saturation）** — **`never_visit` 降 ≥3pp**（≤**`0.55`**）且 **`reject_leaf_branch_cap` 叶次 ≤49**。**上 e2e** 须 **三条件同时**：上列 **通过** + **`visit…missing_accept` 不高于基线 `0.116`**（避免「visit 好、accept 差」稀释 EM）。**熔断** — **`cap` 增幅 >10** 或 **`visit…missing_accept` >0.136** → **止步、不上 e2e**；触发后 **不补「微调解释跑」**，台账只记 **Δ + 判定**。  
 3. **伪 visit / α 读法**：**`visited`/`never_visit` 改善**时，用 **`run_payload`/`route_decisions`** 看 **路径是否仍挤在同一浅支**（仓库**尚无**现成深度直方图字段）；若 **visit 升但分布不散**，按 **浅层匹配** 归档、**回调 α** 或改 **回溯/探索**。**叙事**：visit 动 EM 不动 → **路由未穿透生成端**；EM 动 visit 不动 → **读/生成偶然，不抬主结论**（**MI-004/005**）。  
 4. **单变量 + 同口径**：跑批前 **`diff` 自检** 仅目标键一处变更；**种子 / sampler / prompt / 数据切片** 任一变 → **须重跑同协议 nav-500 基线** 再写 **Δ**。  
 5. **主表与后置**：新 e2e 默认跑完 **覆盖 P0 主表 A 行 `batch_id`**，旧 **`154358Z`** 可作 **A′（历史 `probe1`）**。**`never_visit` 未稳定压到 `<45%` 叙事线前**，**非 root Router / learned 深调** **不进主工作量**；**accept 盲扫不解冻**。
+
+**下一步（执行顺序，2026-04-18 修订）** — **P0-A′（`probe_budget`）已闭合**；**P0-B′ 组合臂已冻结**（上表）。工程待办与 e2e 重跑句仍见下 **bash** 块；**导航主线**改为：**`α=0.1` 网格首格** → 视验收/熔断再 **`max_nodes` 压力**；**`probe_top_m=2`** 已证 trade-off（visit 略好、cap 回弹），**不**与当前默认并冻。
 
 ```bash
 conda activate mamba2
@@ -382,7 +375,7 @@ do
     --out-json "outputs/reports/evidence_saturation_${id}_ctxgold.json"
   python scripts/diagnostics/audit_accept_gate.py \
     --registry-jsonl outputs/reports/run_registry.jsonl \
-    --batch-id "$id"
+    --batch-id "$id" --root .
 done
 ```
 
@@ -406,11 +399,11 @@ do
     --out-json "outputs/reports/evidence_saturation_${id}.json"
   python scripts/diagnostics/audit_accept_gate.py \
     --registry-jsonl outputs/reports/run_registry.jsonl \
-    --batch-id "$id"
+    --batch-id "$id" --root .
 done
 ```
 
-**导航侧下一阶段（由前到后）**：**P0-A′ 导航**（**`probe1`/`probe2` 满 500** 与并排表）已闭合。**当前优先**：上表 **端到端 `probe2`** 结果 → 再攻 **`never_visit_any_gold`（Router / 探索 / 预算，非 `context_select`）**。可学习 gap = 抬 visited、降 `gold_missing`、抬 accepted（不用 oracle 作弊）。**已做**：根层 **`LearnedRootHybridRouter`**；**`probe_budget` 单变量**已验证 cap/accept。进一步 accept 侧改动须 **单变量** + **MI-004/005**；**勿**用 `leaf_indices_required` 作弊。
+**导航侧下一阶段（由前到后）**：**P0-A′ 导航**（**`probe1`/`probe2` 满 500**）已闭合。**P0-B′**（**`rule` + `entity_boost_alpha=0.05`**，上表 **`081727Z`**）已冻结：**`never_visit` 仍约 0.49**，主矛盾仍是 **DFS + `max_evidence` 早停** 下 **金叶未进入探索前沿**；继续压该指标须 **路由/探索**（**下一实验格：`α=0.1`**，失败再 **`max_nodes=96`**），**非**再扫 `context_select`。**端到端 `probe2`** 与 **`learned_root`** 另线推进；**勿**用 `leaf_indices_required` 作弊。
 
 **P2（不默认）**：root 训练增强、`α>0.5` 烟测 — 见 §6.5 末、**MI-008**。
 
