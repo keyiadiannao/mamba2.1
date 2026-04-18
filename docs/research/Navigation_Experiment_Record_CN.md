@@ -365,12 +365,14 @@ rm -f /tmp/nav_smoke_rule.json /tmp/nav_smoke_learned.json
      --out-json outputs/reports/evidence_sat_nav_p0_reg200_<臂标签>.json
    ```
 
-   **登记（跑完后补全）**：
+   **登记（`N=200`，2026-04-18）**：
 
    | 臂 | `batch_id` | `nav_success_rate` | 金叶 `frac_gold_leaf_ever_visited_deduped` | `gold_missing` | `avg_nav_wall_time_ms` |
    |:---|:---|:---:|:---:|:---:|:---:|
-   | A `rule` frozen | （待填） |  |  |  |  |
-   | B `learned_root` `α=0.5` | （待填） |  |  |  |  |
+   | A `rule` frozen | `nav_p0_reg200_rule_frozen_20260418_014016Z` | 见该批 `batch_summary.json` | 见 `analyze_evidence_saturation.py` 产出 | 同左 | 同左 |
+   | B `learned_root` `α=0.5` | `nav_p0_reg200_learned_root_blend05_20260418_014536Z` | 见该批 `batch_summary.json` | 见 `analyze_evidence_saturation.py` 产出 | 同左 | 同左 |
+
+   **`nav_success_rate` / `avg_nav_wall_time_ms`**：`outputs/reports/batches/<batch_id>/batch_summary.json`。**金叶**：`--registry-jsonl outputs/reports/run_registry.jsonl --batch-id '<上表>'` 写出 json 后读摘要字段。
 
 **P1（仅当 P0 显示瓶颈仍在「读侧 / 上下文」）**
 
