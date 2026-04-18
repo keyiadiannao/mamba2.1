@@ -338,37 +338,22 @@ done
 | 批 | `n` | 检索 `EM` | `audit`：`never_visit` | `reject_leaf_branch_cap` / `reject_leaf_min_relevance`（叶次） | `mean_frac_gold_leaves_in_context` | `sum_accepted_gold_not_in_context` | 备注 |
 |:---|---:|---:|---:|---:|---:|---:|:---|
 | `nav_p0_visit_rule_entity_boost_a005_20260418_075320Z` | 500 | 0.116 | — | — | — | — | 旋钮旧版（`min_rel=1.0`、`max_evidence=8`、`overlap_topk` k=4 等） |
-| `nav_p0_visit_rule_entity_boost_a005_20260418_081727Z` | 500 | **0.126** | **0.488** | **63 / 10** | **0.210** | **49** | **冻结主行**（`min_rel=0.6`、`max_evidence=12`、`max_nodes=80`、`question_entity_match_topk` k=6、pool 24、`probe_budget=2`） |
+| `nav_p0_visit_rule_entity_boost_a005_20260418_081727Z` | 500 | **0.126** | **0.488** | **63 / 10** | **0.210** | **49** | **冻结主行（`α=0.05`）**（`min_rel=0.6`、`max_evidence=12`、`max_nodes=80`、`question_entity_match_topk` k=6、pool 24、`probe_budget=2`） |
+| `nav_p0_visit_rule_entity_boost_a010_20260418_095212Z` | 500 | 见 `outputs/reports/batches/<id>/batch_summary.json` 中 `exact_match_rate` | **0.448** | 见 `accept_gate_audit_<id>.json` 内 `visited_not_accepted_dispositions_aggregated` | **0.227** | **51** | **`α=0.1` 满 500**：相对 `081727Z`，`never_visit` **−4.0pp**；`saturation`：`frac_gold_leaf_ever_visited_deduped` **0.552**（**+4.0pp**）、`frac_gold_in_accepted_evidence` **0.514**、`sample_count_gold_missing_from_evidence` **243**；`visit…missing_accept` **0.106**（≤0.12）→ 阶段目标 **B** 正式达成 |
 | `…085815Z` 及 `…_abl_*`（`20260418`） | 100 | — | ≈0.53 簇 | — | — | — | **`probudget_1` / `maxev_8` / `minrel_1.0` / `overlap_k4` 不占优**；`avg_nav_wall_time_ms` 满量约 **1660**（较 `075320Z` ↑） |
 
-**读法**：相对 **`probe2` rule 满 500（`041200Z`，`never_visit≈0.58`）**，本臂 **`never_visit` 约 −9pp**，主矛盾仍约 **半数样本未 visit 任一金叶**；`saturation` 上 **`gold_missing` 且预算饱和** 仍常见。**下一刀（仍单变量、导航无生成）**：**`entity_boost_alpha=0.1`** 模版 **`…entity_boost_a010.example.json`**（其余同 **`a005`**）；先 **`--max-samples 200`** 再满 500；若 **cap 熔断** 再议 **`max_nodes=96`**。**`learned_root` / e2e** 与检索 EM **分列**，勿与上表混为主 KPI。
+**读法**：相对 **`probe2` rule 满 500（`041200Z`，`never_visit≈0.58`）**，**`α=0.05` 冻结行 `081727Z`** 将 **`never_visit` 压到约 0.49** 量级；**`α=0.1` 满 500（`095212Z`）** 再压 **约 4pp** 并抬 **`gold_visit_dedup`**，**阶段 B 已达成**（上表末行）。**下一刀（仍单变量）**：**`α=0.15`** 须 **`N=200` 烟测 + 看 `cap`/`visit…missing_accept` 熔断**；或 **`max_nodes=96`**（保持 **`α=0.1`**）作天花板压力。**`learned_root` / e2e** 与检索 EM **分列**；e2e 仅在 **过程仍 ≤0.12** 且你愿意付 7B 成本时开。
 
 **阶段目标（建议稿，可改台账）** — **导航（无生成）**：以 **`081727Z`** 为锚。**A（收工级）**：`never_visit` **≤0.42** 且 **`frac_gold_leaf_ever_visited_deduped` ≥0.58**（主矛盾明显让位）。**B（本阶段合格）**：相对 `081727`，`never_visit` **再降 ≥3pp**（≤**0.458**）**或** `frac_gold_leaf_ever_visited_deduped` **再升 ≥3pp**，且 **`visit…missing_accept` 不高于 `0.12`**、**`reject_leaf_branch_cap` 叶次相对 `081727`（63）增幅 ≤15**（实体臂 cap 已高于纯 `probe2` 的 44，**不宜**再套用「≤49」旧阈）。**C（仅记阴性）**：`never_visit` 不降反升 **≥2pp** 或 cap **>80** → 停 **`α=0.15`**，转 **`max_nodes=96`** 或收口。**端到端（7B 生成 EM）**：同 manifest 上 **相对当前主表 `learned_root` ~0.20**，单轮导航改动 **≥+0.01 EM** 已属强信号；**≥+0.005** 可作「值得写进主表」下限；须与 **过程指标同向**（**MI-004/005**）。
 
-**收工与转场（导航 P0-B′ → OOM / 并行 / 下一阶段）** — **不必**等到 **A 档** 才做后续工程；以下 **满足其一** 即可把 **「实体偏置 + accept/读侧组合」导航扫参** 视为 **阶段闭合**，主时间片转 **OOM、并行编排、生成侧/别的课题**：  
-1. **`α=0.1` 满 500** 已跑并落台账：达 **B 档** → 本段导航 **可收工**；达 **C 档或仅边际** → **写明封顶结论**（以 **`081727Z`** 或 **`a010` 最后一跑** 为 **reporting baseline**）亦可收工，**不**无限扫 **`α=0.15`**。  
-2. **已具备**：冻结模版 **`…a005.example.json`** + 至少 **一格** **`a010`（200 或 500）** 的 **audit + saturation JSON** + **`print_diagnostic_summaries` 一行摘要** —— 即 **可复现 + 可判读**，足够支撑 **OOM / 分布式** 在 **固定 config** 上压测。  
-3. **OOM / 并行**：与导航 **可并行**，须 **不同 `batch_id_prefix` / `report_dir` / 工作目录**，避免 **registry 与磁盘** 互相覆盖；**OOM 实验** 以 **当前冻结 arm** 为 **主负载**，不必等 e2e。  
-4. **仍须单开排期**（不占「导航收工」名分）：**e2e 单点验证**（B 档后 **一条** 7B 批即可）；**`learned_root` 深调**、**Controller 改序** 等 **另立项**，避免与 **P0-B′ 扫参收工** 混为同一关门条件。
-
-**论文级终极目标（与「工程收工」不同；投稿前建议凑齐的一组）**  
-1. **任务与数据合同**：固定 **manifest**（`N`、**`positive_leaf_indices`** 口径）、**树 / 预处理** 协议；若未来 **train / held-out**，主结果须 **held-out** 并在文内 **声明无泄漏**。  
-2. **上下界成对**：**Oracle 证据上界**（如 `oracle_item_leaves` 或等价）vs **可部署路由**（**rule** / **learned_root** / 本文 **entity_boost** 臂）；**同时报终点（EM/F1）与过程**（`gold_missing`、`ctx-gold`、`never_visit`），解释 **gap 来源**。  
-3. **端到端主表**：至少 **两强基线可比臂**（同 **7B、同 decode**）、**同 `N` 全量**一次以上；附 **复跑或区间**（bootstrap / 二次种子）以应审稿稳健性质疑。  
-4. **导航分解表（主文或附录）**：**`audit_accept_gate` + `analyze_evidence_saturation`** 与 e2e **同 manifest** 可对齐的 **`batch_id`**；**显式区分** 导航批 **retrieval@context[0]** 与 e2e **generation EM**，**禁止混排为同一「EM」列**。  
-5. **消融链**：每个核心主张 **单变量 1～2 步** + **封顶结论**（避免无限网格）；与 **MI-004/005** 判停一致。  
-6. **复现包**：**commit / config 路径 / `batch_id` / 环境**（**MI-001/002**）；**OOM、显存、离线** 写入 **Limitation**。  
-
-**主结果量级直觉（非硬阈值，便于自评）**：同 **`N≈500`**、对 **合理最强基线**，端到端 **稳定 +1～+2 pt EM**（或等效 F1）且 **过程指标同向**，通常已可写 **主贡献**；**亚 1pt** 须 **窄方差或多设置一致**。导航 **单独成章** 时，**`never_visit` 较基线 −≥10pp** 且 **e2e 不降**，比 **仅抬检索 EM** 更易辩护为 **「证据可达性」改进**。
-
 **P0-B 扫参约束（可套用，精简）** — 相对导航基线 **`nav_p0_probe_budget2_rule_20260418_041200Z`**（**`never_visit=0.58`**，**`reject_leaf_branch_cap` 叶次 `44`**，**`visit…missing_accept=0.116`**）；**实体偏置臂**过程验收以 **`081727Z`** 为锚（**`never_visit=0.488`**，**`cap/minrel=63/10`**），**不**与纯 `probe2` 的 cap 绝对值混比。  
-1. **顺序**：先 **`entity_boost_alpha`**（**`0.05`→`0.1`→`0.15`**，路由偏置；**`probe_top_m=1`** 下不稀释 **`probe_budget`**，cap 失控风险相对低）；再 **`max_nodes`**（**`80`→`96`**，硬扩图，同步盯 **`avg_nav_wall_time_ms` / 尾延迟**）。**`max_nodes`** 仅作 **α 网格后的天花板压力测试**；若 **α 连续两格已熔断**，**收口**、**不**扫第三格。**当前已冻结首格**：**`…p0_visit_rule_entity_boost_a005.example.json`**（**`α=0.05`**，`081727Z`）。  
+1. **顺序**：先 **`entity_boost_alpha`**（**`0.05`→`0.1`→`0.15`**，路由偏置；**`probe_top_m=1`** 下不稀释 **`probe_budget`**，cap 失控风险相对低）；再 **`max_nodes`**（**`80`→`96`**，硬扩图，同步盯 **`avg_nav_wall_time_ms` / 尾延迟**）。**`max_nodes`** 仅作 **α 网格后的天花板压力测试**；若 **α 连续两格已熔断**，**收口**、**不**扫第三格。**锚点**：**`α=0.05`** → **`081727Z`**；**`α=0.1` 满 500** → **`095212Z`**（**B 档已达成**）。  
 2. **导航批验收 / 熔断**：**纯 `probe2` rule 臂**仍用旧阈：**`never_visit` 降 ≥3pp**（≤**`0.55`**）且 **`reject_leaf_branch_cap` 叶次 ≤49**。**实体偏置臂**用上节 **「阶段目标 B」**（锚 **`081727Z`**）。**上 e2e** 须：**`visit…missing_accept` 不高于 `0.12`** + 过程 **B 档及以上** + 终点 EM 见上节下限。**熔断（实体臂）**：相对 **`081727`**，`cap` 叶次 **>78** 或 **`visit…missing_accept` >0.14** → **止步**；触发后台账只记 **Δ + 判定**。  
 3. **伪 visit / α 读法**：**`visited`/`never_visit` 改善**时，用 **`run_payload`/`route_decisions`** 看 **路径是否仍挤在同一浅支**（仓库**尚无**现成深度直方图字段）；若 **visit 升但分布不散**，按 **浅层匹配** 归档、**回调 α** 或改 **回溯/探索**。**叙事**：visit 动 EM 不动 → **路由未穿透生成端**；EM 动 visit 不动 → **读/生成偶然，不抬主结论**（**MI-004/005**）。  
 4. **单变量 + 同口径**：跑批前 **`diff` 自检** 仅目标键一处变更；**种子 / sampler / prompt / 数据切片** 任一变 → **须重跑同协议 nav-500 基线** 再写 **Δ**。  
 5. **主表与后置**：新 e2e 默认跑完 **覆盖 P0 主表 A 行 `batch_id`**，旧 **`154358Z`** 可作 **A′（历史 `probe1`）**。**`never_visit` 未稳定压到 `<45%` 叙事线前**，**非 root Router / learned 深调** **不进主工作量**；**accept 盲扫不解冻**。
 
-**下一步（执行顺序，2026-04-18 修订）** — **P0-A′（`probe_budget`）已闭合**；**P0-B′ 组合臂已冻结**（上表）。工程待办与 e2e 重跑句仍见下 **bash** 块；**导航主线**改为：**`α=0.1` 网格首格** → 视验收/熔断再 **`max_nodes` 压力**；**`probe_top_m=2`** 已证 trade-off（visit 略好、cap 回弹），**不**与当前默认并冻。
+**下一步（执行顺序，2026-04-18 修订）** — **P0-A′（`probe_budget`）已闭合**；**P0-B′：`α=0.05` 冻结 + `α=0.1` 满 500（`095212Z`）达阶段 B**（上表）。工程待办与 e2e 重跑句仍见下 **bash** 块；**导航主线**：**`α=0.15` 烟测** 或 **`max_nodes=96`（`α=0.1`）** → 再议 e2e；**`probe_top_m=2`** 已证 trade-off，**不**与当前默认并冻。
 
 ```bash
 conda activate mamba2
@@ -421,7 +406,7 @@ do
 done
 ```
 
-**导航侧下一阶段（由前到后）**：**P0-A′ 导航**（**`probe1`/`probe2` 满 500**）已闭合。**P0-B′**（**`rule` + `entity_boost_alpha=0.05`**，上表 **`081727Z`**）已冻结：**`never_visit` 仍约 0.49**，主矛盾仍是 **DFS + `max_evidence` 早停** 下 **金叶未进入探索前沿**；继续压该指标须 **路由/探索**（**下一实验格：`α=0.1`**，失败再 **`max_nodes=96`**），**非**再扫 `context_select`。**端到端 `probe2`** 与 **`learned_root`** 另线推进；**勿**用 `leaf_indices_required` 作弊。
+**导航侧下一阶段（由前到后）**：**P0-A′ 导航**（**`probe1`/`probe2` 满 500**）已闭合。**P0-B′**：**`α=0.05`**（**`081727Z`**）冻结；**`α=0.1` 满 500（`095212Z`）** 已将 **`never_visit` 压至约 0.45** 并抬 **`gold_visit_dedup`**（阶段 **B**）。主矛盾仍在 **约 45% 样本未触任一金叶 + 预算饱和**，下一格：**`α=0.15` 烟测** 或 **`max_nodes=96`（保持 `α=0.1`）**，**非**再扫 `context_select`。**端到端 `probe2`** 与 **`learned_root`** 另线；**勿**用 `leaf_indices_required` 作弊。
 
 **P2（不默认）**：root 训练增强、`α>0.5` 烟测 — 见 §6.5 末、**MI-008**。
 
