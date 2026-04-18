@@ -351,6 +351,16 @@ done
 3. **OOM / 并行**：与导航 **可并行**，须 **不同 `batch_id_prefix` / `report_dir` / 工作目录**，避免 **registry 与磁盘** 互相覆盖；**OOM 实验** 以 **当前冻结 arm** 为 **主负载**，不必等 e2e。  
 4. **仍须单开排期**（不占「导航收工」名分）：**e2e 单点验证**（B 档后 **一条** 7B 批即可）；**`learned_root` 深调**、**Controller 改序** 等 **另立项**，避免与 **P0-B′ 扫参收工** 混为同一关门条件。
 
+**论文级终极目标（与「工程收工」不同；投稿前建议凑齐的一组）**  
+1. **任务与数据合同**：固定 **manifest**（`N`、**`positive_leaf_indices`** 口径）、**树 / 预处理** 协议；若未来 **train / held-out**，主结果须 **held-out** 并在文内 **声明无泄漏**。  
+2. **上下界成对**：**Oracle 证据上界**（如 `oracle_item_leaves` 或等价）vs **可部署路由**（**rule** / **learned_root** / 本文 **entity_boost** 臂）；**同时报终点（EM/F1）与过程**（`gold_missing`、`ctx-gold`、`never_visit`），解释 **gap 来源**。  
+3. **端到端主表**：至少 **两强基线可比臂**（同 **7B、同 decode**）、**同 `N` 全量**一次以上；附 **复跑或区间**（bootstrap / 二次种子）以应审稿稳健性质疑。  
+4. **导航分解表（主文或附录）**：**`audit_accept_gate` + `analyze_evidence_saturation`** 与 e2e **同 manifest** 可对齐的 **`batch_id`**；**显式区分** 导航批 **retrieval@context[0]** 与 e2e **generation EM**，**禁止混排为同一「EM」列**。  
+5. **消融链**：每个核心主张 **单变量 1～2 步** + **封顶结论**（避免无限网格）；与 **MI-004/005** 判停一致。  
+6. **复现包**：**commit / config 路径 / `batch_id` / 环境**（**MI-001/002**）；**OOM、显存、离线** 写入 **Limitation**。  
+
+**主结果量级直觉（非硬阈值，便于自评）**：同 **`N≈500`**、对 **合理最强基线**，端到端 **稳定 +1～+2 pt EM**（或等效 F1）且 **过程指标同向**，通常已可写 **主贡献**；**亚 1pt** 须 **窄方差或多设置一致**。导航 **单独成章** 时，**`never_visit` 较基线 −≥10pp** 且 **e2e 不降**，比 **仅抬检索 EM** 更易辩护为 **「证据可达性」改进**。
+
 **P0-B 扫参约束（可套用，精简）** — 相对导航基线 **`nav_p0_probe_budget2_rule_20260418_041200Z`**（**`never_visit=0.58`**，**`reject_leaf_branch_cap` 叶次 `44`**，**`visit…missing_accept=0.116`**）；**实体偏置臂**过程验收以 **`081727Z`** 为锚（**`never_visit=0.488`**，**`cap/minrel=63/10`**），**不**与纯 `probe2` 的 cap 绝对值混比。  
 1. **顺序**：先 **`entity_boost_alpha`**（**`0.05`→`0.1`→`0.15`**，路由偏置；**`probe_top_m=1`** 下不稀释 **`probe_budget`**，cap 失控风险相对低）；再 **`max_nodes`**（**`80`→`96`**，硬扩图，同步盯 **`avg_nav_wall_time_ms` / 尾延迟**）。**`max_nodes`** 仅作 **α 网格后的天花板压力测试**；若 **α 连续两格已熔断**，**收口**、**不**扫第三格。**当前已冻结首格**：**`…p0_visit_rule_entity_boost_a005.example.json`**（**`α=0.05`**，`081727Z`）。  
 2. **导航批验收 / 熔断**：**纯 `probe2` rule 臂**仍用旧阈：**`never_visit` 降 ≥3pp**（≤**`0.55`**）且 **`reject_leaf_branch_cap` 叶次 ≤49**。**实体偏置臂**用上节 **「阶段目标 B」**（锚 **`081727Z`**）。**上 e2e** 须：**`visit…missing_accept` 不高于 `0.12`** + 过程 **B 档及以上** + 终点 EM 见上节下限。**熔断（实体臂）**：相对 **`081727`**，`cap` 叶次 **>78** 或 **`visit…missing_accept` >0.14** → **止步**；触发后台账只记 **Δ + 判定**。  
