@@ -236,3 +236,4 @@ git pull origin main
 | 2026-04-18 | **P0-A′**：§6.6 补 **导航 `n=200` / 满 manifest** 可复制命令块（含 saturation + `audit_accept_gate` 循环）；烟测表补全 rule 的 `audit` 与 learned 的 saturation。 |
 | 2026-04-18 | **P0-A′** 导航 **满 manifest（`sample_count=500`）**、`probe_budget=2`：`reject_leaf_branch_cap` 叶次 **≈44/41**（对 e2e 基线 **≈85/76**）；**`never_visit_any_gold`** 仍 **≈0.58/0.55**；表与判读见 `Navigation_Experiment_Record_CN.md` §6.6。 |
 | 2026-04-18 | **P0-A′** 文档勘误：**`probe_budget2` 台账为导航满 manifest（500）**；严对照缺 **`probe_budget=1` 导航满量**两条，`n=200` 的 P0-2 **不可替代**；见 `Navigation_Experiment_Record_CN.md` §6.6。 |
+| 2026-04-18 | **`run_navigation_batch` / `run_end_to_end_batch`** 增加可解析行 **`__SSGS_BATCH_ID__=`**；**`scripts/run_nav/run_nav_then_diagnostics.sh`** 一键跑导航批 + saturation + `audit_accept_gate`；用法见 `Navigation_Experiment_Record_CN.md` §6.6。 |

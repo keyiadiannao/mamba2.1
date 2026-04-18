@@ -99,6 +99,7 @@ def main() -> None:
     print(json.dumps(batch_summary, indent=2, ensure_ascii=False))
     print(f"\nSaved batch summary to: {batch_output_dir / batch_id / 'batch_summary.json'}")
     print(f"Updated batch summary registry: {ROOT / 'outputs' / 'reports' / 'end_to_end_batch_summary.jsonl'}")
+    print(f"__SSGS_BATCH_ID__={batch_id}", flush=True)
 
 
 if __name__ == "__main__":

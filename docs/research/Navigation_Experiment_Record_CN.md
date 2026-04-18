@@ -265,6 +265,21 @@ for id in "$BATCH_ID_RULE" "$BATCH_ID_LEARNED"; do
 done
 ```
 
+**一条命令（自动解析 `batch_id`、跑完两臂诊断）**：`run_navigation_batch.py` 结束时会打印一行 **`__SSGS_BATCH_ID__=<id>`**（`run_end_to_end_batch.py` 同理）。仓库脚本：
+
+```bash
+conda activate mamba2
+cd ~/autodl-tmp/mamba2.1
+git pull origin main
+
+# 满 manifest（不写 NAV_BATCH_EXTRA_ARGS）；烟测示例： NAV_BATCH_EXTRA_ARGS='--max-samples 10'
+bash scripts/run_nav/run_nav_then_diagnostics.sh \
+  configs/experiment/navigation_batch_real_corpus_p0_probe_budget2_rule.example.json \
+  configs/experiment/navigation_batch_real_corpus_p0_probe_budget2_learned_root_blend05.example.json
+```
+
+可选环境变量：**`NAV_BATCH_EXTRA_ARGS`**（传给每次 `run_navigation_batch.py`，如 **`--max-samples 200`**）；**`REGISTRY_JSONL`**（默认 **`outputs/reports/run_registry.jsonl`**）。
+
 **满 manifest（与端到端主表同条数；当前 manifest 为 500）**：上面两条 `run_navigation_batch.py` **不要加** **`--max-samples`**（或显式 **`--max-samples 500`** 与 manifest 一致）。**P0-A′ `probe_budget2` 满量台账**即按此协议在 AutoDL 跑出（见下表 `sample_count=500`）。
 
 **P0-A′ 导航烟测（`n=10`，2026-04-18，AutoDL）** — 仅验证脚本与注册表；**方差极大，不得写入与 P0-2 / 500 主表同级结论**。
