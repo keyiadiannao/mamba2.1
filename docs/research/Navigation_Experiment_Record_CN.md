@@ -216,6 +216,11 @@ rm -f /tmp/nav_smoke_rule.json /tmp/nav_smoke_learned.json
 
 **Oracle 导航批 200（附录）**：`navigation_batch_real_corpus_nav_reg200_oracle_item_leaves.example.json`。
 
+**P0-A′（单变量，待你在 GPU 环境跑满 500）**：基线 P0 两臂上 **`evidence_max_per_root_child` 缺省为 0**、**`reject_leaf_branch_cap` 主要来自根探测 Phase1 的 `root_branch_budget`**（实现见 `src/controller/ssgs_controller.py`：`explore_root_probe_budget_per_child` → `cap_source=top_m_budget`）。**第一刀**仅把 **`explore_root_probe_budget_per_child`：`1` → `2`**，其余与 P0 模版一致，避免与 `min_relevance_score` 混变量。端到端模版：  
+`configs/experiment/end_to_end_batch_real_corpus_server_mamba_370m_qwen7b_p0_rule_frozen_nav_probe_budget2.example.json`、  
+`…p0_learned_root_blend05_probe_budget2.example.json`。  
+跑批：`python scripts/run_eval/run_end_to_end_batch.py --config '<上列之一>'`（本机 Qwen 用 **`--generator-hf-model-name`** 或 **`GENERATOR_HF_MODEL_NAME`**，见 `run_end_to_end_batch.py` epilog）；先 **`--max-samples 10`** 再全量。跑满后把两条新 **`batch_id`** 写入本表；过程：`analyze_evidence_saturation.py --with-context-gold-metrics`；Accept：`audit_accept_gate.py --registry-jsonl outputs/reports/run_registry.jsonl --batch-id '<id>'`。若 **`reject_leaf_branch_cap` 叶次明显下降** 而 **`frac_samples_never_visit_any_gold`** 基本不动，与「主矛盾在 visit」一致；若 EM 掉则按 **MI-004/005** 判停再议下一单变量（例如仅 **`evidence_max_per_root_child`** 或仅 **`min_relevance_score`**）。
+
 **导航侧下一阶段（由前到后）**：可学习 gap = 抬 visited、降 `gold_missing`、抬 accepted（不用 oracle 作弊）。**已做**：根层 **`LearnedRootHybridRouter`**（更深仍 rule，`src/router/base.py`）。**Accept 门审计**（上表）已跑通；**P0-A′** 若动刀：优先 **单变量** 试 **`evidence_max_per_root_child` / explore 与 cap 相关键**（与 **`reject_leaf_branch_cap` 主导** 对齐），再视情况试 **`min_relevance_score`**（与 **`reject_leaf_min_relevance`** 对齐）；**勿**用 `leaf_indices_required` 做推理期作弊。其后按需：**非 root**、**探索与预算**大网格仍次于「未 visit 金叶」主因。
 
 **P2（不默认）**：root 训练增强、`α>0.5` 烟测 — 见 §6.5 末、**MI-008**。
