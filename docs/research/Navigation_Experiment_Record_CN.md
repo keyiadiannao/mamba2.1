@@ -356,6 +356,28 @@ done
 
 **③ `visit_miss` / `branch_cap`（`2026-04-18` 续）**：**②** 已说明 **`never_visit` 非 `max_nodes`/`max_depth` 顶穿**；`151646Z`/`153821Z`/`144709Z` 上 **`visit_miss≈0.10`** 且叶级 **`reject_leaf_branch_cap` 常多于 `minrel`**。实现上 **`evidence_max_per_root_child=0`** 时，**`reject_leaf_branch_cap` 的 `cap` 常来自根探测 Phase1 的 `explore_root_probe_budget_per_child`**（`cap_source=top_m_budget`，见 **`Navigation_Experiment_Record_CN.md`** 较早 **P0-A′** 说明与 **`ssgs_controller.py`**）。**下一单变量烟测**：在 **`122155Z` 旋钮** 上 **仅** **`explore_root_probe_budget_per_child: 2→3`**（**`probe_top_m` 仍为 1**），模版：`configs/experiment/navigation_batch_real_corpus_p0_visit_rule_entity_boost_a030_abl_probe_budget3.example.json`；**`n=200`**，对照 **`114138Z`** 盯 **`visit_miss`（须 ≤0.12）**、**`never_visit`**、**`visit_miss_dispositions` 中 `reject_leaf_branch_cap` 叶次** 与 **`avg_nav_wall_time_ms`**。**推进**：若 **`branch_cap` 叶次降** 且 **`visit_miss` 仍 ≤0.12**，可再记 **阳性候选**；若 **`visit_miss` >0.12** 或 **`never_visit` 明显变差**，**停**，仍默认 **`probe_budget=2`**。**复测（`probe_budget=3`，`n=200`）**：**`160226Z`**（`nav_p0_visit_rule_entity_boost_a030_abl_probe_budget3_20260418_160226Z`）— **`never_visit` 0.415**（较 **`114138Z`≈0.40** 约 **+1.5pp**，略升、未跨文档常用 **2pp** 熔断线但方向不利）、**`visit_miss` 0.065（≤0.12，明显优于此前 ~0.10）**；`visit_miss` 叶级 **`reject_leaf_branch_cap=15`**（较 **`25`** 少 **`10` 叶次**）、**`minrel=4` 不变**。**结论**：**「放宽根探测 per-root 预算 → `branch_cap` 下降」在统计上成立**；**`never_visit` 未受益且略差** → **不替换当前 `122155Z` 默认**（仍 **`probe_budget=2`**）。若业务 **优先压低 `visit_miss`/cap** 可记 **`probe_budget=3`** 为 **trade-off 备选**；若 **优先 `never_visit`** 则 **不推进**；上 **满 500 / e2e** 前再对 **`never_visit` 是否稳定 ≥2pp 劣化** 做一次复核。
 
+**③ 续：满 500 导航 + e2e（`probe_budget=3` trade-off 复核）** — 模版：**导航满 manifest** `configs/experiment/navigation_batch_real_corpus_p0_visit_rule_entity_boost_a030_nav500_probe_budget3.example.json`（与 **`122155Z` 旋钮** 一致，仅 **`explore_root_probe_budget_per_child=3`**）；**e2e** `configs/experiment/end_to_end_batch_real_corpus_server_mamba_370m_qwen7b_p0_rule_frozen_nav_probe_budget3_visit_a030.example.json`。**不写 `--max-samples`** 即跑满 **`samples_path`**（当前 **500**）。跑完对 **`122155Z`（`probe_budget=2`）** 看 **`never_visit` / `visit_miss` / `branch_cap` 叶次** 与 **`exact_match_rate`**；若 **`never_visit` 劣化 ≥2pp** 或 **EM 不同向**，仍 **默认 `probe_budget=2`**。
+
+```bash
+cd ~/autodl-tmp/mamba2.1
+conda activate mamba2
+
+# 导航满 500（无 --max-samples）
+python scripts/run_nav/run_navigation_batch.py \
+  --config configs/experiment/navigation_batch_real_corpus_p0_visit_rule_entity_boost_a030_nav500_probe_budget3.example.json | tee /tmp/nav_probudget3_full500.log
+BATCH_ID=$(grep '__SSGS_BATCH_ID__=' /tmp/nav_probudget3_full500.log | tail -1 | cut -d= -f2-)
+python scripts/diagnostics/audit_accept_gate.py \
+  --registry-jsonl outputs/reports/run_registry.jsonl \
+  --batch-id "$BATCH_ID" \
+  --out-json "outputs/reports/accept_gate_audit_${BATCH_ID}.json"
+python scripts/diagnostics/summarize_audit_failure_buckets.py \
+  "outputs/reports/accept_gate_audit_${BATCH_ID}.json"
+
+# e2e 满 500（路径与 generator 按服务器实际修改）
+python scripts/run_eval/run_end_to_end_batch.py \
+  --config configs/experiment/end_to_end_batch_real_corpus_server_mamba_370m_qwen7b_p0_rule_frozen_nav_probe_budget3_visit_a030.example.json
+```
+
 **`never_visit≈0.38` 仍显高的读法（先分析再动刀）**：相对 **`probe2≈0.58`** 已 **~20pp** 量级收益，但 **38%** 仍 **未触任一金叶**，**单靠再抬 `α` 或再扫 `context_select` 不可期归零**。**先做并行分解（短周期）**：**(1)** 由 **`accept_gate_audit` per_sample** 聚类 **`never_visit=true`**（可叠加 **金叶数**、**题面长度**、**路径长度 proxy**），区分 **「树/预算结构硬」** vs **「实体失配」**。**(2)** 与 **`gold_miss_evi` 分列**：**`122155Z`** 仍有大量 **金证据未进 accept**（**visit 后仍丢**）—— **主矛盾有时是「看见了拿不到」**，勿与 **never_visit** 混成一条。**(3)** 抽样 **`run_payload` 路径**，查 **浅支伪 visit**。**动刀优先级**：**(2)** 为主 → **证据与 accept 链**；**(1)** 为主 → **探索拓扑 / `max_nodes` 单次证伪**；**(3)** 为主 → **回溯与扇出**。
 
 **阶段目标（建议稿，可改台账）** — **导航（无生成）**：以 **`081727Z`** 为锚。**A（收工级）**：`never_visit` **≤0.42** 且 **`frac_gold_leaf_ever_visited_deduped` ≥0.58**（主矛盾明显让位）。**B（本阶段合格）**：相对 `081727`，`never_visit` **再降 ≥3pp**（≤**0.458**）**或** `frac_gold_leaf_ever_visited_deduped` **再升 ≥3pp**，且 **`visit…missing_accept` 不高于 `0.12`**、**`reject_leaf_branch_cap` 叶次相对 `081727`（63）增幅 ≤15**（实体臂 cap 已高于纯 `probe2` 的 44，**不宜**再套用「≤49」旧阈）。**C（仅记阴性）**：`never_visit` 不降反升 **≥2pp** 或 cap **>80** → 停 **`α=0.15`**，转 **`max_nodes=96`** 或收口。**端到端（7B 生成 EM）**：同 manifest 上 **相对当前主表 `learned_root` ~0.20**，单轮导航改动 **≥+0.01 EM** 已属强信号；**≥+0.005** 可作「值得写进主表」下限；须与 **过程指标同向**（**MI-004/005**）。
