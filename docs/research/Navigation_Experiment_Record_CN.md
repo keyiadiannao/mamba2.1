@@ -353,9 +353,11 @@ done
 4. **附录**：**`learned` + `probe2`** 可再复跑 1～2 次再议是否改模版。
 
 **P0-B 扫参约束（可套用，精简）** — 相对导航基线 **`nav_p0_probe_budget2_rule_20260418_041200Z`**（**`never_visit=0.58`**，**`reject_leaf_branch_cap` 叶次 `44`**，**`visit…missing_accept=0.116`**）。  
-1. **顺序**：先 **`entity_boost_alpha`**（**`0.05`→`0.1`→`0.15`**，路由偏置；**`probe_top_m=1`** 下不稀释 **`probe_budget`**，cap 失控风险相对低）；再 **`max_nodes`**（**`64`→`96`**，硬扩图，同步盯 **`avg_nav_wall_time_ms` / 尾延迟**）。首格模版：**`configs/experiment/navigation_batch_real_corpus_p0_visit_rule_entity_boost_a005.example.json`**（**`α=0.05`**，余同 **`probe2` rule**）。  
-2. **导航批验收**：**通过** — **`never_visit` 降 ≥3pp**（≤**`0.55`**）且 **`reject_leaf_branch_cap` 叶次 ≤49**（基线 **+5**）→ 可再跑 **saturation / 议 e2e**。**熔断** — **`cap` 增幅 >10** 或 **`visit…missing_accept` >0.136**（基线 **+0.02**）→ **止步、不上 e2e**。  
-3. **伪 visit**：**`visited`/`never_visit` 改善**时，应用 **`run_payload`/`route_decisions`** 事后看 **路径深度是否堆在浅层**（仓库**尚无**现成 `probe_path_depth_dist` 字段）；若像浅层泛化而非路由提效，**回调 α** 或改 **回溯/探索** 再试。
+1. **顺序**：先 **`entity_boost_alpha`**（**`0.05`→`0.1`→`0.15`**，路由偏置；**`probe_top_m=1`** 下不稀释 **`probe_budget`**，cap 失控风险相对低）；再 **`max_nodes`**（**`64`→`96`**，硬扩图，同步盯 **`avg_nav_wall_time_ms` / 尾延迟**）。**`max_nodes`** 仅作 **α 网格后的天花板压力测试**；若 **α 连续两格已熔断**，**收口**、**不**扫第三格。**首格模版**：**`…p0_visit_rule_entity_boost_a005.example.json`**（**`α=0.05`**）。  
+2. **导航批验收 / 熔断**：**通过（可进 saturation）** — **`never_visit` 降 ≥3pp**（≤**`0.55`**）且 **`reject_leaf_branch_cap` 叶次 ≤49**。**上 e2e** 须 **三条件同时**：上列 **通过** + **`visit…missing_accept` 不高于基线 `0.116`**（避免「visit 好、accept 差」稀释 EM）。**熔断** — **`cap` 增幅 >10** 或 **`visit…missing_accept` >0.136** → **止步、不上 e2e**；触发后 **不补「微调解释跑」**，台账只记 **Δ + 判定**。  
+3. **伪 visit / α 读法**：**`visited`/`never_visit` 改善**时，用 **`run_payload`/`route_decisions`** 看 **路径是否仍挤在同一浅支**（仓库**尚无**现成深度直方图字段）；若 **visit 升但分布不散**，按 **浅层匹配** 归档、**回调 α** 或改 **回溯/探索**。**叙事**：visit 动 EM 不动 → **路由未穿透生成端**；EM 动 visit 不动 → **读/生成偶然，不抬主结论**（**MI-004/005**）。  
+4. **单变量 + 同口径**：跑批前 **`diff` 自检** 仅目标键一处变更；**种子 / sampler / prompt / 数据切片** 任一变 → **须重跑同协议 nav-500 基线** 再写 **Δ**。  
+5. **主表与后置**：新 e2e 默认跑完 **覆盖 P0 主表 A 行 `batch_id`**，旧 **`154358Z`** 可作 **A′（历史 `probe1`）**。**`never_visit` 未稳定压到 `<45%` 叙事线前**，**非 root Router / learned 深调** **不进主工作量**；**accept 盲扫不解冻**。
 
 ```bash
 conda activate mamba2
