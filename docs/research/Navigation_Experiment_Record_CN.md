@@ -427,13 +427,45 @@ rm -f /tmp/nav_smoke_rule.json /tmp/nav_smoke_learned.json
 
    **结论**：**`pool` 20→32 在本切片上未改变金叶 visited / accepted / `gold_missing` 与检索 EM**（与 MI-006 一致：扩大 overlap **候选池**只影响「已访问叶子里谁进 overlap 打分」，**不增加**访问过的叶子集合本身）。**`nav_ms` 略降**更宜视为机器负载方差，**不作为 pool 收益认定**。**不必**为 pool32 再开端到端全量；**下一读侧臂**单独试 **`context_select_k`** 或 **`context_select_mode`**（仍一次只动一类）。
 
-4. **其它读侧旋钮**（与 MI-003 / MI-006 叙事一致）：**P1-1 已闭合**；下一优先为 **`context_select_k`** 或 **`context_select_mode`** 的单臂对照（**勿与 `pool` 同时扫**）；仍须 **冻结路由臂**。
+4. **P1-2：`context_select_k` 单臂（冻结 `rule`、`pool=20`、`k=4`→`5`）**  
+   - **对照基线**：P0-2 **`nav_p0_reg200_rule_frozen_*`**（`question_overlap_topk`、`k=4`）。  
+   - **模版**：`configs/experiment/navigation_batch_real_corpus_p1_rule_frozen_nav_reg200_overlap_k5.example.json`（仅 **`context_select_k=5`** 与 `batch_id_prefix` / `run_id_prefix` 不同）。  
+   - **终端**（`N=200` 与 P0-2 / P1-1 同切片）：
+
+   ```bash
+   cd /root/autodl-tmp/mamba2.1
+   git pull origin main
+
+   python scripts/run_nav/run_navigation_batch.py \
+     --config configs/experiment/navigation_batch_real_corpus_p1_rule_frozen_nav_reg200_overlap_k5.example.json \
+     --max-samples 200
+
+   BID="$(ls -td outputs/reports/batches/nav_p1_reg200_rule_overlap_k5_* 2>/dev/null | head -1 | xargs basename)"
+   export BID
+   echo "batch_id=$BID"
+
+   python scripts/diagnostics/analyze_evidence_saturation.py \
+     --registry-jsonl outputs/reports/run_registry.jsonl \
+     --batch-id "$BID" \
+     --out-json outputs/reports/evidence_sat_nav_p1_overlap_k5.json
+   ```
+
+   **登记（跑完后补 `batch_id` 与数值）**：
+
+   | 臂 | `batch_id` | `context_select_k` | 金叶 `frac_gold_leaf_ever_visited_deduped` | `sample_count_gold_missing_from_evidence` | `avg_nav_wall_time_ms` | `exact_match_rate`（检索） |
+   |:---|:---|:---:|:---:|:---:|:---:|:---:|
+   | P0-2 `rule` 基线 | `nav_p0_reg200_rule_frozen_20260418_014016Z` | **4** | **0.41** | **130** | **≈1363** | **0.11** |
+   | P1-2 `rule` | （待填） | **5** |  |  |  |  |
+
+   **验收**：若 **`k=5`** 相对 **`k=4`** 在 **`gold_missing` / `frac_gold_in_accepted_evidence`** 上仍无改善，则 **不必堆高 `k`**；可改 **P1-3** 试 **`context_select_mode`**（例如 `question_entity_match_topk`，仍 **单臂、**`pool=20`**），或回到 **混合 root** 与读侧的组合叙事，而非继续 overlap 网格。
+
+5. **P1-3（按需）**：**`context_select_mode`** 单臂；**勿**与 **`pool` / `k`** 同批混扫。仍须 **冻结 `routing_mode=rule`**，直至 P1-2 有结论。
 
 **P2（不默认排期）**
 
-5. **学习式 root 再增强**：仅当产品/论文需要 **更强 learned 分量** 时，再开 **`max-root-children`↑、cap 外 hard negatives、listwise 目标细化`**；**不与 `α>0.5` 扫参混在同一里程碑**。  
+6. **学习式 root 再增强**：仅当产品/论文需要 **更强 learned 分量** 时，再开 **`max-root-children`↑、cap 外 hard negatives、listwise 目标细化`**；**不与 `α>0.5` 扫参混在同一里程碑**。  
 
-6. **`α` 上界研究**：仅论文需要时 **烟测 `0.6`～`0.7` + 金叶闸门**，不纳入常规迭代。
+7. **`α` 上界研究**：仅论文需要时 **烟测 `0.6`～`0.7` + 金叶闸门**，不纳入常规迭代。
 
 ---
 
