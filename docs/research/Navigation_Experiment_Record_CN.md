@@ -490,12 +490,13 @@ rm -f /tmp/nav_smoke_rule.json /tmp/nav_smoke_learned.json
    | P0-2 `rule` 基线 | `nav_p0_reg200_rule_frozen_20260418_014016Z` | **`question_overlap_topk`** | **0.41** | **0.35** | **130** | **0.11**（22/200） | **≈0.121** | **≈1363** |
    | P1-3 `rule` | `nav_p1_reg200_rule_entity_match_k4_20260418_030137Z` | **`question_entity_match_topk`** | **0.41** | **0.35** | **130** | **0.12**（24/200） | **≈0.131** | **≈1335** |
 
-   **结论**：**金叶过程量**（visited / accepted / `gold_missing`）与 overlap 基线 **仍完全一致**，与 P1-1/P1-2 同向；**检索口径** EM **0.11→0.12**、F1 **略升**，来自 **context 重排后参与打分的文本序/集合权重变化**（**2/200** 条由错变对量级），**不改变**「导航访问轨迹未动」的判断。是否值得 **端到端跟一条**（例如 P0 e2e 模版只改 `context_select_mode`、**`--max-samples` 烟测**）取决于产品优先级；**不必**在纯导航批上继续 **`rule` 下单臂读侧大网格**。**P1 读侧三刀在 `N=200` 上可收口**；后续主线优先 **混合 root**、**Oracle 上界** 或 **e2e 上验证 entity_match**。
+   **结论**：**金叶过程量**（visited / accepted / `gold_missing`）与 overlap 基线 **仍完全一致**；**检索口径** EM **0.11→0.12** 仅为 **2/200** 量级，**不作为主线优化目标**。**P1 读侧三刀在 `N=200` 上已收口**；主线回到 **导航侧**（见下节「由前到后」），**不默认**再开 **`rule` 下单臂读侧** 或 **为 entity_match 单独开 e2e 长跑**，除非产品明确要追这一小增益。
 
-   **Oracle 上下文上界（导航批 `N=200`，诊断用，非可部署策略）**  
-   - **在测什么**：与 **P0-2 同 manifest、同前 `200` 条**，但 **`context_source=oracle_item_leaves`**——**构造给打分用的 context 时直接用金叶**（manifest 的 **`positive_leaf_indices`**），**不等价于**「把导航本身做成 Oracle」。导航仍会跑（`rule`），用于与真实管线对齐的 **耗时/轨迹** 记录；**检索口径 EM/F1** 反映的是 **「若证据里必有金叶」** 时的上界，用来和 **P0-2 rule**（`nav_p0_reg200_rule_frozen_20260418_014016Z`）比 **gap**，见 **`SSGS_Research_Framework_CN.md`** 与 **§9.x** 里对 Oracle 的用法。  
+   **Oracle 上下文上界（导航批 `N=200`，附录级；非必跑）**  
+   - **与已有 Oracle 500 端到端的关系**：仓库里 **`oracle_item_leaves`** 在 **端到端 `500`** 上已给出 **强上界**（与 **§9.x** 表一致）；**若仅为了再证「gap 大」**，**不必**再跑本节的 **导航批 Oracle 200**——信息增量有限。仅当需要 **「与 P0-2 前 200 条逐条严格同切片」** 写附录表时，才用下面模版。  
+   - **在测什么**：**`context_source=oracle_item_leaves`** 时，**打分用 context 直接含金叶文本**（manifest **`positive_leaf_indices`**），测的是 **证据上界**，**不是**可部署导航；且 **Oracle 终点 EM 仍显著低于 1**，说明除导航外 **生成器、参考答案、叶文本质量** 也参与天花板，**Oracle 本身并非「满分真理」**。  
    - **模版**：`configs/experiment/navigation_batch_real_corpus_nav_reg200_oracle_item_leaves.example.json`  
-   - **终端**：
+   - **终端**（按需）：
 
    ```bash
    cd /root/autodl-tmp/mamba2.1
@@ -506,7 +507,15 @@ rm -f /tmp/nav_smoke_rule.json /tmp/nav_smoke_learned.json
      --max-samples 200
    ```
 
-   **对比**：读 **`outputs/reports/batches/<batch_id>/batch_summary.json`** 的 **`exact_match_rate` / `avg_answer_f1`**，与 **P0-2 rule** 并置，即 **同切片上「金叶进 context」的检索上界与真实读侧之差**；**不要把该臂当作「导航更接近 Oracle」**——更接近 Oracle 的**可学习**方向仍是 **降低 `gold_missing` / 提高 visited**（例如已验证的 **混合 root**），而非偷看金叶。
+   **对比**：读 **`outputs/reports/batches/<batch_id>/batch_summary.json`** 的 **`exact_match_rate` / `avg_answer_f1`**，与 **P0-2 rule** 并置；**不要把该臂当作「导航更接近 Oracle」**——**可学习**地缩小 gap 仍靠 **降低 `gold_missing` / 提高 visited / 改善接受**（见下节），而非偷看金叶。
+
+   **导航侧下一阶段（由前到后；缩小与 Oracle 的「可学习」差距；2026-04）**  
+   - **统一口径**：「接近 Oracle」= 在 **不用 `oracle_item_leaves`** 的前提下，抬高 **`frac_gold_leaf_ever_visited_deduped`**、压低 **`sample_count_gold_missing_from_evidence`**、并争取 **`frac_gold_in_accepted_evidence`**；仍以 **`analyze_evidence_saturation.py`** + **`nav_ms`** 为闸门。  
+   - **已做（root）**：**`learned_root_classifier` + `learned_root_blend_alpha`**；实现上 **`LearnedRootHybridRouter`** 仅在 **根下第一层** 与 rule 混合，**`state.path` 更深时回退 rule**（见 **`src/router/base.py` `LearnedRootHybridRouter.rank_children`**）。  
+   - **建议顺序（与代码结构一致，逐步加难度）**：  
+     1. **根之后（非 root 路由）**：在 **冻结当前 root 混合** 的前提下，设计 **更深节点的排序/学习**（新 Router 契约或扩展现有 hybrid 深度），**单臂、金叶闸门、对照 `nav_ms`**；**不与** P1 读侧、`learned_classifier` 全树线混在同一里程碑。  
+     2. **探索与预算（`SSGSController`，仍属导航）**：在 **与 P0 frozen 对齐** 的配置族上，小步评估 **`explore_root_probe_*` / `explore_top_m_root_children` / `evidence_max_per_root_child` / `max_nodes`（及必要时 `max_depth`）** 对 **`gold_missing` / 饱和** 的影响；**每次只动一类旋钮**。  
+     3. **接受与证据槽（高难度）**：若 (1)(2) 触顶，再 **单独立项** 讨论 **Controller 接受逻辑、`max_evidence`、反塌缩**（文档历史上称 **P0-A′**），与 **读侧后处理（MI-006）** 解耦，避免归因混乱。
 
 **P2（不默认排期）**
 
