@@ -265,20 +265,18 @@ for id in "$BATCH_ID_RULE" "$BATCH_ID_LEARNED"; do
 done
 ```
 
-**一条命令（自动解析 `batch_id`、跑完两臂诊断）**：`run_navigation_batch.py` 结束时会打印一行 **`__SSGS_BATCH_ID__=<id>`**（`run_end_to_end_batch.py` 同理）。仓库脚本：
+**`batch_id` 免手抄（不增加仓库脚本）**：`run_navigation_batch.py` / `run_end_to_end_batch.py` 结束时会多打一行 **`__SSGS_BATCH_ID__=<id>`**（便于 `grep`/`sed`）。非主链路实验**不维护**独立 shell，避免脚本堆积；需要时自行一行解析，例如跑完导航立刻诊断：
 
 ```bash
-conda activate mamba2
-cd ~/autodl-tmp/mamba2.1
-git pull origin main
-
-# 满 manifest（不写 NAV_BATCH_EXTRA_ARGS）；烟测示例： NAV_BATCH_EXTRA_ARGS='--max-samples 10'
-bash scripts/run_nav/run_nav_then_diagnostics.sh \
-  configs/experiment/navigation_batch_real_corpus_p0_probe_budget2_rule.example.json \
-  configs/experiment/navigation_batch_real_corpus_p0_probe_budget2_learned_root_blend05.example.json
+id=$(python scripts/run_nav/run_navigation_batch.py \
+  --config configs/experiment/navigation_batch_real_corpus_p0_probe_budget2_rule.example.json 2>&1 \
+  | sed -n 's/^__SSGS_BATCH_ID__=//p' | tail -n1)
+python scripts/diagnostics/analyze_evidence_saturation.py \
+  --registry-jsonl outputs/reports/run_registry.jsonl --batch-id "$id" \
+  --out-json "outputs/reports/evidence_saturation_${id}.json"
+python scripts/diagnostics/audit_accept_gate.py \
+  --registry-jsonl outputs/reports/run_registry.jsonl --batch-id "$id"
 ```
-
-可选环境变量：**`NAV_BATCH_EXTRA_ARGS`**（传给每次 `run_navigation_batch.py`，如 **`--max-samples 200`**）；**`REGISTRY_JSONL`**（默认 **`outputs/reports/run_registry.jsonl`**）。
 
 **满 manifest（与端到端主表同条数；当前 manifest 为 500）**：上面两条 `run_navigation_batch.py` **不要加** **`--max-samples`**（或显式 **`--max-samples 500`** 与 manifest 一致）。**P0-A′ `probe_budget2` 满量台账**即按此协议在 AutoDL 跑出（见下表 `sample_count=500`）。
 
