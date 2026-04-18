@@ -347,7 +347,7 @@ done
 
 1. **工程**：**`rule` 默认 `probe2` 已合入仓库**（见上 **「仓库默认」**）。**待办**：用更新后的 **`…p0_rule_frozen_nav.example.json`** **重跑 e2e 500**，把新 **`batch_id` / EM / F1** 写入上表 **A 行**（或并列保留 **`060702Z`** 作「默认 probe2 首次全量」）。**`learned_root` 模版仍为 `probe_budget=1`**（EM 未升）。  
 2. **P0-B visit（主线）**：压 **`frac_samples_never_visit_any_gold`**、抬 **`frac_gold_leaf_ever_visited_deduped`**；**单变量**（与当前 **`probe2` 默认**叠加时 **一次只改一项**）：  
-   - **第一刀**：**`explore_root_probe_top_m: 1 → 2`**（根探测多开一个子树），模版 **`configs/experiment/navigation_batch_real_corpus_p0_visit_rule_root_probe_top_m2.example.json`**（余键与 **`nav_p0_probe_budget2_rule`** 一致）。跑 **`run_navigation_batch.py` 满 manifest** + **`audit_accept_gate` + `analyze_evidence_saturation`**；若 **`never_visit` 或 visited 明显动** 再上 e2e。  
+   - **第一刀（已跑，见下表）**：**`explore_root_probe_top_m: 1 → 2`**，**`batch_id`** **`nav_p0_visit_rule_root_probe_top_m2_20260418_071832Z`**；落盘 **`outputs/reports/evidence_saturation_nav_p0_visit_rule_root_probe_top_m2_20260418_071832Z.json`**。相对 **`nav_p0_probe_budget2_rule_20260418_041200Z`**：**`never_visit` 0.58→0.566**、**`visited_deduped` 0.42→0.434**（visit 略好），但 **`visit…missing_accept` 0.116→0.14**、**`reject_leaf_branch_cap` 44→60**、**`frac_gold_in_accepted_evidence` 0.388→0.386**（accept/cap 回弹）。**结论**：**trade-off**，**不**把 **`probe_top_m=2`** 与 **`probe_budget=2` 默认**一并冻成终版；下一单变量优先 **`max_nodes` / `entity_boost_alpha`**，或 **维持 `probe_top_m=1`** 再试其它 visit 杠杆。  
    - **其后候选**（须读 **`src/controller/ssgs_controller.py`** 根分支：**`explore_root_probe_*` 与 `explore_top_m_root_children` 互斥**，勿混改）：**`max_nodes` / `max_depth`**、**`entity_boost_alpha`**、**非 root Router**、**`learned_root` 更深**。  
 3. **冻结**：**accept 侧**仍 **不盲扫**（**MI-004/005**）。  
 4. **附录**：**`learned` + `probe2`** 可再复跑 1～2 次再议是否改模版。

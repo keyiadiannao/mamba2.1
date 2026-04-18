@@ -243,5 +243,6 @@ git pull origin main
 | 2026-04-18 | **P0-A′ e2e `probe2` 终点**：`rule` EM **`0.188`**（对基线 **`0.186`** **`+0.002`**）；`learned` EM **`0.198`**（对 **`0.200`** **`−0.002`**）；判读见 `Navigation_Experiment_Record_CN.md` §6.6。 |
 | 2026-04-18 | **P0-A′ 闭合后下一步**：工程可选 **`rule` 默认 `probe2`**；主线攻 **`never_visit`**（路由/探索）；冻结 accept 盲扫；见 `Navigation_Experiment_Record_CN.md` §6.6 **下一步**。 |
 | 2026-04-18 | **`rule` 仓库默认 `probe2`**：`…p0_rule_frozen_nav.example.json`、`navigation_batch_real_corpus_p0_frozen_nav_reg200_rule.example.json` 已 **`explore_root_probe_budget_per_child=2`**；**P0-B visit** 首臂模版 **`navigation_batch_real_corpus_p0_visit_rule_root_probe_top_m2.example.json`**；见 `Navigation_Experiment_Record_CN.md` §6.6。 |
+| 2026-04-18 | **P0-B-1** 导航满 500 **`probe_top_m=2`**（`nav_p0_visit_rule_root_probe_top_m2_20260418_071832Z`）：**`never_visit` 略降**、**accept/cap 回弹**；不并入默认；见 `Navigation_Experiment_Record_CN.md` §6.6。 |
 | 2026-04-18 | **P0-A′** 文档勘误：**`probe_budget2` 台账为导航满 manifest（500）**；严对照缺 **`probe_budget=1` 导航满量**两条，`n=200` 的 P0-2 **不可替代**；见 `Navigation_Experiment_Record_CN.md` §6.6。 |
 | 2026-04-18 | **`run_navigation_batch` / `run_end_to_end_batch`** 增加可解析行 **`__SSGS_BATCH_ID__=`**（便于终端 `sed` 取 `batch_id`）；**不**为烟测维护额外 shell，用法见 `Navigation_Experiment_Record_CN.md` §6.6。 |
