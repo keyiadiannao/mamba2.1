@@ -236,6 +236,15 @@ python scripts/run_nav/run_navigation_batch.py \
   --max-samples 10
 ```
 
+**P0-A′ 导航烟测（`n=10`，2026-04-18，AutoDL）** — 仅验证脚本与注册表；**方差极大，不得写入与 P0-2 / 500 主表同级结论**。
+
+| 臂 | `batch_id` | `analyze_evidence_saturation`（摘录） | `audit_accept_gate`（摘录） |
+|:---|:---|:---|:---|
+| `probe_budget2` `rule` | `nav_p0_probe_budget2_rule_20260418_040256Z` | `frac_gold_leaf_ever_visited_deduped=0.2`，`frac_gold_in_accepted_evidence=0.2`，`gold_missing_from_evidence=8/10`，`frac_evidence_budget_saturated=1.0` | 未贴；同命令改 `--batch-id` 即可补 |
+| `probe_budget2` `learned_root` `α=0.5` | `nav_p0_probe_budget2_learned_root_blend05_20260418_040319Z` | 未贴；同上改 `batch_id` 补 **`evidence_saturation_*.json`** | `frac_samples_never_visit_any_gold=0.9`，`sum_gold_leaves_visited_not_accepted=0`，`visited_not_accepted_dispositions_aggregated` **空**（本 10 条上 **无** cap / 阈值挡 accept 的聚合叶次） |
+
+**读法（烟测尺度）**：**learned** 上 **`never_visit_any_gold=0.9`** 在 **10 条**上噪声极大，**不能**外推到 500；**`visited_not_accepted=0` + 空 dispositions** 只说明「这一小撮里几乎没人 visit 到金叶或 visit 后都 accept 了」，**不能**推出「P0 上 `reject_leaf_branch_cap` 已消失」——基线 500 审计里 cap 仍显著，须 **`n≥200` 或满 manifest** 再对 **`reject_leaf_branch_cap` 叶次**下判断。**rule** 侧 **`gold_missing=8/10`** 与 **`visited_deduped=0.2`** 同向，仅作链路检查。
+
 - **端到端（要 EM/F1 时再跑）**：`configs/experiment/end_to_end_batch_real_corpus_server_mamba_370m_qwen7b_p0_rule_frozen_nav_probe_budget2.example.json`、  
   `…p0_learned_root_blend05_probe_budget2.example.json`；`python scripts/run_eval/run_end_to_end_batch.py --config '<上列之一>'`，Qwen 用 **`--generator-hf-model-name /root/autodl-tmp/models/Qwen2.5-7B-Instruct`** 或环境变量；先 **`--max-samples 10`** 再全量。
 
