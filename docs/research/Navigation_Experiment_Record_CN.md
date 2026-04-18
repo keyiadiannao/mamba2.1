@@ -320,7 +320,7 @@ python scripts/diagnostics/audit_accept_gate.py \
 | `learned_root` | `reject_leaf_branch_cap`（叶次） | 76 | 41 | 同向 |
 | `learned_root` | `frac_samples_never_visit_any_gold` | 0.546 | 0.55 | 同量级 |
 
-**P0-A′ 端到端满 500、`probe_budget=2`（已完成，2026-04-18）** — 与 **本节 P0 主表** 两臂相比，仅 **`explore_root_probe_budget_per_child=2`**。落盘 ctx-gold：**`outputs/reports/evidence_saturation_end_to_end_p0_real_corpus_370m_qwen7b_rule_frozen_nav_probe_budget2_20260418_060702Z_ctxgold.json`**、**`…learned_root_blend05_probe_budget2_20260418_062859Z_ctxgold.json`**。**EM/F1**：见各批 **`outputs/reports/end_to_end_batches/<batch_id>/batch_summary.json`**（`exact_match_rate`、`avg_answer_f1`、`avg_nav_wall_time_ms`）。无 **`jq`** 时用 **`python3`**：
+**P0-A′ 端到端满 500、`probe_budget=2`（已完成，2026-04-18）** — 与 **本节 P0 主表** 两臂相比，仅 **`explore_root_probe_budget_per_child=2`**。落盘 ctx-gold：**`outputs/reports/evidence_saturation_end_to_end_p0_real_corpus_370m_qwen7b_rule_frozen_nav_probe_budget2_20260418_060702Z_ctxgold.json`**、**`…learned_root_blend05_probe_budget2_20260418_062859Z_ctxgold.json`**。**EM/F1** 已合入下表（`batch_summary.json` 口径）；无 **`jq`** 时复现打印可用 **`python3`**：
 
 ```bash
 cd ~/autodl-tmp/mamba2.1
@@ -332,12 +332,14 @@ do
 done
 ```
 
-| 臂 | `batch_id` | EM | F1 | `nav_ms`（量级） | 备注 |
+| 臂 | `batch_id` | EM（`exact_match_rate`） | F1（`avg_answer_f1`） | `avg_nav_wall_time_ms` | 相对 P0 主表基线 |
 |:---|:---|---:|---:|---:|:---|
-| `rule` + `probe2` | `end_to_end_p0_real_corpus_370m_qwen7b_rule_frozen_nav_probe_budget2_20260418_060702Z` | （见上 Python 打印 `exact_match_rate`） | （见上 `avg_answer_f1`） | （见上 `avg_nav_wall_time_ms`） | 基线 rule EM **`0.186`**、F1 **≈0.205** |
-| `learned_root` `α=0.5` + `probe2` | `end_to_end_p0_real_corpus_370m_qwen7b_learned_root_blend05_probe_budget2_20260418_062859Z` | （同上） | （同上） | （同上） | 基线 learned EM **`0.200`**、F1 **≈0.221** |
+| `rule` + `probe2` | `end_to_end_p0_real_corpus_370m_qwen7b_rule_frozen_nav_probe_budget2_20260418_060702Z` | **`0.188`** | **`≈0.208`** | **≈1197** | 基线 EM **`0.186`**（**`+0.002`**），F1 **≈0.205** |
+| `learned_root` `α=0.5` + `probe2` | `end_to_end_p0_real_corpus_370m_qwen7b_learned_root_blend05_probe_budget2_20260418_062859Z` | **`0.198`** | **`≈0.221`** | **≈1281** | 基线 EM **`0.200`**（**`−0.002`**），F1 **≈0.221** |
 
-**过程与 `audit`（与导航满 500 `probe2` 同向）**：两臂 **`frac_gold_leaf_ever_visited_deduped` / `frac_gold_in_accepted_evidence` / `audit`** 与 **§6.6 导航 `probe2` 表**（`041200Z` / `042544Z`）一致量级；**`mean_frac_gold_leaf_texts_in_generator_context`**：`rule` **≈0.159**、`learned` **≈0.170**（相对 **§9.12** `overlap_k4` 批 **`≈0.127`**，**ctx-gold 均值抬升**）。**`audit`**：`never_visit` **0.58 / 0.55**，`branch_cap` **44 / 41**。若 **Python 打印的 `exact_match_rate` 相对基线不升**，按 **MI-004/005** 判停 accept 侧盲扫，主线转 **路由/探索压 `never_visit`**。
+**读法（终点）**：**`rule`** 上 **`probe2` 终点略升**（EM **`+0.002`**、F1 **略升**），与 **ctx-gold / accept 过程改善**同向但幅度小；**`learned_root`** 上 **EM 微降 `0.002`**、F1 几乎贴平基线，**不宜**仅凭 accept 侧改动就改「主默认臂」叙事。**结论**：**`probe2` 可记为 `rule` 侧可选默认候选**（与 **MI-004/005** 不冲突：过程升、终点未跌）；**learned** 仍优先以 **`probe1` 基线**写主表，除非后续复跑确认 **`probe2` 稳定优**。**主线**仍为 **`never_visit` ~0.55～0.58**（`audit`），须 **路由/探索** 再开刀。
+
+**过程与 `audit`（与导航满 500 `probe2` 同向）**：两臂 **`frac_gold_leaf_ever_visited_deduped` / `frac_gold_in_accepted_evidence` / `audit`** 与 **§6.6 导航 `probe2` 表**（`041200Z` / `042544Z`）一致量级；**`mean_frac_gold_leaf_texts_in_generator_context`**：`rule` **≈0.159**、`learned` **≈0.170**（相对 **§9.12** `overlap_k4` 批 **`≈0.127`**，**ctx-gold 均值抬升**）。**`audit`**：`never_visit` **0.58 / 0.55**，`branch_cap` **44 / 41**。
 
 ```bash
 conda activate mamba2
