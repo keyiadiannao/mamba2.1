@@ -450,16 +450,40 @@ rm -f /tmp/nav_smoke_rule.json /tmp/nav_smoke_learned.json
      --out-json outputs/reports/evidence_sat_nav_p1_overlap_k5.json
    ```
 
-   **登记（跑完后补 `batch_id` 与数值）**：
+   **登记（`N=200`，2026-04-18）**：
 
    | 臂 | `batch_id` | `context_select_k` | 金叶 `frac_gold_leaf_ever_visited_deduped` | `sample_count_gold_missing_from_evidence` | `avg_nav_wall_time_ms` | `exact_match_rate`（检索） |
    |:---|:---|:---:|:---:|:---:|:---:|:---:|
    | P0-2 `rule` 基线 | `nav_p0_reg200_rule_frozen_20260418_014016Z` | **4** | **0.41** | **130** | **≈1363** | **0.11** |
-   | P1-2 `rule` | （待填） | **5** |  |  |  |  |
+   | P1-2 `rule` | `nav_p1_reg200_rule_overlap_k5_20260418_023920Z` | **5** | **0.41** | **130** | **≈1323** | **0.11** |
 
-   **验收**：若 **`k=5`** 相对 **`k=4`** 在 **`gold_missing` / `frac_gold_in_accepted_evidence`** 上仍无改善，则 **不必堆高 `k`**；可改 **P1-3** 试 **`context_select_mode`**（例如 `question_entity_match_topk`，仍 **单臂、**`pool=20`**），或回到 **混合 root** 与读侧的组合叙事，而非继续 overlap 网格。
+   **金叶补充**：`frac_gold_in_accepted_evidence` **0.35**（与基线同）；`mean_gold_index_first_in_visits` **≈2.46**（与基线同）；饱和仍为 **`frac_evidence_budget_saturated=1.0`**。
 
-5. **P1-3（按需）**：**`context_select_mode`** 单臂；**勿**与 **`pool` / `k`** 同批混扫。仍须 **冻结 `routing_mode=rule`**，直至 P1-2 有结论。
+   **结论**：**`k` 4→5 在本切片上与基线金叶 / 检索 EM 完全一致**（读侧多取 overlap 条目 **不改变**「曾否访问金叶 / 金叶是否进接受证据」的统计）。**`nav_ms` 介于** P0-2 与 P1-1 **之间**，视为方差即可。**不必**再扫 **`k=6/8`** 作为常规主线；**下一刀**走 **P1-3 `context_select_mode`**（单臂），或把主线精力放回 **混合 root** / 端到端读侧组合，而非 overlap **`k`** 网格。
+
+5. **P1-3（下一优先）**：**`context_select_mode`** 单臂——**`question_entity_match_topk`**，**`k=4`、`pool=20`** 与 P0-2 对齐，仅相对基线把 **`question_overlap_topk` → `question_entity_match_topk`**。  
+   - **模版**：`configs/experiment/navigation_batch_real_corpus_p1_rule_frozen_nav_reg200_entity_match_k4.example.json`  
+   - **终端**（`N=200`）：
+
+   ```bash
+   cd /root/autodl-tmp/mamba2.1
+   git pull origin main
+
+   python scripts/run_nav/run_navigation_batch.py \
+     --config configs/experiment/navigation_batch_real_corpus_p1_rule_frozen_nav_reg200_entity_match_k4.example.json \
+     --max-samples 200
+
+   BID="$(ls -td outputs/reports/batches/nav_p1_reg200_rule_entity_match_k4_* 2>/dev/null | head -1 | xargs basename)"
+   export BID
+   echo "batch_id=$BID"
+
+   python scripts/diagnostics/analyze_evidence_saturation.py \
+     --registry-jsonl outputs/reports/run_registry.jsonl \
+     --batch-id "$BID" \
+     --out-json outputs/reports/evidence_sat_nav_p1_entity_match_k4.json
+   ```
+
+   **登记（跑完后补）**：与 **P0-2 rule overlap `k=4`** 对照 **`gold_missing` / `frac_gold_in_accepted_evidence` / 检索 EM**；若仍无增益，读侧 **`rule` 单臂**可暂停网格，回到 **混合 root** 或端到端组合实验。
 
 **P2（不默认排期）**
 

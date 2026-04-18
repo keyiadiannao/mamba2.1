@@ -223,3 +223,5 @@ git pull origin main
 | 2026-04-18 | P1 读侧第一步：导航批模版 **`navigation_batch_real_corpus_p1_rule_frozen_nav_reg200_pool32.example.json`**（`pool=32` 对照 P0-2 `pool=20`）；执行顺序与 ctx-gold 命令见 `Navigation_Experiment_Record_CN.md` §6.6。 |
 | 2026-04-18 | P1-1 实测 **`nav_p1_reg200_rule_pool32_20260418_022308Z`**：`pool` 32 与 P0-2 rule **`pool=20` 金叶/检索 EM 同值**，见 `Navigation_Experiment_Record_CN.md` §6.6；下一读侧臂改试 **`k` / `mode`**。 |
 | 2026-04-18 | P1-2 导航批模版 **`navigation_batch_real_corpus_p1_rule_frozen_nav_reg200_overlap_k5.example.json`**（**`k=5`** 单臂对照 **`k=4`**）；命令见 `Navigation_Experiment_Record_CN.md` §6.6。 |
+| 2026-04-18 | P1-2 实测 **`nav_p1_reg200_rule_overlap_k5_20260418_023920Z`**：**`k=5` 与 `k=4` 金叶/检索 EM 同值**；下一读侧臂 **`context_select_mode`**，见 `Navigation_Experiment_Record_CN.md` §6.6。 |
+| 2026-04-18 | P1-3 导航批模版 **`navigation_batch_real_corpus_p1_rule_frozen_nav_reg200_entity_match_k4.example.json`**（**`question_entity_match_topk`**）；命令见 `Navigation_Experiment_Record_CN.md` §6.6。 |
