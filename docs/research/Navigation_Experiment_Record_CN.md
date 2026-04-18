@@ -347,10 +347,15 @@ done
 
 1. **工程**：**`rule` 默认 `probe2` 已合入仓库**（见上 **「仓库默认」**）。**待办**：用更新后的 **`…p0_rule_frozen_nav.example.json`** **重跑 e2e 500**，把新 **`batch_id` / EM / F1** 写入上表 **A 行**（或并列保留 **`060702Z`** 作「默认 probe2 首次全量」）。**`learned_root` 模版仍为 `probe_budget=1`**（EM 未升）。  
 2. **P0-B visit（主线）**：压 **`frac_samples_never_visit_any_gold`**、抬 **`frac_gold_leaf_ever_visited_deduped`**；**单变量**（与当前 **`probe2` 默认**叠加时 **一次只改一项**）：  
-   - **第一刀（已跑，见下表）**：**`explore_root_probe_top_m: 1 → 2`**，**`batch_id`** **`nav_p0_visit_rule_root_probe_top_m2_20260418_071832Z`**；落盘 **`outputs/reports/evidence_saturation_nav_p0_visit_rule_root_probe_top_m2_20260418_071832Z.json`**。相对 **`nav_p0_probe_budget2_rule_20260418_041200Z`**：**`never_visit` 0.58→0.566**、**`visited_deduped` 0.42→0.434**（visit 略好），但 **`visit…missing_accept` 0.116→0.14**、**`reject_leaf_branch_cap` 44→60**、**`frac_gold_in_accepted_evidence` 0.388→0.386**（accept/cap 回弹）。**结论**：**trade-off**，**不**把 **`probe_top_m=2`** 与 **`probe_budget=2` 默认**一并冻成终版；下一单变量优先 **`max_nodes` / `entity_boost_alpha`**，或 **维持 `probe_top_m=1`** 再试其它 visit 杠杆。  
-   - **其后候选**（须读 **`src/controller/ssgs_controller.py`** 根分支：**`explore_root_probe_*` 与 `explore_top_m_root_children` 互斥**，勿混改）：**`max_nodes` / `max_depth`**、**`entity_boost_alpha`**、**非 root Router**、**`learned_root` 更深**。  
+   - **第一刀（已跑，见下表）**：**`explore_root_probe_top_m: 1 → 2`**，**`batch_id`** **`nav_p0_visit_rule_root_probe_top_m2_20260418_071832Z`**；落盘 **`outputs/reports/evidence_saturation_nav_p0_visit_rule_root_probe_top_m2_20260418_071832Z.json`**。相对 **`nav_p0_probe_budget2_rule_20260418_041200Z`**：**`never_visit` 0.58→0.566**、**`visited_deduped` 0.42→0.434**（visit 略好），但 **`visit…missing_accept` 0.116→0.14**、**`reject_leaf_branch_cap` 44→60**、**`frac_gold_in_accepted_evidence` 0.388→0.386**（accept/cap 回弹）。**结论**：**trade-off**，**不**把 **`probe_top_m=2`** 与 **`probe_budget=2` 默认**一并冻成终版；**维持 `probe_top_m=1`**，下一单变量见下 **「扫参约束」**。  
+   - **其后候选**（须读 **`src/controller/ssgs_controller.py`** 根分支：**`explore_root_probe_*` 与 `explore_top_m_root_children` 互斥**，勿混改）：**`entity_boost_alpha` → `max_nodes` / `max_depth`**、**非 root Router**、**`learned_root` 更深**。  
 3. **冻结**：**accept 侧**仍 **不盲扫**（**MI-004/005**）。  
 4. **附录**：**`learned` + `probe2`** 可再复跑 1～2 次再议是否改模版。
+
+**P0-B 扫参约束（可套用，精简）** — 相对导航基线 **`nav_p0_probe_budget2_rule_20260418_041200Z`**（**`never_visit=0.58`**，**`reject_leaf_branch_cap` 叶次 `44`**，**`visit…missing_accept=0.116`**）。  
+1. **顺序**：先 **`entity_boost_alpha`**（**`0.05`→`0.1`→`0.15`**，路由偏置；**`probe_top_m=1`** 下不稀释 **`probe_budget`**，cap 失控风险相对低）；再 **`max_nodes`**（**`64`→`96`**，硬扩图，同步盯 **`avg_nav_wall_time_ms` / 尾延迟**）。首格模版：**`configs/experiment/navigation_batch_real_corpus_p0_visit_rule_entity_boost_a005.example.json`**（**`α=0.05`**，余同 **`probe2` rule**）。  
+2. **导航批验收**：**通过** — **`never_visit` 降 ≥3pp**（≤**`0.55`**）且 **`reject_leaf_branch_cap` 叶次 ≤49**（基线 **+5**）→ 可再跑 **saturation / 议 e2e**。**熔断** — **`cap` 增幅 >10** 或 **`visit…missing_accept` >0.136**（基线 **+0.02**）→ **止步、不上 e2e**。  
+3. **伪 visit**：**`visited`/`never_visit` 改善**时，应用 **`run_payload`/`route_decisions`** 事后看 **路径深度是否堆在浅层**（仓库**尚无**现成 `probe_path_depth_dist` 字段）；若像浅层泛化而非路由提效，**回调 α** 或改 **回溯/探索** 再试。
 
 ```bash
 conda activate mamba2
