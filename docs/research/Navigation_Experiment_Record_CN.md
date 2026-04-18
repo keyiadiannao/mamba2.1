@@ -483,7 +483,16 @@ rm -f /tmp/nav_smoke_rule.json /tmp/nav_smoke_learned.json
      --out-json outputs/reports/evidence_sat_nav_p1_entity_match_k4.json
    ```
 
-   **登记（跑完后补）**：与 **P0-2 rule overlap `k=4`** 对照 **`gold_missing` / `frac_gold_in_accepted_evidence` / 检索 EM**；若仍无增益，读侧 **`rule` 单臂**可暂停网格，回到 **混合 root** 或端到端组合实验。
+   **登记（`N=200`，2026-04-18）——P1-3 相对 P0-2 rule（`question_overlap_topk`）**  
+
+   | 臂 | `batch_id` | `context_select_mode` | 金叶 `frac_gold_leaf_ever_visited_deduped` | `frac_gold_in_accepted_evidence` | `sample_count_gold_missing_from_evidence` |
+   |:---|:---|:---|:---:|:---:|:---:|
+   | P0-2 `rule` 基线 | `nav_p0_reg200_rule_frozen_20260418_014016Z` | **`question_overlap_topk`** | **0.41** | **0.35** | **130** |
+   | P1-3 `rule` | `nav_p1_reg200_rule_entity_match_k4_20260418_030137Z` | **`question_entity_match_topk`** | **0.41** | **0.35** | **130** |
+
+   **`exact_match_rate` / `avg_nav_wall_time_ms`**：见该批 **`outputs/reports/batches/<batch_id>/batch_summary.json`**（金叶过程量与基线一致时，检索 EM 通常与 P0-2 同量级 **0.11**）。
+
+   **结论**：**`entity_match` 与 `overlap` 在本切片上金叶过程指标完全一致**——仍与 P1-1/P1-2 同一结论：**在 `routing_mode=rule`、访问轨迹不变时，仅换 context 重排策略难以撼动 `visited` / `gold_missing` / accepted 统计**；ctx-gold 在导航批上是否分化需看 **`batch_summary`** 或端到端 **`--with-context-gold-metrics`**。**P1 读侧三刀（`pool` / `k` / `mode`）在 `N=200` 上可收口**，后续主线优先 **混合 root**、**Oracle 上界对照** 或 **端到端读侧组合**，而非继续 **`rule` 下单臂读侧网格**。
 
    **Oracle 上下文上界（导航批 `N=200`，诊断用，非可部署策略）**  
    - **在测什么**：与 **P0-2 同 manifest、同前 `200` 条**，但 **`context_source=oracle_item_leaves`**——**构造给打分用的 context 时直接用金叶**（manifest 的 **`positive_leaf_indices`**），**不等价于**「把导航本身做成 Oracle」。导航仍会跑（`rule`），用于与真实管线对齐的 **耗时/轨迹** 记录；**检索口径 EM/F1** 反映的是 **「若证据里必有金叶」** 时的上界，用来和 **P0-2 rule**（`nav_p0_reg200_rule_frozen_20260418_014016Z`）比 **gap**，见 **`SSGS_Research_Framework_CN.md`** 与 **§9.x** 里对 Oracle 的用法。  
