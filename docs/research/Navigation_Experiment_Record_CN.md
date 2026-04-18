@@ -336,8 +336,41 @@ rm -f /tmp/nav_smoke_rule.json /tmp/nav_smoke_learned.json
 
    **结论**：**臂 B 相对臂 A：EM 与 F1 略升，`nav_ms` 略增**；与证据侧金叶摘要（`visited≈0.454` vs `≈0.428`）同向，支持 **「混合 root 不仅修导航过程指标，也传导到端到端答案质量」** 的阶段性判断（仍属小幅差距，不宜过度外推）。
 
-2. **导航侧回归（按需）**  
-   - **`pilot200`** 或更大切片：用 **默认 `α=0.5`** 与 **rule** 各一批，对照 **`frac_gold_leaf_ever_visited_deduped` / `gold_missing` / `nav_ms`**，防止仅 `500` 子集偶然。
+2. **导航侧回归（P0-2，推荐在端到端 `500` 之后立刻做）**  
+   - **目的**：用 **前 `200` 条**（或全 manifest 的 **`pilot200` 切片**，若你本地另有该文件）跑 **仅导航批**（无生成器负载），对照 **`frac_gold_leaf_ever_visited_deduped` / `gold_missing` / `nav_ms`**，防止端到端 `500` 子集偶然。  
+   - **协议**：与 **§6.6 项 1** 的 P0 端到端 **frozen nav** 一致（`context_select_pool_max_items=20`、`explore_root_probe_*`、`explore_top_m_root_children=0`）；两臂仅差 **`routing_mode` / `learned_root_*`**。  
+   - **仓库模版**（`run_navigation_batch.py` + **`--max-samples 200`**）：  
+     - 臂 A：`configs/experiment/navigation_batch_real_corpus_p0_frozen_nav_reg200_rule.example.json`  
+     - 臂 B：`configs/experiment/navigation_batch_real_corpus_p0_frozen_nav_reg200_learned_root_blend05.example.json`  
+
+   ```bash
+   cd /root/autodl-tmp/mamba2.1
+   git pull origin main
+
+   python scripts/run_nav/run_navigation_batch.py \
+     --config configs/experiment/navigation_batch_real_corpus_p0_frozen_nav_reg200_rule.example.json \
+     --max-samples 200
+
+   python scripts/run_nav/run_navigation_batch.py \
+     --config configs/experiment/navigation_batch_real_corpus_p0_frozen_nav_reg200_learned_root_blend05.example.json \
+     --max-samples 200
+   ```
+
+   终端会打印 **`batch_id`**；摘要目录 **`outputs/reports/batches/<batch_id>/batch_summary.json`**。金叶汇总：
+
+   ```bash
+   python scripts/diagnostics/analyze_evidence_saturation.py \
+     --registry-jsonl outputs/reports/run_registry.jsonl \
+     --batch-id '粘贴该臂 batch_id' \
+     --out-json outputs/reports/evidence_sat_nav_p0_reg200_<臂标签>.json
+   ```
+
+   **登记（跑完后补全）**：
+
+   | 臂 | `batch_id` | `nav_success_rate` | 金叶 `frac_gold_leaf_ever_visited_deduped` | `gold_missing` | `avg_nav_wall_time_ms` |
+   |:---|:---|:---:|:---:|:---:|:---:|
+   | A `rule` frozen | （待填） |  |  |  |  |
+   | B `learned_root` `α=0.5` | （待填） |  |  |  |  |
 
 **P1（仅当 P0 显示瓶颈仍在「读侧 / 上下文」）**
 
