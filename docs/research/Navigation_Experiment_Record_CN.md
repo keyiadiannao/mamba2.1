@@ -418,9 +418,16 @@ rm -f /tmp/nav_smoke_rule.json /tmp/nav_smoke_learned.json
      --out-json outputs/reports/evidence_sat_nav_p1_pool32.json
    ```
 
-   **验收**：相对 **`nav_p0_reg200_rule_frozen_*`（pool=20）**，若 **`frac_gold_leaf_ever_visited_deduped` / `frac_gold_in_accepted_evidence` 上升且 `gold_missing` 下降**，再考虑 **端到端烟测 `10`**（拷贝 P0 rule frozen e2e 模版，只改 `context_select_pool_max_items` 与 `batch_id_prefix`）；若金叶无改善或 **`nav_ms`** 显著变差，则 **回退 pool** 或改试 **`context_select_k`**（单独开臂，勿与 pool 同时盲扫）。
+   **登记（`N=200`，2026-04-18）——P1-1 相对 P0-2 rule 基线（`pool=20`）**  
 
-4. **其它读侧旋钮**（与 MI-003 / MI-006 叙事一致）：在 **P1-1 有结论后**，再评估 **`context_select_mode` / `context_select_k`** 等；仍须 **冻结路由臂**，一次只动一类读侧参数。
+   | 臂 | `batch_id` | `context_select_pool_max_items` | 金叶 `frac_gold_leaf_ever_visited_deduped` | `frac_gold_in_accepted_evidence` | `sample_count_gold_missing_from_evidence` | `avg_nav_wall_time_ms` | `exact_match_rate`（检索） |
+   |:---|:---|:---:|:---:|:---:|:---:|:---:|:---:|
+   | P0-2 `rule` 基线 | `nav_p0_reg200_rule_frozen_20260418_014016Z` | **20** | **0.41** | **0.35** | **130** | **≈1363** | **0.11** |
+   | P1-1 `rule` | `nav_p1_reg200_rule_pool32_20260418_022308Z` | **32** | **0.41** | **0.35** | **130** | **≈1286** | **0.11** |
+
+   **结论**：**`pool` 20→32 在本切片上未改变金叶 visited / accepted / `gold_missing` 与检索 EM**（与 MI-006 一致：扩大 overlap **候选池**只影响「已访问叶子里谁进 overlap 打分」，**不增加**访问过的叶子集合本身）。**`nav_ms` 略降**更宜视为机器负载方差，**不作为 pool 收益认定**。**不必**为 pool32 再开端到端全量；**下一读侧臂**单独试 **`context_select_k`** 或 **`context_select_mode`**（仍一次只动一类）。
+
+4. **其它读侧旋钮**（与 MI-003 / MI-006 叙事一致）：**P1-1 已闭合**；下一优先为 **`context_select_k`** 或 **`context_select_mode`** 的单臂对照（**勿与 `pool` 同时扫**）；仍须 **冻结路由臂**。
 
 **P2（不默认排期）**
 

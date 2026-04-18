@@ -221,3 +221,4 @@ git pull origin main
 | 2026-04-17 | P0 端到端 `500`：`learned_root blend0.5` 相对 `rule` frozen，**EM 0.200 vs 0.186**，见 `Navigation_Experiment_Record_CN.md` §6.6 表。 |
 | 2026-04-18 | P0-2 导航批 `N=200`：金叶 **visited 0.445 vs 0.41**、`gold_missing` **122 vs 130**；检索 EM **0.125 vs 0.11**；`batch_id` 见 `Navigation_Experiment_Record_CN.md` §6.6。 |
 | 2026-04-18 | P1 读侧第一步：导航批模版 **`navigation_batch_real_corpus_p1_rule_frozen_nav_reg200_pool32.example.json`**（`pool=32` 对照 P0-2 `pool=20`）；执行顺序与 ctx-gold 命令见 `Navigation_Experiment_Record_CN.md` §6.6。 |
+| 2026-04-18 | P1-1 实测 **`nav_p1_reg200_rule_pool32_20260418_022308Z`**：`pool` 32 与 P0-2 rule **`pool=20` 金叶/检索 EM 同值**，见 `Navigation_Experiment_Record_CN.md` §6.6；下一读侧臂改试 **`k` / `mode`**。 |
