@@ -485,6 +485,22 @@ rm -f /tmp/nav_smoke_rule.json /tmp/nav_smoke_learned.json
 
    **登记（跑完后补）**：与 **P0-2 rule overlap `k=4`** 对照 **`gold_missing` / `frac_gold_in_accepted_evidence` / 检索 EM**；若仍无增益，读侧 **`rule` 单臂**可暂停网格，回到 **混合 root** 或端到端组合实验。
 
+   **Oracle 上下文上界（导航批 `N=200`，诊断用，非可部署策略）**  
+   - **在测什么**：与 **P0-2 同 manifest、同前 `200` 条**，但 **`context_source=oracle_item_leaves`**——**构造给打分用的 context 时直接用金叶**（manifest 的 **`positive_leaf_indices`**），**不等价于**「把导航本身做成 Oracle」。导航仍会跑（`rule`），用于与真实管线对齐的 **耗时/轨迹** 记录；**检索口径 EM/F1** 反映的是 **「若证据里必有金叶」** 时的上界，用来和 **P0-2 rule**（`nav_p0_reg200_rule_frozen_20260418_014016Z`）比 **gap**，见 **`SSGS_Research_Framework_CN.md`** 与 **§9.x** 里对 Oracle 的用法。  
+   - **模版**：`configs/experiment/navigation_batch_real_corpus_nav_reg200_oracle_item_leaves.example.json`  
+   - **终端**：
+
+   ```bash
+   cd /root/autodl-tmp/mamba2.1
+   git pull origin main
+
+   python scripts/run_nav/run_navigation_batch.py \
+     --config configs/experiment/navigation_batch_real_corpus_nav_reg200_oracle_item_leaves.example.json \
+     --max-samples 200
+   ```
+
+   **对比**：读 **`outputs/reports/batches/<batch_id>/batch_summary.json`** 的 **`exact_match_rate` / `avg_answer_f1`**，与 **P0-2 rule** 并置，即 **同切片上「金叶进 context」的检索上界与真实读侧之差**；**不要把该臂当作「导航更接近 Oracle」**——更接近 Oracle 的**可学习**方向仍是 **降低 `gold_missing` / 提高 visited**（例如已验证的 **混合 root**），而非偷看金叶。
+
 **P2（不默认排期）**
 
 6. **学习式 root 再增强**：仅当产品/论文需要 **更强 learned 分量** 时，再开 **`max-root-children`↑、cap 外 hard negatives、listwise 目标细化`**；**不与 `α>0.5` 扫参混在同一里程碑**。  

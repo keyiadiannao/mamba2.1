@@ -225,3 +225,4 @@ git pull origin main
 | 2026-04-18 | P1-2 导航批模版 **`navigation_batch_real_corpus_p1_rule_frozen_nav_reg200_overlap_k5.example.json`**（**`k=5`** 单臂对照 **`k=4`**）；命令见 `Navigation_Experiment_Record_CN.md` §6.6。 |
 | 2026-04-18 | P1-2 实测 **`nav_p1_reg200_rule_overlap_k5_20260418_023920Z`**：**`k=5` 与 `k=4` 金叶/检索 EM 同值**；下一读侧臂 **`context_select_mode`**，见 `Navigation_Experiment_Record_CN.md` §6.6。 |
 | 2026-04-18 | P1-3 导航批模版 **`navigation_batch_real_corpus_p1_rule_frozen_nav_reg200_entity_match_k4.example.json`**（**`question_entity_match_topk`**）；命令见 `Navigation_Experiment_Record_CN.md` §6.6。 |
+| 2026-04-18 | 导航批 **Oracle 上界** 模版 **`navigation_batch_real_corpus_nav_reg200_oracle_item_leaves.example.json`**（`context_source=oracle_item_leaves`，诊断用）；见 `Navigation_Experiment_Record_CN.md` §6.6。 |
