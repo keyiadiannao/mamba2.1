@@ -181,6 +181,8 @@ rm -f /tmp/nav_smoke_rule.json /tmp/nav_smoke_learned.json
 
 **P0 端到端（`500`，已完成）** — 模版：`end_to_end_batch_real_corpus_server_mamba_370m_qwen7b_p0_rule_frozen_nav.example.json` / `…p0_learned_root_blend05.example.json`。脚本：`run_end_to_end_batch.py`（建议先 `--max-samples 10`）。摘要：`outputs/reports/end_to_end_batches/<batch_id>/batch_summary.json`。金叶 / ctx-gold：`analyze_evidence_saturation.py --registry-jsonl outputs/reports/run_registry.jsonl --batch-id '<id>'`（可加 `--with-context-gold-metrics`）。**`EM` 全零**：manifest **`reference_answer` 为 list** → **`normalize_reference_for_scoring`**（**MI-008**）。
 
+**仓库默认（2026-04-18）**：**`…p0_rule_frozen_nav.example.json`** 与 **`navigation_batch_real_corpus_p0_frozen_nav_reg200_rule.example.json`** 已 **`explore_root_probe_budget_per_child=2`**（与已验证 e2e **`…probe_budget2_20260418_060702Z`** 一致）。下表 **A `rule`** 行仍为 **历史 `probe1`** 批（`154358Z`）；**刷新主表**须用默认模版 **重跑满 500** 得新 **`batch_id`**（可与 **`060702Z`** 并列作「默认=probe2」记录）。
+
 | 臂 | `batch_id` | EM | F1 | `nav_ms` |
 |:---|:---|---:|---:|---:|
 | A `rule` frozen | `end_to_end_p0_real_corpus_370m_qwen7b_rule_frozen_nav_20260417_154358Z` | **0.186** | **≈0.205** | **≈1247** |
@@ -341,12 +343,14 @@ done
 
 **过程与 `audit`（与导航满 500 `probe2` 同向）**：两臂 **`frac_gold_leaf_ever_visited_deduped` / `frac_gold_in_accepted_evidence` / `audit`** 与 **§6.6 导航 `probe2` 表**（`041200Z` / `042544Z`）一致量级；**`mean_frac_gold_leaf_texts_in_generator_context`**：`rule` **≈0.159**、`learned` **≈0.170**（相对 **§9.12** `overlap_k4` 批 **`≈0.127`**，**ctx-gold 均值抬升**）。**`audit`**：`never_visit` **0.58 / 0.55**，`branch_cap` **44 / 41**。
 
-**下一步（执行顺序，2026-04）** — **P0-A′（`probe_budget`）已闭合**（导航 **`probe1`/`probe2`** + e2e **`probe2`** 终点表见上）。
+**下一步（执行顺序，2026-04，已更新）** — **P0-A′（`probe_budget`）已闭合**（导航 **`probe1`/`probe2`** + e2e **`probe2`** 终点表见上）。
 
-1. **工程（可选）**：若团队同意把 **`rule` 主线默认**切到 **`probe2`**，再改仓库 **`…p0_rule_frozen_nav.example.json`**（及 CI/烟测依赖的 demo）里 **`explore_root_probe_budget_per_child: 2`**，并在 **§6.6 P0 主表** 用新 **`batch_id`** 替换「基线」行；**`learned_root` 暂不默认 `probe2`**（EM 未升）。  
-2. **研究主线**：压 **`frac_samples_never_visit_any_gold`（~0.55～0.58）** — **Router / 探索序 / `max_nodes` 与回溯**、**非 root** 上的排序或预算；**不**再开 **`context_select` / pool / k`** 大网格（P1 已收口）。每臂仍 **导航满 500 或 e2e 500 + `audit` + saturation（可加 ctx-gold）**，**单变量**、**MI-004/005** 判停。  
-3. **冻结**：**accept 侧**（`min_relevance`、`evidence_max_per_root_child` 等）**不盲扫**；下一轮须先有 **visit 指标**或 **失败归因** 再动刀。  
-4. **附录（低优）**：**`learned` + `probe2`** 可再 **复跑 1～2 次** 看 EM 是否稳定略优，再决定是否写进主表。
+1. **工程**：**`rule` 默认 `probe2` 已合入仓库**（见上 **「仓库默认」**）。**待办**：用更新后的 **`…p0_rule_frozen_nav.example.json`** **重跑 e2e 500**，把新 **`batch_id` / EM / F1** 写入上表 **A 行**（或并列保留 **`060702Z`** 作「默认 probe2 首次全量」）。**`learned_root` 模版仍为 `probe_budget=1`**（EM 未升）。  
+2. **P0-B visit（主线）**：压 **`frac_samples_never_visit_any_gold`**、抬 **`frac_gold_leaf_ever_visited_deduped`**；**单变量**（与当前 **`probe2` 默认**叠加时 **一次只改一项**）：  
+   - **第一刀**：**`explore_root_probe_top_m: 1 → 2`**（根探测多开一个子树），模版 **`configs/experiment/navigation_batch_real_corpus_p0_visit_rule_root_probe_top_m2.example.json`**（余键与 **`nav_p0_probe_budget2_rule`** 一致）。跑 **`run_navigation_batch.py` 满 manifest** + **`audit_accept_gate` + `analyze_evidence_saturation`**；若 **`never_visit` 或 visited 明显动** 再上 e2e。  
+   - **其后候选**（须读 **`src/controller/ssgs_controller.py`** 根分支：**`explore_root_probe_*` 与 `explore_top_m_root_children` 互斥**，勿混改）：**`max_nodes` / `max_depth`**、**`entity_boost_alpha`**、**非 root Router**、**`learned_root` 更深**。  
+3. **冻结**：**accept 侧**仍 **不盲扫**（**MI-004/005**）。  
+4. **附录**：**`learned` + `probe2`** 可再复跑 1～2 次再议是否改模版。
 
 ```bash
 conda activate mamba2

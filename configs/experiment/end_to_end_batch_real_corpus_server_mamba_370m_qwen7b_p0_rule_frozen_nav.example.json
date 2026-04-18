@@ -35,7 +35,7 @@
   "context_select_k": 4,
   "context_select_pool_max_items": 20,
   "explore_root_probe_top_m": 1,
-  "explore_root_probe_budget_per_child": 1,
+  "explore_root_probe_budget_per_child": 2,
   "explore_top_m_root_children": 0,
   "max_evidence": 8,
   "min_relevance_score": 1.0,
