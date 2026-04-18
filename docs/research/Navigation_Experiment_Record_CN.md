@@ -359,7 +359,7 @@ done
 4. **单变量 + 同口径**：跑批前 **`diff` 自检** 仅目标键一处变更；**种子 / sampler / prompt / 数据切片** 任一变 → **须重跑同协议 nav-500 基线** 再写 **Δ**。  
 5. **主表与后置**：新 e2e 默认跑完 **覆盖 P0 主表 A 行 `batch_id`**，旧 **`154358Z`** 可作 **A′（历史 `probe1`）**。**金叶可达性**已由 **`122155Z`（`never_visit≈0.38`）** 等批跨过旧 **`<45%` 叙事阈值**；**实体偏置导航扫参** 已 **收口**（见上 **「P0-B′ 导航扫参收口」**）；**Router / learned 深调** 仍建议 **在 e2e 闭环评估之后** 再开；**accept 盲扫不解冻**。
 
-**下一步（执行顺序，2026-04-18 修订）** — **P0-A′（`probe_budget`）已闭合**；**P0-B′ 导航扫参已收口**（**默认 `122155Z` 旋钮**；上表）。工程待办与 e2e 重跑句仍见下 **bash** 块；**主线**：**e2e（`122155Z` 同旋钮）**；**导航** 仅保留 **证伪性单次**（如 **`max_nodes` 满 500**）或 **§「仍存优化空间」** 另立项；**`probe_top_m=2`** 已证 trade-off，**不**与当前默认并冻。
+**下一步（执行顺序，2026-04-18 修订）** — **P0-A′（`probe_budget`）已闭合**；**P0-B′ 导航扫参已收口**（**默认 `122155Z` 旋钮**；上表）。工程待办与 e2e 重跑句仍见下 **bash** 块；**主线**：**e2e（`122155Z` 同旋钮）**；**导航** 仅保留 **证伪性单次**（如 **`max_nodes` 满 500**）或 **§「仍存优化空间」** 另立项；**`probe_top_m=2`** 已证 trade-off，**不**与当前默认并冻。**归因**：`python scripts/diagnostics/summarize_audit_failure_buckets.py outputs/reports/accept_gate_audit_<batch>.json`（**`never_visit` vs `visit_miss`** 粗分桶 + `visit_miss` 叶级 disposition）。
 
 ```bash
 conda activate mamba2
