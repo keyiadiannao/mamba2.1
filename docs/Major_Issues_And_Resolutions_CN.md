@@ -239,5 +239,6 @@ git pull origin main
 | 2026-04-18 | **P0-A′ 严对照**：新增导航模版 **`navigation_batch_real_corpus_p0_probe_budget1_{rule,learned_root_blend05}.example.json`**（**`explore_root_probe_budget_per_child=1`、满 manifest**）；与 **`probe2`** 复跑区分；命令见 `Navigation_Experiment_Record_CN.md` §6.6。 |
 | 2026-04-18 | **P0-A′** 导航 **`probe1` 满 500** 已跑：`nav_p0_probe_budget1_rule_20260418_051729Z`、`…learned_root_blend05_20260418_053127Z`；**`audit` 与 P0 e2e 500 逐字段一致**；**`probe1`→`probe2`** 并排见 `Navigation_Experiment_Record_CN.md` §6.6。 |
 | 2026-04-18 | **P0-A′ 执行项**：端到端 **`probe_budget2` 满 500** 两臂 + 诊断命令与结果表占位见 `Navigation_Experiment_Record_CN.md` §6.6；判停 **MI-004/005**。 |
+| 2026-04-18 | **P0-A′ e2e `probe2` 500** 已跑：`…rule_probe_budget2_20260418_060702Z`、`…learned_root_blend05_probe_budget2_20260418_062859Z`；过程/`audit` 与导航 `probe2` 同向；**EM/F1** 见 `batch_summary.json` 或 §6.6 **`jq`**。 |
 | 2026-04-18 | **P0-A′** 文档勘误：**`probe_budget2` 台账为导航满 manifest（500）**；严对照缺 **`probe_budget=1` 导航满量**两条，`n=200` 的 P0-2 **不可替代**；见 `Navigation_Experiment_Record_CN.md` §6.6。 |
 | 2026-04-18 | **`run_navigation_batch` / `run_end_to_end_batch`** 增加可解析行 **`__SSGS_BATCH_ID__=`**（便于终端 `sed` 取 `batch_id`）；**不**为烟测维护额外 shell，用法见 `Navigation_Experiment_Record_CN.md` §6.6。 |
