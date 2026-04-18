@@ -320,7 +320,39 @@ python scripts/diagnostics/audit_accept_gate.py \
 | `learned_root` | `reject_leaf_branch_cap`（叶次） | 76 | 41 | 同向 |
 | `learned_root` | `frac_samples_never_visit_any_gold` | 0.546 | 0.55 | 同量级 |
 
-**端到端 EM**：上表仅导航；**`probe2` 是否抬 EM** 须 **`run_end_to_end_batch`** 两 **`…probe_budget2…`** 模版再报。
+**P0-A′ 当前执行项：端到端满 500、`probe_budget=2`（进行中）** — 与 **本节 P0 主表** 两臂相比，仅 **`explore_root_probe_budget_per_child=2`**；模版：`end_to_end_batch_real_corpus_server_mamba_370m_qwen7b_p0_rule_frozen_nav_probe_budget2.example.json`、**`…p0_learned_root_blend05_probe_budget2.example.json`**。**判读**：与基线 **`end_to_end_p0_real_corpus_370m_qwen7b_rule_frozen_nav_20260417_154358Z`（EM `0.186`）**、**`…learned_root_blend05_20260417_160609Z`（EM `0.200`）** 比 **EM/F1**；过程建议 **`analyze_evidence_saturation.py --with-context-gold-metrics`** + **`audit_accept_gate`**；**`batch_id`** 从终端 **`__SSGS_BATCH_ID__=`** 行解析。若 **EM 不升或降**，按 **MI-004/005** 判停，**不**再盲扫 accept 键；主线仍转 **降低 `never_visit_any_gold`（路由/探索）**。
+
+| 臂 | `batch_id` | EM | F1 | `nav_ms`（量级） | 备注 |
+|:---|:---|---:|---:|---:|:---|
+| `rule` + `probe2` | （跑完填入） |  |  |  | vs 基线 rule EM **`0.186`** |
+| `learned_root` `α=0.5` + `probe2` | （跑完填入） |  |  |  | vs 基线 learned EM **`0.200`** |
+
+```bash
+conda activate mamba2
+cd ~/autodl-tmp/mamba2.1
+git pull origin main
+GEN=/root/autodl-tmp/models/Qwen2.5-7B-Instruct
+
+# 烟测可先加： --max-samples 10（写在 run_end_to_end_batch.py 参数行上）
+for cfg in \
+  configs/experiment/end_to_end_batch_real_corpus_server_mamba_370m_qwen7b_p0_rule_frozen_nav_probe_budget2.example.json \
+  configs/experiment/end_to_end_batch_real_corpus_server_mamba_370m_qwen7b_p0_learned_root_blend05_probe_budget2.example.json
+do
+  id=$(python scripts/run_eval/run_end_to_end_batch.py \
+    --config "$cfg" \
+    --generator-hf-model-name "$GEN" 2>&1 \
+    | sed -n 's/^__SSGS_BATCH_ID__=//p' | tail -n1)
+  echo "batch_id=$id"
+  python scripts/diagnostics/analyze_evidence_saturation.py \
+    --registry-jsonl outputs/reports/run_registry.jsonl \
+    --batch-id "$id" \
+    --with-context-gold-metrics \
+    --out-json "outputs/reports/evidence_saturation_${id}_ctxgold.json"
+  python scripts/diagnostics/audit_accept_gate.py \
+    --registry-jsonl outputs/reports/run_registry.jsonl \
+    --batch-id "$id"
+done
+```
 
 **复现已加模版（`probe1` 满 500 + 诊断）**：
 
@@ -346,12 +378,7 @@ do
 done
 ```
 
-- **端到端（要 EM/F1 时再跑）**：`configs/experiment/end_to_end_batch_real_corpus_server_mamba_370m_qwen7b_p0_rule_frozen_nav_probe_budget2.example.json`、  
-  `…p0_learned_root_blend05_probe_budget2.example.json`；`python scripts/run_eval/run_end_to_end_batch.py --config '<上列之一>'`，Qwen 用 **`--generator-hf-model-name /root/autodl-tmp/models/Qwen2.5-7B-Instruct`** 或环境变量；先 **`--max-samples 10`** 再全量。
-
-跑满后把新 **`batch_id`** 记入台账；过程：`analyze_evidence_saturation.py`（导航批可加 **`--with-context-gold-metrics`** 看 ctx 列，但无生成器时部分字段可能为空，以 **`frac_gold_leaf_ever_visited_deduped` / `frac_gold_in_accepted_evidence`** 为主）；Accept：`audit_accept_gate.py --registry-jsonl outputs/reports/run_registry.jsonl --batch-id '<id>'`。若 **`reject_leaf_branch_cap` 叶次明显下降** 而 **`frac_samples_never_visit_any_gold`** 基本不动，与「主矛盾在 visit」一致；端到端若 **EM 掉**则按 **MI-004/005** 判停再议下一单变量。
-
-**导航侧下一阶段（由前到后）**：可学习 gap = 抬 visited、降 `gold_missing`、抬 accepted（不用 oracle 作弊）。**已做**：根层 **`LearnedRootHybridRouter`**（更深仍 rule，`src/router/base.py`）。**Accept 门审计**（上表）已跑通；**P0-A′** 若动刀：优先 **单变量** 试 **`evidence_max_per_root_child` / explore 与 cap 相关键**（与 **`reject_leaf_branch_cap` 主导** 对齐），再视情况试 **`min_relevance_score`**（与 **`reject_leaf_min_relevance`** 对齐）；**勿**用 `leaf_indices_required` 做推理期作弊。其后按需：**非 root**、**探索与预算**大网格仍次于「未 visit 金叶」主因。
+**导航侧下一阶段（由前到后）**：**P0-A′ 导航**（**`probe1`/`probe2` 满 500** 与并排表）已闭合。**当前优先**：上表 **端到端 `probe2`** 结果 → 再攻 **`never_visit_any_gold`（Router / 探索 / 预算，非 `context_select`）**。可学习 gap = 抬 visited、降 `gold_missing`、抬 accepted（不用 oracle 作弊）。**已做**：根层 **`LearnedRootHybridRouter`**；**`probe_budget` 单变量**已验证 cap/accept。进一步 accept 侧改动须 **单变量** + **MI-004/005**；**勿**用 `leaf_indices_required` 作弊。
 
 **P2（不默认）**：root 训练增强、`α>0.5` 烟测 — 见 §6.5 末、**MI-008**。
 
