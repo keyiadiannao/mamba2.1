@@ -296,6 +296,8 @@ python scripts/diagnostics/audit_accept_gate.py \
 | `probe_budget2` `rule` | `nav_p0_probe_budget2_rule_20260418_041200Z` | **0.42** | **0.388** | **306** | **0.58** | **0.116** | **75** | **44** / **31** |
 | `probe_budget2` `learned_root` `α=0.5` | `nav_p0_probe_budget2_learned_root_blend05_20260418_042544Z` | **0.45** | **0.418** | **291** | **0.55** | **0.116** | **73** | **41** / **32** |
 
+**复跑（同配置 `rule`、`n=500`）**：`batch_id=nav_p0_probe_budget2_rule_20260418_045515Z` — `analyze_evidence_saturation` / `audit_accept_gate` 摘要与上表 **rule** 行（`041200Z`）一致（`visited_deduped=0.42`、`never_visit=0.58`、`branch_cap=44` / `min_rel=31` 等）；落盘 **`outputs/reports/evidence_saturation_nav_p0_probe_budget2_rule_20260418_045515Z.json`**。
+
 **与 P0 端到端 500 上 `audit_accept_gate`（`probe_budget=1`，见上表）对照（趋势，非逐位等同）**：两臂 **`reject_leaf_branch_cap` 叶次**由 **≈85 / ≈76** 降至 **≈44 / ≈41**；**`frac_samples_visit_gold_but_missing_accept…`** 由 **≈0.16 / ≈0.154** 降至 **0.116**；**`sum_gold_leaves_visited_not_accepted`** 由 **118 / 109** 降至 **75 / 73**。**`frac_samples_never_visit_any_gold`** 仍在 **≈0.55～0.58**，与基线 **≈0.546～0.572** 同量级（**主矛盾仍在「visit 不到金叶」**）。**说明**：上列 **`probe_budget2` 批**为 **导航满 manifest（此处 500）**，非「只跑到 200」。**仍缺的严对照**是同 manifest、**仅** **`explore_root_probe_budget_per_child=1`** 的 **导航满量两条 `batch_id`**；**P0-2（`n=200`）不能替代**满量 **`probe1`**，切片不同。**端到端 EM** 是否随 **`probe_budget2`** 上升须另跑 **`run_end_to_end_batch`** 两模版再报。
 
 - **端到端（要 EM/F1 时再跑）**：`configs/experiment/end_to_end_batch_real_corpus_server_mamba_370m_qwen7b_p0_rule_frozen_nav_probe_budget2.example.json`、  
