@@ -219,4 +219,4 @@ git pull origin main
 | 2026-04-17 | MI-008：`α>0.5` 不设为常规必扫项（`α→1` 高风险、边际收益低）；例外见 `Navigation_Experiment_Record_CN.md` §6.5 末段。 |
 | 2026-04-17 | 端到端 EM 全零：manifest 中 **`reference_answer` 为 list** 时旧逻辑未规范化；已用 **`normalize_reference_for_scoring`** 修复（见 `Navigation_Experiment_Record_CN.md` §6.6 排错）。 |
 | 2026-04-17 | P0 端到端 `500`：`learned_root blend0.5` 相对 `rule` frozen，**EM 0.200 vs 0.186**，见 `Navigation_Experiment_Record_CN.md` §6.6 表。 |
-| 2026-04-18 | P0-2 导航批 `N=200`：`nav_p0_reg200_rule_frozen_20260418_014016Z` / `nav_p0_reg200_learned_root_blend05_20260418_014536Z`，见 `Navigation_Experiment_Record_CN.md` §6.6。 |
+| 2026-04-18 | P0-2 导航批 `N=200`：金叶 **visited 0.445 vs 0.41**、`gold_missing` **122 vs 130**；检索 EM **0.125 vs 0.11**；`batch_id` 见 `Navigation_Experiment_Record_CN.md` §6.6。 |

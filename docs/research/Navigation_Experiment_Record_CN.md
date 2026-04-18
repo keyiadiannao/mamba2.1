@@ -365,14 +365,18 @@ rm -f /tmp/nav_smoke_rule.json /tmp/nav_smoke_learned.json
      --out-json outputs/reports/evidence_sat_nav_p0_reg200_<臂标签>.json
    ```
 
-   **登记（`N=200`，2026-04-18）**：
+   **登记（`N=200` 前缀切片，`manifest_sample_count=500`；2026-04-18）**：
 
-   | 臂 | `batch_id` | `nav_success_rate` | 金叶 `frac_gold_leaf_ever_visited_deduped` | `gold_missing` | `avg_nav_wall_time_ms` |
+   | 臂 | `batch_id` | `nav_success_rate` | 金叶 `frac_gold_leaf_ever_visited_deduped` | `sample_count_gold_missing_from_evidence` | `avg_nav_wall_time_ms` |
    |:---|:---|:---:|:---:|:---:|:---:|
-   | A `rule` frozen | `nav_p0_reg200_rule_frozen_20260418_014016Z` | 见该批 `batch_summary.json` | 见 `analyze_evidence_saturation.py` 产出 | 同左 | 同左 |
-   | B `learned_root` `α=0.5` | `nav_p0_reg200_learned_root_blend05_20260418_014536Z` | 见该批 `batch_summary.json` | 见 `analyze_evidence_saturation.py` 产出 | 同左 | 同左 |
+   | A `rule` frozen | `nav_p0_reg200_rule_frozen_20260418_014016Z` | **1.0** | **0.41** | **130** | **≈1363** |
+   | B `learned_root` `α=0.5` | `nav_p0_reg200_learned_root_blend05_20260418_014536Z` | **1.0** | **0.445** | **122** | **≈1353** |
 
-   **`nav_success_rate` / `avg_nav_wall_time_ms`**：`outputs/reports/batches/<batch_id>/batch_summary.json`。**金叶**：`--registry-jsonl outputs/reports/run_registry.jsonl --batch-id '<上表>'` 写出 json 后读摘要字段。
+   **金叶补充（同批 `analyze_evidence_saturation.py` summary）**：`frac_gold_in_accepted_evidence` **0.35**（A）vs **0.39**（B）；`mean_gold_index_first_in_visits` **≈2.46**（A）vs **≈1.79**（B）。证据槽饱和两臂均为 **`frac_evidence_budget_saturated=1.0`**、`mean_n_evidence=8`。
+
+   **检索口径打分**（导航批默认无生成器，`eval_mode=retrieval`）：`exact_match_rate` **0.11**（22/200）vs **0.125**（25/200）；`avg_answer_f1` **≈0.121** vs **≈0.137**。
+
+   **结论**：与 **§6.6 项 1** 端到端 `500` **同向**——臂 B **金叶 visited / accepted 更高、`gold_missing` 更少**，检索 EM/F1 略升；本切片上 **`nav_ms` 略低于臂 A**（与全量端到端里 B 略慢不完全一致，属子集方差可接受范围）。**P0-2 回归通过**。
 
 **P1（仅当 P0 显示瓶颈仍在「读侧 / 上下文」）**
 
