@@ -298,14 +298,31 @@ python scripts/diagnostics/audit_accept_gate.py \
 | `probe_budget2` `rule` | `nav_p0_probe_budget2_rule_20260418_041200Z` | **0.42** | **0.388** | **306** | **0.58** | **0.116** | **75** | **44** / **31** |
 | `probe_budget2` `learned_root` `α=0.5` | `nav_p0_probe_budget2_learned_root_blend05_20260418_042544Z` | **0.45** | **0.418** | **291** | **0.55** | **0.116** | **73** | **41** / **32** |
 
-**复跑（仍为 `probe_budget=2`、`rule`、满 500，不是 `probe1`）**：`batch_id=nav_p0_probe_budget2_rule_20260418_045515Z` — 摘要与上表 **rule** 行（`041200Z`）一致；落盘 **`outputs/reports/evidence_saturation_nav_p0_probe_budget2_rule_20260418_045515Z.json`**。**严对照所缺的 `probe1` 满 500** 见下节模版与命令（**`batch_id_prefix` 为 `nav_p0_probe_budget1_*`**，勿与 `probe2` 混淆）。
+**复跑（仍为 `probe_budget=2`、`rule`、满 500，不是 `probe1`）**：`batch_id=nav_p0_probe_budget2_rule_20260418_045515Z` — 摘要与上表 **rule** 行（`041200Z`）一致；落盘 **`outputs/reports/evidence_saturation_nav_p0_probe_budget2_rule_20260418_045515Z.json`**。
 
-**与 P0 端到端 500 上 `audit_accept_gate`（`probe_budget=1`，见上表）对照（趋势，非逐位等同）**：两臂 **`reject_leaf_branch_cap` 叶次**由 **≈85 / ≈76** 降至 **≈44 / ≈41**；**`frac_samples_visit_gold_but_missing_accept…`** 由 **≈0.16 / ≈0.154** 降至 **0.116**；**`sum_gold_leaves_visited_not_accepted`** 由 **118 / 109** 降至 **75 / 73**。**`frac_samples_never_visit_any_gold`** 仍在 **≈0.55～0.58**，与基线 **≈0.546～0.572** 同量级（**主矛盾仍在「visit 不到金叶」**）。**说明**：上列 **`probe_budget2` 批**为 **导航满 manifest（此处 500）**。**端到端 EM** 是否随 **`probe_budget2`** 上升须另跑 **`run_end_to_end_batch`** 两模版再报。
+**P0-A′ 严对照：导航满 500、`probe_budget=1`（已完成，2026-04-18）** — 模版：`navigation_batch_real_corpus_p0_probe_budget1_rule.example.json`、**`…learned_root_blend05.example.json`**；落盘 **`outputs/reports/evidence_saturation_nav_p0_probe_budget1_rule_20260418_051729Z.json`**、**`…learned_root_blend05_20260418_053127Z.json`**。
 
-**P0-A′ 严对照：导航满 500、`probe_budget=1`（待跑，与上表 `probe2` 逐字段对齐）** — 仅相对 **`explore_root_probe_budget_per_child`**：**`1`** vs **`2`**；其余与 **`probe_budget2`** 模版一致。模版：  
-`configs/experiment/navigation_batch_real_corpus_p0_probe_budget1_rule.example.json`、  
-`…p0_probe_budget1_learned_root_blend05.example.json`。  
-跑批 + 诊断（**无** `--max-samples`）：
+| 臂 | `batch_id` | `frac_gold_leaf_ever_visited_deduped` | `frac_gold_in_accepted_evidence` | `gold_missing`（条） | `audit`：`never_visit_any_gold` | `visit…missing_accept` | `sum_…_visited_not_accepted` | `reject_leaf_branch_cap` / `reject_leaf_min_relevance`（叶次） |
+|:---|:---|---:|---:|---:|---:|---:|---:|---:|
+| `probe_budget1` `rule` | `nav_p0_probe_budget1_rule_20260418_051729Z` | **0.428** | **0.364** | **318** | **0.572** | **0.16** | **118** | **85** / **33** |
+| `probe_budget1` `learned_root` `α=0.5` | `nav_p0_probe_budget1_learned_root_blend05_20260418_053127Z` | **0.454** | **0.394** | **303** | **0.546** | **0.154** | **109** | **76** / **33** |
+
+**与 §6.6 P0 端到端 500 `audit_accept_gate`（`probe_budget=1`）**：上表 **`audit`** 列与 **端到端表** 两 `batch_id`（`end_to_end_p0_real_corpus_370m_qwen7b_rule_frozen_nav_20260417_154358Z`、`end_to_end_p0_real_corpus_370m_qwen7b_learned_root_blend05_20260417_160609Z`）的 **`audit` 摘要逐字段一致**，说明 **e2e 批**与 **纯导航、同 `probe_budget`** 在 accept 统计上对齐；此前 **「`probe2` 导航 vs `probe1` e2e」** 的对比混了 **probe 参数**，应以 **下表「仅差 `probe_budget`」** 为准。
+
+**导航内 `probe_budget`：`1` → `2`（满 500，同臂对照）**
+
+| 臂 | 指标 | `probe1` | `probe2`（上表 `041200Z` / `042544Z`） | 粗读 |
+|:---|:---|---:|---:|:---|
+| `rule` | `reject_leaf_branch_cap`（叶次） | 85 | 44 | **cap 挡叶次约减半** |
+| `rule` | `frac_samples_visit_gold_but_missing_accept…` | 0.16 | 0.116 | **accept 子问题减轻** |
+| `rule` | `frac_gold_in_accepted_evidence` | 0.364 | 0.388 | **金进槽略升** |
+| `rule` | `frac_samples_never_visit_any_gold` | 0.572 | 0.58 | **同量级**（主瓶颈仍在 visit） |
+| `learned_root` | `reject_leaf_branch_cap`（叶次） | 76 | 41 | 同向 |
+| `learned_root` | `frac_samples_never_visit_any_gold` | 0.546 | 0.55 | 同量级 |
+
+**端到端 EM**：上表仅导航；**`probe2` 是否抬 EM** 须 **`run_end_to_end_batch`** 两 **`…probe_budget2…`** 模版再报。
+
+**复现已加模版（`probe1` 满 500 + 诊断）**：
 
 ```bash
 conda activate mamba2
@@ -328,8 +345,6 @@ do
     --batch-id "$id"
 done
 ```
-
-跑满后将两条 **`batch_id`**（形如 **`nav_p0_probe_budget1_rule_*`**）与摘要补入本小节（**`probe1` 导航 500** 与 **e2e 500 的 `audit`** 为**同 `probe_budget`**，可比性优于 **`probe2` nav** vs **`probe1` e2e**）。**P0-2（`n=200`）仍不能替代**本满量 **`probe1`**。
 
 - **端到端（要 EM/F1 时再跑）**：`configs/experiment/end_to_end_batch_real_corpus_server_mamba_370m_qwen7b_p0_rule_frozen_nav_probe_budget2.example.json`、  
   `…p0_learned_root_blend05_probe_budget2.example.json`；`python scripts/run_eval/run_end_to_end_batch.py --config '<上列之一>'`，Qwen 用 **`--generator-hf-model-name /root/autodl-tmp/models/Qwen2.5-7B-Instruct`** 或环境变量；先 **`--max-samples 10`** 再全量。
