@@ -221,7 +221,7 @@ rm -f /tmp/nav_smoke_rule.json /tmp/nav_smoke_learned.json
 - **仅导航批（推荐先做：不加载 7B、无端到端 EM）**：`run_navigation_sample` 默认 **`run_generator=false`**，只跑 Mamba 导航 + trace。模版：  
   `configs/experiment/navigation_batch_real_corpus_p0_probe_budget2_rule.example.json`、  
   `…p0_probe_budget2_learned_root_blend05.example.json`。  
-  脚本：`python scripts/run_nav/run_navigation_batch.py --config '<上列之一>'`；与 P0-2 对齐可先 **`--max-samples 200`**，要与端到端主表对齐则去掉 **`--max-samples`**（由 manifest 条数决定）。**不需要**设置 `GENERATOR_HF_MODEL_NAME`。  
+  脚本：`python scripts/run_nav/run_navigation_batch.py --config '<上列之一>'`；与 P0-2 对齐可先 **`--max-samples 200`**；要与端到端主表对齐则 **不写 `--max-samples`**（跑满 **`samples_path` manifest**，当前 **`real_corpus_navigation_batch.json` 为 500 条** 即 **`n=500`**）。**不需要**设置 `GENERATOR_HF_MODEL_NAME`。  
   **AutoDL 示例（整段复制；请只用一行 `cd`，不要带 `|| exit 1`，否则失败时当前 shell 会直接退出）**：
 
 ```bash
@@ -236,7 +236,7 @@ python scripts/run_nav/run_navigation_batch.py \
   --max-samples 10
 ```
 
-**扩大样本（与 P0-2 对齐 `n=200`，推荐）**：每次跑批都会生成**新的** `batch_id`（终端 JSON 与 `outputs/reports/batches/<batch_id>/batch_summary.json`）。下面诊断里的 **`BATCH_ID_RULE` / `BATCH_ID_LEARNED`** 必须改成你刚跑完打印的两串完整 id。
+**扩大样本（二选一）**：每次跑批都会生成**新的** `batch_id`（终端 JSON 与 `outputs/reports/batches/<batch_id>/batch_summary.json`）。下面诊断里的 **`BATCH_ID_RULE` / `BATCH_ID_LEARNED`** 必须改成你刚跑完打印的两串完整 id。
 
 ```bash
 conda activate mamba2
@@ -265,7 +265,7 @@ for id in "$BATCH_ID_RULE" "$BATCH_ID_LEARNED"; do
 done
 ```
 
-**满 manifest（与端到端主表同条数，常见 500）**：上面两条 `run_navigation_batch.py` **去掉** **`--max-samples 200`** 即可（更久）。
+**满 manifest（与端到端主表同条数；当前 manifest 为 500）**：上面两条 `run_navigation_batch.py` **不要加** **`--max-samples`**（或显式 **`--max-samples 500`** 与 manifest 一致）。**P0-A′ `probe_budget2` 满量台账**即按此协议在 AutoDL 跑出（见下表 `sample_count=500`）。
 
 **P0-A′ 导航烟测（`n=10`，2026-04-18，AutoDL）** — 仅验证脚本与注册表；**方差极大，不得写入与 P0-2 / 500 主表同级结论**。
 
@@ -276,14 +276,14 @@ done
 
 **读法（烟测尺度）**：**learned** 上 **`never_visit_any_gold=0.9`** 在 **10 条**上噪声极大，**不能**外推到 500；**`visited_not_accepted=0` + 空 dispositions** 只说明「这一小撮里几乎没人 visit 到金叶或 visit 后都 accept 了」，**不能**推出「P0 上 `reject_leaf_branch_cap` 已消失」——基线 500 审计里 cap 仍显著，须 **`n≥200` 或满 manifest** 再对 **`reject_leaf_branch_cap` 叶次**下判断。**rule** 侧 **`gold_missing=8/10`** 与 **`visited_deduped=0.2`** 同向，仅作链路检查。
 
-**P0-A′ 导航满 `n=500`（`explore_root_probe_budget_per_child=2`，2026-04-18，AutoDL）** — `run_navigation_batch.py` + 上列诊断；落盘 **`outputs/reports/evidence_saturation_nav_p0_probe_budget2_rule_20260418_041200Z.json`**、**`…learned_root_blend05_20260418_042544Z.json`**。
+**P0-A′ 导航满 manifest（`explore_root_probe_budget_per_child=2`，2026-04-18，AutoDL；本 manifest `sample_count=500`）** — `run_navigation_batch.py`（**无** `--max-samples`）+ 上列诊断；落盘 **`outputs/reports/evidence_saturation_nav_p0_probe_budget2_rule_20260418_041200Z.json`**、**`…learned_root_blend05_20260418_042544Z.json`**。
 
 | 臂 | `batch_id` | `frac_gold_leaf_ever_visited_deduped` | `frac_gold_in_accepted_evidence` | `gold_missing`（条） | `audit`：`never_visit_any_gold` | `visit…missing_accept` | `sum_…_visited_not_accepted` | `reject_leaf_branch_cap` / `reject_leaf_min_relevance`（叶次） |
 |:---|:---|---:|---:|---:|---:|---:|---:|---:|
 | `probe_budget2` `rule` | `nav_p0_probe_budget2_rule_20260418_041200Z` | **0.42** | **0.388** | **306** | **0.58** | **0.116** | **75** | **44** / **31** |
 | `probe_budget2` `learned_root` `α=0.5` | `nav_p0_probe_budget2_learned_root_blend05_20260418_042544Z` | **0.45** | **0.418** | **291** | **0.55** | **0.116** | **73** | **41** / **32** |
 
-**与 P0 端到端 500 上 `audit_accept_gate`（`probe_budget=1`，见上表）对照（趋势，非逐位等同）**：两臂 **`reject_leaf_branch_cap` 叶次**由 **≈85 / ≈76** 降至 **≈44 / ≈41**；**`frac_samples_visit_gold_but_missing_accept…`** 由 **≈0.16 / ≈0.154** 降至 **0.116**；**`sum_gold_leaves_visited_not_accepted`** 由 **118 / 109** 降至 **75 / 73**。**`frac_samples_never_visit_any_gold`** 仍在 **≈0.55～0.58**，与基线 **≈0.546～0.572** 同量级（**主矛盾仍在「visit 不到金叶」**）。**最严对照**须同协议再跑 **`probe_budget=1` 的导航满 500`**（当前台账仅有 P0-2 的 **`n=200`**）；**端到端 EM** 是否随 **`probe_budget2`** 上升须另跑 **`run_end_to_end_batch`** 两模版再报。
+**与 P0 端到端 500 上 `audit_accept_gate`（`probe_budget=1`，见上表）对照（趋势，非逐位等同）**：两臂 **`reject_leaf_branch_cap` 叶次**由 **≈85 / ≈76** 降至 **≈44 / ≈41**；**`frac_samples_visit_gold_but_missing_accept…`** 由 **≈0.16 / ≈0.154** 降至 **0.116**；**`sum_gold_leaves_visited_not_accepted`** 由 **118 / 109** 降至 **75 / 73**。**`frac_samples_never_visit_any_gold`** 仍在 **≈0.55～0.58**，与基线 **≈0.546～0.572** 同量级（**主矛盾仍在「visit 不到金叶」**）。**说明**：上列 **`probe_budget2` 批**为 **导航满 manifest（此处 500）**，非「只跑到 200」。**仍缺的严对照**是同 manifest、**仅** **`explore_root_probe_budget_per_child=1`** 的 **导航满量两条 `batch_id`**；**P0-2（`n=200`）不能替代**满量 **`probe1`**，切片不同。**端到端 EM** 是否随 **`probe_budget2`** 上升须另跑 **`run_end_to_end_batch`** 两模版再报。
 
 - **端到端（要 EM/F1 时再跑）**：`configs/experiment/end_to_end_batch_real_corpus_server_mamba_370m_qwen7b_p0_rule_frozen_nav_probe_budget2.example.json`、  
   `…p0_learned_root_blend05_probe_budget2.example.json`；`python scripts/run_eval/run_end_to_end_batch.py --config '<上列之一>'`，Qwen 用 **`--generator-hf-model-name /root/autodl-tmp/models/Qwen2.5-7B-Instruct`** 或环境变量；先 **`--max-samples 10`** 再全量。
