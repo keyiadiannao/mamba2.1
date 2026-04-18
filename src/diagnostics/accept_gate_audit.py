@@ -1,15 +1,57 @@
 """Offline audit: gold leaf visit vs accept_evidence (Controller gate vs read-side).
 
+Optional: when ``root_dir`` is passed to ``audit_payload``, also compares gold leaves
+to ``trace.context_node_ids`` (generator context after ``context_select_*``).
+
 See ``scripts/diagnostics/audit_accept_gate.py`` for CLI.
 """
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 
 def _gold_set(trace: dict[str, Any]) -> set[int]:
     return {int(x) for x in (trace.get("leaf_indices_required") or []) if isinstance(x, int)}
+
+
+def _leaf_index_to_node_id_map(root: Path, tree_path: str) -> dict[int, str] | None:
+    """Return leaf_index -> node_id for leaves that carry ``leaf_index`` metadata."""
+    path = (root / tree_path).resolve()
+    if not path.is_file():
+        return None
+    try:
+        from src.tree_builder import load_tree_from_payload, load_tree_payload
+
+        tree = load_tree_from_payload(load_tree_payload(path))
+    except (OSError, ValueError, TypeError, KeyError):
+        return None
+    out: dict[int, str] = {}
+    for node in tree.walk_depth_first():
+        if not node.is_leaf:
+            continue
+        li = node.metadata.get("leaf_index")
+        if isinstance(li, int):
+            out[int(li)] = str(node.node_id)
+    return out
+
+
+def _compute_context_gold_metrics(
+    gold: set[int],
+    accepted_gold: set[int],
+    leaf_index_to_node_id: dict[int, str],
+    context_node_ids: list[str] | None,
+) -> dict[str, Any]:
+    ctx_ids = set(context_node_ids or [])
+    gold_in_context = {li for li in gold if leaf_index_to_node_id.get(li) in ctx_ids}
+    n_in = len(gold_in_context)
+    n_gold = len(gold)
+    return {
+        "n_gold_leaves_in_context": n_in,
+        "frac_gold_leaves_in_context": (float(n_in) / float(n_gold)) if n_gold else None,
+        "n_accepted_gold_not_in_context": len(accepted_gold - gold_in_context),
+    }
 
 
 def _accepted_gold_leaf_indices(trace: dict[str, Any], gold: set[int]) -> set[int]:
@@ -84,13 +126,58 @@ def audit_trace(trace: dict[str, Any], *, config: dict[str, Any] | None = None) 
     }
 
 
-def audit_payload(payload: dict[str, Any]) -> dict[str, Any]:
+def audit_payload(payload: dict[str, Any], *, root_dir: Path | None = None) -> dict[str, Any]:
     trace = payload.get("trace") or {}
     config = payload.get("config") or {}
     row = audit_trace(trace, config=config)
     row["run_id"] = payload.get("run_id")
     row["sample_id"] = payload.get("sample_id")
     row["batch_id"] = payload.get("batch_id")
+
+    gold = _gold_set(trace)
+    accepted_gold = _accepted_gold_leaf_indices(trace, gold)
+    row["n_gold_leaves_accepted"] = len(accepted_gold)
+    row["frac_gold_leaves_accepted"] = (float(len(accepted_gold)) / float(len(gold))) if gold else None
+
+    row["context_gold_metrics_available"] = False
+    row["context_gold_metrics_skip_reason"] = None
+    if not gold:
+        row["n_gold_leaves_in_context"] = 0
+        row["frac_gold_leaves_in_context"] = None
+        row["n_accepted_gold_not_in_context"] = 0
+        return row
+
+    if root_dir is None:
+        row["context_gold_metrics_skip_reason"] = "root_dir_not_provided"
+        row["n_gold_leaves_in_context"] = None
+        row["frac_gold_leaves_in_context"] = None
+        row["n_accepted_gold_not_in_context"] = None
+        return row
+
+    tree_path = str(payload.get("tree_path") or "")
+    if not tree_path:
+        row["context_gold_metrics_skip_reason"] = "payload_missing_tree_path"
+        row["n_gold_leaves_in_context"] = None
+        row["frac_gold_leaves_in_context"] = None
+        row["n_accepted_gold_not_in_context"] = None
+        return row
+
+    mapping = _leaf_index_to_node_id_map(root_dir, tree_path)
+    if not mapping:
+        row["context_gold_metrics_skip_reason"] = "tree_unreadable_or_missing"
+        row["n_gold_leaves_in_context"] = None
+        row["frac_gold_leaves_in_context"] = None
+        row["n_accepted_gold_not_in_context"] = None
+        return row
+
+    ctx_metrics = _compute_context_gold_metrics(
+        gold,
+        accepted_gold,
+        mapping,
+        trace.get("context_node_ids") if isinstance(trace.get("context_node_ids"), list) else [],
+    )
+    row.update(ctx_metrics)
+    row["context_gold_metrics_available"] = True
     return row
 
 
@@ -120,6 +207,18 @@ def summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:
             return 0.0
         return sum(1 for r in sub if pred(r)) / float(len(sub))
 
+    ctx_ok = [r for r in with_gold if r.get("context_gold_metrics_available")]
+
+    def frac_ctx(pred: Any) -> float:
+        if not ctx_ok:
+            return 0.0
+        return sum(1 for r in ctx_ok if pred(r)) / float(len(ctx_ok))
+
+    mean_frac_in_context = 0.0
+    if ctx_ok:
+        vals = [float(r["frac_gold_leaves_in_context"]) for r in ctx_ok if r.get("frac_gold_leaves_in_context") is not None]
+        mean_frac_in_context = sum(vals) / float(len(vals)) if vals else 0.0
+
     return {
         "sample_count": n,
         "sample_count_with_gold_annotation": n_g,
@@ -133,4 +232,10 @@ def summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "sum_gold_leaves_never_visited": sum(int(r.get("n_gold_never_visited") or 0) for r in with_gold),
         "sum_gold_leaves_visited_not_accepted": sum(int(r.get("n_gold_visited_not_accepted_leaves") or 0) for r in with_gold),
         "visited_not_accepted_dispositions_aggregated": agg_disp,
+        "context_gold_metrics_sample_count": len(ctx_ok),
+        "frac_samples_with_any_gold_in_context": frac_ctx(lambda r: int(r.get("n_gold_leaves_in_context") or 0) > 0),
+        "mean_frac_gold_leaves_in_context": mean_frac_in_context,
+        "sum_accepted_gold_not_in_context": sum(
+            int(r.get("n_accepted_gold_not_in_context") or 0) for r in ctx_ok
+        ),
     }

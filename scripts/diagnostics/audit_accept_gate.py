@@ -4,6 +4,7 @@
 Quantifies, for samples with gold annotation:
 - gold never visited (navigation / ordering issue)
 - gold visited but not in accept_evidence (accept / threshold / cap / duplicate)
+- when ``--root`` resolves ``tree_path`` + payload ``tree_path``: gold leaves in ``context_node_ids`` vs accept (read-side drop)
 
 Usage (from repo root):
 
@@ -80,7 +81,7 @@ def main(argv: list[str] | None = None) -> int:
     for path in paths:
         try:
             payload = aes._load_json(path)
-            row = audit_payload(payload)
+            row = audit_payload(payload, root_dir=root)
             row["source_path"] = str(path)
             per_sample.append(row)
         except (OSError, json.JSONDecodeError, ValueError, TypeError) as exc:

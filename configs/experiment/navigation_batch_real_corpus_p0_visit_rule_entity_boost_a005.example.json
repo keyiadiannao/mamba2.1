@@ -25,14 +25,14 @@
   "router_cosine_weight": 0.7,
   "entity_boost_alpha": 0.05,
   "context_source": "t1_visited_leaves_ordered",
-  "context_select_mode": "question_overlap_topk",
-  "context_select_k": 4,
-  "context_select_pool_max_items": 20,
+  "context_select_mode": "question_entity_match_topk",
+  "context_select_k": 6,
+  "context_select_pool_max_items": 24,
   "explore_root_probe_top_m": 1,
   "explore_root_probe_budget_per_child": 2,
   "explore_top_m_root_children": 0,
-  "max_evidence": 8,
-  "min_relevance_score": 1.0,
+  "max_evidence": 12,
+  "min_relevance_score": 0.6,
   "max_depth": 8,
-  "max_nodes": 64
+  "max_nodes": 80
 }
