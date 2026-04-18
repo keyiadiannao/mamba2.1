@@ -236,12 +236,43 @@ python scripts/run_nav/run_navigation_batch.py \
   --max-samples 10
 ```
 
+**扩大样本（与 P0-2 对齐 `n=200`，推荐）**：每次跑批都会生成**新的** `batch_id`（终端 JSON 与 `outputs/reports/batches/<batch_id>/batch_summary.json`）。下面诊断里的 **`BATCH_ID_RULE` / `BATCH_ID_LEARNED`** 必须改成你刚跑完打印的两串完整 id。
+
+```bash
+conda activate mamba2
+cd ~/autodl-tmp/mamba2.1
+git pull origin main
+
+python scripts/run_nav/run_navigation_batch.py \
+  --config configs/experiment/navigation_batch_real_corpus_p0_probe_budget2_rule.example.json \
+  --max-samples 200
+
+python scripts/run_nav/run_navigation_batch.py \
+  --config configs/experiment/navigation_batch_real_corpus_p0_probe_budget2_learned_root_blend05.example.json \
+  --max-samples 200
+
+BATCH_ID_RULE='nav_p0_probe_budget2_rule_YYYYMMDD_HHMMSSZ'
+BATCH_ID_LEARNED='nav_p0_probe_budget2_learned_root_blend05_YYYYMMDD_HHMMSSZ'
+
+for id in "$BATCH_ID_RULE" "$BATCH_ID_LEARNED"; do
+  python scripts/diagnostics/analyze_evidence_saturation.py \
+    --registry-jsonl outputs/reports/run_registry.jsonl \
+    --batch-id "$id" \
+    --out-json "outputs/reports/evidence_saturation_${id}.json"
+  python scripts/diagnostics/audit_accept_gate.py \
+    --registry-jsonl outputs/reports/run_registry.jsonl \
+    --batch-id "$id"
+done
+```
+
+**满 manifest（与端到端主表同条数，常见 500）**：上面两条 `run_navigation_batch.py` **去掉** **`--max-samples 200`** 即可（更久）。
+
 **P0-A′ 导航烟测（`n=10`，2026-04-18，AutoDL）** — 仅验证脚本与注册表；**方差极大，不得写入与 P0-2 / 500 主表同级结论**。
 
 | 臂 | `batch_id` | `analyze_evidence_saturation`（摘录） | `audit_accept_gate`（摘录） |
 |:---|:---|:---|:---|
-| `probe_budget2` `rule` | `nav_p0_probe_budget2_rule_20260418_040256Z` | `frac_gold_leaf_ever_visited_deduped=0.2`，`frac_gold_in_accepted_evidence=0.2`，`gold_missing_from_evidence=8/10`，`frac_evidence_budget_saturated=1.0` | 未贴；同命令改 `--batch-id` 即可补 |
-| `probe_budget2` `learned_root` `α=0.5` | `nav_p0_probe_budget2_learned_root_blend05_20260418_040319Z` | 未贴；同上改 `batch_id` 补 **`evidence_saturation_*.json`** | `frac_samples_never_visit_any_gold=0.9`，`sum_gold_leaves_visited_not_accepted=0`，`visited_not_accepted_dispositions_aggregated` **空**（本 10 条上 **无** cap / 阈值挡 accept 的聚合叶次） |
+| `probe_budget2` `rule` | `nav_p0_probe_budget2_rule_20260418_040256Z` | `frac_gold_leaf_ever_visited_deduped=0.2`，`frac_gold_in_accepted_evidence=0.2`，`gold_missing_from_evidence=8/10`，`frac_evidence_budget_saturated=1.0` | `frac_samples_never_visit_any_gold=0.8`，`sum_gold_leaves_visited_not_accepted=0`，`dispositions` **空** |
+| `probe_budget2` `learned_root` `α=0.5` | `nav_p0_probe_budget2_learned_root_blend05_20260418_040319Z` | `frac_gold_leaf_ever_visited_deduped=0.1`，`frac_gold_in_accepted_evidence=0.1`，`gold_missing_from_evidence=9/10`，`frac_evidence_budget_saturated=1.0` | `frac_samples_never_visit_any_gold=0.9`，`sum_gold_leaves_visited_not_accepted=0`，`dispositions` **空** |
 
 **读法（烟测尺度）**：**learned** 上 **`never_visit_any_gold=0.9`** 在 **10 条**上噪声极大，**不能**外推到 500；**`visited_not_accepted=0` + 空 dispositions** 只说明「这一小撮里几乎没人 visit 到金叶或 visit 后都 accept 了」，**不能**推出「P0 上 `reject_leaf_branch_cap` 已消失」——基线 500 审计里 cap 仍显著，须 **`n≥200` 或满 manifest** 再对 **`reject_leaf_branch_cap` 叶次**下判断。**rule** 侧 **`gold_missing=8/10`** 与 **`visited_deduped=0.2`** 同向，仅作链路检查。
 

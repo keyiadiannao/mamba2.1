@@ -233,3 +233,4 @@ git pull origin main
 | 2026-04-18 | **P0-A′**：已加端到端模版 **`…p0_rule_frozen_nav_probe_budget2.example.json`** / **`…p0_learned_root_blend05_probe_budget2.example.json`**（仅 **`explore_root_probe_budget_per_child: 2`**）；执行与判读见 `Navigation_Experiment_Record_CN.md` §6.6 **P0-A′** 段。 |
 | 2026-04-18 | **P0-A′**：补充仅导航批模版 **`navigation_batch_real_corpus_p0_probe_budget2_{rule,learned_root_blend05}.example.json`**（不跑 7B）；§6.6 增加 AutoDL 可复制命令（避免 `cd … \|\| exit 1` 导致 shell 直接退出）。 |
 | 2026-04-18 | **P0-A′** 导航 **`n=10`** 烟测台账（`nav_p0_probe_budget2_rule_20260418_040256Z` / `…learned_root_blend05_20260418_040319Z`）与读法见 `Navigation_Experiment_Record_CN.md` §6.6；**不得**与 500 主结论混用。 |
+| 2026-04-18 | **P0-A′**：§6.6 补 **导航 `n=200` / 满 manifest** 可复制命令块（含 saturation + `audit_accept_gate` 循环）；烟测表补全 rule 的 `audit` 与 learned 的 saturation。 |
