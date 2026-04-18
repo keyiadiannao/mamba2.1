@@ -207,7 +207,7 @@ rm -f /tmp/nav_smoke_rule.json /tmp/nav_smoke_learned.json
 
 **Oracle 导航批 200（附录）**：`navigation_batch_real_corpus_nav_reg200_oracle_item_leaves.example.json`。
 
-**导航侧下一阶段（由前到后）**：可学习 gap = 抬 visited、降 `gold_missing`、抬 accepted（不用 oracle 作弊）。**已做**：根层 **`LearnedRootHybridRouter`**（更深仍 rule，`src/router/base.py`）。**建议**：① **非 root 路由/学习**（单臂+闸门）；② **`SSGSController` 探索与预算**（`explore_*`、`evidence_max_per_root_child`、`max_nodes`…一次一类）；③ **接受/证据槽（P0-A′）** 单独立项，与 MI-006 读侧解耦。
+**导航侧下一阶段（由前到后）**：可学习 gap = 抬 visited、降 `gold_missing`、抬 accepted（不用 oracle 作弊）。**已做**：根层 **`LearnedRootHybridRouter`**（更深仍 rule，`src/router/base.py`）。**建议**：先跑 **Accept 门审计**（纯离线）：`python scripts/diagnostics/audit_accept_gate.py --registry-jsonl outputs/reports/run_registry.jsonl --batch-id '<batch_id>' --out-json outputs/reports/accept_gate_audit.json` —— 汇总「有金标注样本」上 **从未 visit 金叶** vs **visit 了但未进 `accept_evidence`**，并对后者聚合 **`reject_leaf` / `reject_leaf_branch_cap` / `skip_duplicate_evidence`** 计数；再决定 **P0-A′** 最小改动（**勿**用 `leaf_indices_required` 做推理期作弊放行）。其后按需：**非 root**、**探索与预算**。
 
 **P2（不默认）**：root 训练增强、`α>0.5` 烟测 — 见 §6.5 末、**MI-008**。
 

@@ -228,3 +228,4 @@ git pull origin main
 | 2026-04-18 | 导航批 **Oracle 上界** 模版 **`navigation_batch_real_corpus_nav_reg200_oracle_item_leaves.example.json`**（`context_source=oracle_item_leaves`，诊断用）；见 `Navigation_Experiment_Record_CN.md` §6.6。 |
 | 2026-04-18 | P1-3 实测 **`nav_p1_reg200_rule_entity_match_k4_20260418_030137Z`**：金叶与 overlap **同值**；检索 EM **0.12 vs 0.11**（`N=200`），见 `Navigation_Experiment_Record_CN.md` §6.6。 |
 | 2026-04-18 | 主线回到**导航侧由前到后**（非 root 路由 → Controller 探索预算 → 接受侧 P0-A′）；**已有 Oracle 500 e2e 则默认不必**再跑导航批 Oracle 200；见 `Navigation_Experiment_Record_CN.md` §6.6。 |
+| 2026-04-18 | **Accept 门审计**：`scripts/diagnostics/audit_accept_gate.py` + `src/diagnostics/accept_gate_audit.py`（按 `run_registry.jsonl` + `batch_id` 读 `run_payload.json`）；用法见 `Navigation_Experiment_Record_CN.md` §6.6。 |
