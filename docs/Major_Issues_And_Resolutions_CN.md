@@ -236,5 +236,6 @@ git pull origin main
 | 2026-04-18 | **P0-A′**：§6.6 补 **导航 `n=200` / 满 manifest** 可复制命令块（含 saturation + `audit_accept_gate` 循环）；烟测表补全 rule 的 `audit` 与 learned 的 saturation。 |
 | 2026-04-18 | **P0-A′** 导航 **满 manifest（`sample_count=500`）**、`probe_budget=2`：`reject_leaf_branch_cap` 叶次 **≈44/41**（对 e2e 基线 **≈85/76**）；**`never_visit_any_gold`** 仍 **≈0.58/0.55**；表与判读见 `Navigation_Experiment_Record_CN.md` §6.6。 |
 | 2026-04-18 | **P0-A′** `rule` 导航满 500 **复跑** `nav_p0_probe_budget2_rule_20260418_045515Z`：摘要与 `…041200Z` 一致；见 `Navigation_Experiment_Record_CN.md` §6.6。 |
+| 2026-04-18 | **P0-A′ 严对照**：新增导航模版 **`navigation_batch_real_corpus_p0_probe_budget1_{rule,learned_root_blend05}.example.json`**（**`explore_root_probe_budget_per_child=1`、满 manifest**）；与 **`probe2`** 复跑区分；命令见 `Navigation_Experiment_Record_CN.md` §6.6。 |
 | 2026-04-18 | **P0-A′** 文档勘误：**`probe_budget2` 台账为导航满 manifest（500）**；严对照缺 **`probe_budget=1` 导航满量**两条，`n=200` 的 P0-2 **不可替代**；见 `Navigation_Experiment_Record_CN.md` §6.6。 |
 | 2026-04-18 | **`run_navigation_batch` / `run_end_to_end_batch`** 增加可解析行 **`__SSGS_BATCH_ID__=`**（便于终端 `sed` 取 `batch_id`）；**不**为烟测维护额外 shell，用法见 `Navigation_Experiment_Record_CN.md` §6.6。 |
