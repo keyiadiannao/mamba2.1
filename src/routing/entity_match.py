@@ -179,6 +179,64 @@ def extract_question_entities(question: str, *, filter_sentence_lead: bool = Tru
     return unique
 
 
+_KEYWORD_OVERLAP_STOP = frozenset(
+    {
+        "the",
+        "a",
+        "an",
+        "and",
+        "or",
+        "is",
+        "are",
+        "was",
+        "were",
+        "be",
+        "been",
+        "being",
+        "who",
+        "what",
+        "which",
+        "when",
+        "where",
+        "why",
+        "how",
+        "whom",
+        "did",
+        "does",
+        "do",
+        "has",
+        "have",
+        "had",
+        "than",
+        "between",
+        "versus",
+    }
+)
+
+
+def keyword_token_overlap_fraction(question: str, node_text: str) -> float:
+    """Share of (deduped) question tokens that appear in ``node_text`` (substring, lowercased).
+
+    Used only as a **fallback** when entity-span extraction yields no entity_match signal at the
+    document root: cheap overlap to break ties between root children without NER.
+    """
+    if not question or not node_text:
+        return 0.0
+    raw_tokens = re.findall(r"[a-z0-9]+", question.lower())
+    filtered = [t for t in raw_tokens if len(t) >= 2 and t not in _KEYWORD_OVERLAP_STOP]
+    seen: set[str] = set()
+    uniq: list[str] = []
+    for t in filtered:
+        if t not in seen:
+            seen.add(t)
+            uniq.append(t)
+    if not uniq:
+        return 0.0
+    blob = node_text.lower()
+    hits = sum(1 for t in uniq if t in blob)
+    return hits / float(len(uniq))
+
+
 def compute_entity_match_score(
     question_entities: list[str],
     node_text: str,

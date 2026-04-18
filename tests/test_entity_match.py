@@ -8,6 +8,7 @@ from src.routing.entity_match import (
     compute_entity_match_score,
     entity_mentioned_in_text,
     extract_question_entities,
+    keyword_token_overlap_fraction,
 )
 
 
@@ -50,6 +51,18 @@ class EntityMatchTest(unittest.TestCase):
             filter_sentence_lead=False,
         )
         self.assertIn("Here", entities)
+
+    def test_keyword_token_overlap_fraction_basic(self) -> None:
+        q = "What is the capital of France?"
+        text = "Paris is the capital city of France."
+        self.assertEqual(keyword_token_overlap_fraction(q, text), 1.0)
+
+    def test_keyword_token_overlap_fraction_partial(self) -> None:
+        q = "Did Newton or Einstein propose relativity?"
+        text = "Einstein proposed special relativity in 1905."
+        ov = keyword_token_overlap_fraction(q, text)
+        self.assertGreater(ov, 0.0)
+        self.assertLess(ov, 1.0)
 
     def test_apply_entity_boost_and_hit_rate(self) -> None:
         scored_children = [

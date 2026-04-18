@@ -2,10 +2,15 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from math import ceil
+from typing import Any
 
 from src.navigator import BaseNavigator, NavigatorState
 from src.router import BaseRouter, ChildScore, RouteDecision
-from src.routing.entity_match import apply_entity_boost, extract_question_entities
+from src.routing.entity_match import (
+    apply_entity_boost,
+    extract_question_entities,
+    keyword_token_overlap_fraction,
+)
 from src.tracing import TraceRecord
 from src.tree_builder import DocumentTree, TreeNode
 
@@ -31,6 +36,9 @@ class ControllerConfig:
     # 3) revisit probed children normally if evidence slots remain.
     explore_root_probe_top_m: int = 0
     explore_root_probe_budget_per_child: int = 1
+    # When >0: at document root only, if entity_boost is on but every child's entity_match_score is 0,
+    # add (beta * keyword_token_overlap_fraction(question, child.text)) to the post-boost score and re-rank.
+    root_entity_zero_overlap_fallback_beta: float = 0.0
 
 
 class SSGSController:
@@ -201,7 +209,11 @@ class SSGSController:
         )
 
         ordered = self.router.rank_children(question, node, node.children, next_state)
-        ordered, entity_route_audit = self._apply_entity_boost(question_entities, node, ordered)
+        ordered, entity_route_audit, root_fb = self._apply_entity_boost(
+            question, question_entities, depth, node, ordered
+        )
+        if root_fb:
+            trace.event_log.append({"event": "root_entity_zero_overlap_fallback", **root_fb})
         trace.route_decisions.append(
             {
                 "parent_node_id": node.node_id,
@@ -216,6 +228,9 @@ class SSGSController:
                         ),
                         "entity_match_score": entity_route_audit.get(child_score.node_id, {}).get(
                             "entity_match_score"
+                        ),
+                        "question_keyword_overlap": entity_route_audit.get(child_score.node_id, {}).get(
+                            "question_keyword_overlap"
                         ),
                     }
                     for child_score in ordered.child_scores
@@ -316,10 +331,12 @@ class SSGSController:
 
     def _apply_entity_boost(
         self,
+        question: str,
         question_entities: list[str],
+        depth: int,
         parent: TreeNode,
         route_decision: RouteDecision,
-    ) -> tuple[RouteDecision, dict[str, dict[str, float | None]]]:
+    ) -> tuple[RouteDecision, dict[str, dict[str, float | None]], dict[str, Any] | None]:
         child_lookup = {child.node_id: child for child in parent.children}
         scored_children = [
             {"node_id": child_score.node_id, "score": float(child_score.score)}
@@ -337,6 +354,33 @@ class SSGSController:
             reverse=True,
         )
 
+        root_fb: dict[str, Any] | None = None
+        beta = float(self.config.root_entity_zero_overlap_fallback_beta or 0.0)
+        if (
+            beta > 0.0
+            and depth == 0
+            and float(self.config.entity_boost_alpha or 0.0) > 0.0
+            and question_entities
+        ):
+            em_vals = [
+                float(x.get("entity_match_score", 0.0))
+                for x in boosted_sorted
+                if "entity_match_score" in x
+            ]
+            if em_vals and max(em_vals) <= 0.0:
+                for item in boosted_sorted:
+                    nid = str(item.get("node_id", ""))
+                    node_text = child_lookup[nid].text if nid in child_lookup else ""
+                    ov = float(keyword_token_overlap_fraction(question, node_text))
+                    item["question_keyword_overlap"] = ov
+                    item["score"] = float(item.get("score", 0.0)) + beta * ov
+                boosted_sorted = sorted(
+                    boosted_sorted,
+                    key=lambda item: (float(item.get("score", 0.0)), str(item.get("node_id", ""))),
+                    reverse=True,
+                )
+                root_fb = {"beta": beta, "max_entity_match_before": 0.0}
+
         audit_by_node: dict[str, dict[str, float | None]] = {}
         for item in boosted_sorted:
             nid = str(item.get("node_id", ""))
@@ -346,6 +390,9 @@ class SSGSController:
                 else None,
                 "raw_router_score": float(item["raw_router_score"])
                 if "raw_router_score" in item
+                else None,
+                "question_keyword_overlap": float(item["question_keyword_overlap"])
+                if "question_keyword_overlap" in item
                 else None,
             }
 
@@ -358,4 +405,8 @@ class SSGSController:
             ChildScore(node_id=str(item.get("node_id")), score=float(item.get("score", 0.0)))
             for item in boosted_sorted
         ]
-        return RouteDecision(ordered_children=ordered_children, child_scores=child_scores), audit_by_node
+        return (
+            RouteDecision(ordered_children=ordered_children, child_scores=child_scores),
+            audit_by_node,
+            root_fb,
+        )
