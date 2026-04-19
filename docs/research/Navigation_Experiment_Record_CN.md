@@ -428,39 +428,41 @@ python scripts/run_nav/run_navigation_batch.py \
   --max-samples 50
 ```
 
-**已跑（`sentence_transformer` / MiniLM，`a030`+`rule`，2026-04-19）**：**`batch_id`**：**`nav_p0_visit_rule_entity_boost_a030_sentence_minilm_20260419_150150Z`**；**`batch_summary`**：**`outputs/reports/batches/nav_p0_visit_rule_entity_boost_a030_sentence_minilm_20260419_150150Z/batch_summary.json`**。**本批 `sample_count=200`**（`--max-samples 200` 或未跑满 manifest），与 **`122155Z`（满 500）** 的 **绝对数值不可直接横比**；结论仅作 **同协议、同前 200 条切片内** 的**方向性**参考，**定稿须** **`n=500` 无 `--max-samples` 重跑** 或 **对 `122155Z` 取同一切片** 再对表。
+**满 500 主表（`sentence_transformer` / MiniLM，`a030`+`rule`，2026-04-19）**：**`batch_id`**：**`nav_p0_visit_rule_entity_boost_a030_sentence_minilm_20260419_151107Z`**；**`batch_summary`**：**`outputs/reports/batches/…151107Z/batch_summary.json`**；**审计**：**`accept_gate_audit_…151107Z.json`**。与 **`122155Z`（Mamba+`rule`，满 500）** **同 manifest、同旋钮**，可作 **编码器诊断主对表**。
 
-| 指标（导航批） | **`150150Z`（MiniLM，`n=200`）** | **`122155Z`（Mamba，`n=500`）** | 读法（注意 **`n` 不同**） |
+| 指标（导航批，`n=500`） | **`151107Z`（MiniLM）** | **`122155Z`（Mamba）** | **读法** |
 |:---|---:|---:|:---|
-| **`exact_match_rate`**（retrieval proxy） | **0.135** | **0.14**（见上文对表） | 同量级略低；**非**同切片严格对照。 |
-| **`avg_answer_f1`** | **≈0.146** | — | 与 **EM** 同口径。 |
-| **`avg_nav_wall_time_ms`** | **≈545** | **≈2367**（`122155Z` 满 500） | MiniLM 侧**显著更快**（编码器体量与路径不同；并列报告时写清 **硬件/批大小**）。 |
-| **`nav_success_rate`** | **1.0** | **1.0** | 与 **§6.7** 其它臂一致。 |
-| **`never_visit`**（`accept_gate_audit`） | **0.395** | **0.378** | 切片内 **略差**于 Mamba 满量锚点。 |
-| **`visit_miss`** | **0.165** | **~0.11** | **更高**（到金叶后 accept 压力更大）。 |
-| **`frac_samples_with_any_gold_in_context`** | **0.605** | **0.622**（`122155Z` 摘要） | 接近。 |
-| **`mean_frac_gold_leaves_in_context`** | **≈0.254** | **≈0.258** | 接近。 |
-| **`sum_accepted_gold_not_in_context`** | **16**（`n=200`） | **63**（`n=500`） | **不可按条数比**；可看 **每样本均值** 或 **满量同 `n` 再比**。 |
-| **叶次 `cap` / `minrel`** | **21 / 21** | **70 / 10**（`122155Z`） | 量级随 **`n`** 与路径变；**满 500** 后再看 **cap 占比**。 |
+| **`exact_match_rate`**（retrieval proxy） | **0.146** | **0.14** | MiniLM **略高 `+0.006`**（**非**大差距；二者仍属同量级）。 |
+| **`avg_answer_f1`** | **≈0.155** | **≈0.150**（`122155Z` `batch_summary`） | 同向略优。 |
+| **`avg_nav_wall_time_ms`** | **≈422** | **≈2367** | MiniLM **显著更快**（报告写清 **同机、同 CUDA**）。 |
+| **`nav_success_rate`** | **1.0** | **1.0** | — |
+| **`never_visit`** | **0.362** | **0.378** | MiniLM **略优**（**−1.6pp**）。 |
+| **`visit_miss`** | **0.158** | **~0.11** | MiniLM **更差**（**+4.8pp**）；**accept** 侧压力更大。 |
+| **`frac_samples_with_any_gold_in_context`** | **0.638** | **0.622** | MiniLM **略优**。 |
+| **`mean_frac_gold_leaves_in_context`** | **≈0.265** | **≈0.258** | 接近，MiniLM **略优**。 |
+| **`sum_accepted_gold_not_in_context`** | **48** | **63** | MiniLM **更低**（同 **`n`** 下可并列）。 |
+| **叶次 `cap` / `minrel`** | **55 / 51** | **70 / 10** | MiniLM **`minrel` 叶次占比更高**；Mamba 侧 **`cap` 为主** → 瓶颈形状不同。 |
 
-**审计落盘**：**`outputs/reports/accept_gate_audit_nav_p0_visit_rule_entity_boost_a030_sentence_minilm_20260419_150150Z.json`**（`summarize_audit_failure_buckets` 桶与 JSON 摘要一致）。
+**诊断结论（压缩）**：在 **「同融合 + 同 SSGS/`rule`/读侧」** 下，**未出现「Mamba 在检索 proxy 上碾压 MiniLM」**；**MiniLM 更快、部分过程指标略好**，但 **`visit_miss` 明显更差**。论文叙事应 **诚实写成交替优势 + 代价轴**，而非预设 **Mamba 不可替代**；若需 **「Mamba 专属增益」**，须再设计 **更贴 SSM 的路径输入/探针**（见 **§5.3** 与 **`④′`** 讨论）。
 
-**打印导航批摘要键**：
+**烟测 `n=200`（`150150Z`）**：保留作 **熔断/对齐切片**；**勿与上表混为最终结论**。
+
+**打印 `151107Z` `batch_summary`**：
 
 ```bash
 cd ~/autodl-tmp/mamba2.1
-python3 -c "import json; p='outputs/reports/batches/nav_p0_visit_rule_entity_boost_a030_sentence_minilm_20260419_150150Z/batch_summary.json'; d=json.load(open(p,encoding='utf-8')); print(json.dumps({k:d.get(k) for k in ('batch_id','sample_count','exact_match_rate','avg_answer_f1','avg_nav_wall_time_ms','nav_success_rate')}, indent=2, ensure_ascii=False))"
+python3 -c "import json; p='outputs/reports/batches/nav_p0_visit_rule_entity_boost_a030_sentence_minilm_20260419_151107Z/batch_summary.json'; d=json.load(open(p,encoding='utf-8')); print(json.dumps({k:d.get(k) for k in ('batch_id','sample_count','exact_match_rate','avg_answer_f1','avg_nav_wall_time_ms','nav_success_rate')}, indent=2, ensure_ascii=False))"
 ```
 
-**`accept_gate_audit`（勿漏 `.json`）**：
+**`accept_gate_audit`（`151107Z`，勿漏 `.json`）**：
 
 ```bash
 python scripts/diagnostics/audit_accept_gate.py \
   --registry-jsonl outputs/reports/run_registry.jsonl \
-  --batch-id "nav_p0_visit_rule_entity_boost_a030_sentence_minilm_20260419_150150Z" \
-  --out-json "outputs/reports/accept_gate_audit_nav_p0_visit_rule_entity_boost_a030_sentence_minilm_20260419_150150Z.json"
+  --batch-id "nav_p0_visit_rule_entity_boost_a030_sentence_minilm_20260419_151107Z" \
+  --out-json "outputs/reports/accept_gate_audit_nav_p0_visit_rule_entity_boost_a030_sentence_minilm_20260419_151107Z.json"
 python scripts/diagnostics/summarize_audit_failure_buckets.py \
-  "outputs/reports/accept_gate_audit_nav_p0_visit_rule_entity_boost_a030_sentence_minilm_20260419_150150Z.json"
+  "outputs/reports/accept_gate_audit_nav_p0_visit_rule_entity_boost_a030_sentence_minilm_20260419_151107Z.json"
 ```
 
 **`branch_cap` 机制（与 P0-A′ 一致）**：**`evidence_max_per_root_child=0`** 时，**`reject_leaf_branch_cap`** 的 **`cap` 常来自** **`explore_root_probe_budget_per_child`**（`cap_source=top_m_budget`，见 **`src/controller/ssgs_controller.py`**）。
