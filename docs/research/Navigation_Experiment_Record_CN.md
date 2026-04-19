@@ -487,7 +487,19 @@ python scripts/diagnostics/audit_accept_gate.py \
 | **`avg_answer_f1` / `avg_rouge_l_f1`** | **≈0.146** / **≈0.146** |
 | **`avg_nav_wall_time_ms`** | **≈1745** |
 
-**读法**：**`nav_success_rate` 仍为 1** → 批级链路稳定；**EM/F1** 较 **`n=20`** 略抬属 **200 条尺度** 下更稳的 proxy，**过程门**须以 **`accept_gate_audit`** 为准再与 P0 对读。**`avg_nav_wall_time_ms`** 与 **`n=20`** 不可简单按条均摊对比（调度/缓存/负载不同），满量时再报告区间。
+**`accept_gate_audit`（`162419Z`，`n=200`，2026-04-19）**：**`outputs/reports/accept_gate_audit_nav_p1_path_recursive_visit_rule_entity_boost_a030_20260419_162419Z.json`**；分桶摘要见 **`summarize_audit_failure_buckets.py`** 输出。
+
+| 指标（审计 JSON / 分桶） | **值** |
+|:---|:---|
+| **`frac_samples_never_visit_any_gold`** | **0.40**（**`never_visit_n`** **80** / **`with_gold_n`** **200**） |
+| **`frac_samples_visit_gold_but_missing_accept…`（`visit_miss`）** | **0.095**（**`visit_miss_n`** **19**） |
+| **`frac_samples_with_visit_where_all_visited_gold_accepted`** | **≈0.842** |
+| **`frac_samples_with_any_gold_in_context`** | **0.60** |
+| **`mean_frac_gold_leaves_in_context`** | **≈0.252** |
+| **`sum_accepted_gold_not_in_context`** | **24** |
+| **叶次 `reject_leaf_branch_cap` / `reject_leaf_min_relevance`** | **25** / **3**（**`cap` 为主**） |
+
+**读法（压缩）**：**`visit_miss=0.095` ≤ 0.12**，常见过程硬门**可过**。**`never_visit=0.40`** **高于** 文档中 P0 满量默认点 **`122155Z`** 的 **~0.378**，但 **`122155Z` 为 `n=500`、本批为 `n=200` 且协议为 P1**，**不**宜直接写成「P1 劣于 P0」终句——若要落锤，须 **同切片 P0** 或 **P1 满 500** 再对表。**`nav_success_rate` 仍为 1** → 批级链路稳定；**EM/F1** 仍以 **`batch_summary`** 为准，与审计**分列写**。
 
 ```bash
 python3 -c "import json; p='outputs/reports/batches/nav_p1_path_recursive_visit_rule_entity_boost_a030_20260419_162419Z/batch_summary.json'; d=json.load(open(p,encoding='utf-8')); print(json.dumps({k:d.get(k) for k in ('batch_id','sample_count','exact_match_rate','avg_answer_f1','avg_nav_wall_time_ms','nav_success_rate')}, indent=2, ensure_ascii=False))"
