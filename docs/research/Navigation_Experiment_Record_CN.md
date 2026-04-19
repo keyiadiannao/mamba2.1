@@ -501,6 +501,8 @@ python scripts/diagnostics/audit_accept_gate.py \
 
 **读法（压缩）**：**`visit_miss=0.095` ≤ 0.12**，常见过程硬门**可过**。**`never_visit=0.40`** **高于** 文档中 P0 满量默认点 **`122155Z`** 的 **~0.378**，但 **`122155Z` 为 `n=500`、本批为 `n=200` 且协议为 P1**，**不**宜直接写成「P1 劣于 P0」终句——若要落锤，须 **同切片 P0** 或 **P1 满 500** 再对表。**`nav_success_rate` 仍为 1** → 批级链路稳定；**EM/F1** 仍以 **`batch_summary`** 为准，与审计**分列写**。
 
+**满 manifest（500）**：**暂缓**（2026-04-19）——**`n=200` 上 `never_visit` 不占优、相对 P0 默认点未见明确增益**，在**未补「同 `n=200` 的 P0 切片」或协议修订**前**不**默认再跑满量；若改 **路径截断 / 模板 / 对照臂** 再议。
+
 ```bash
 python3 -c "import json; p='outputs/reports/batches/nav_p1_path_recursive_visit_rule_entity_boost_a030_20260419_162419Z/batch_summary.json'; d=json.load(open(p,encoding='utf-8')); print(json.dumps({k:d.get(k) for k in ('batch_id','sample_count','exact_match_rate','avg_answer_f1','avg_nav_wall_time_ms','nav_success_rate')}, indent=2, ensure_ascii=False))"
 python scripts/diagnostics/audit_accept_gate.py \
