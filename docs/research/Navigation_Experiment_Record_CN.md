@@ -398,7 +398,16 @@ cd ~/autodl-tmp/mamba2.1
 python3 -c "import json; p='outputs/reports/end_to_end_batches/end_to_end_p0_real_corpus_370m_qwen7b_cosine_probe_nav_probe_budget2_visit_a030_20260419_094151Z/batch_summary.json'; d=json.load(open(p,encoding='utf-8')); print(json.dumps({k:d.get(k) for k in ('batch_id','sample_count','exact_match_rate','avg_answer_f1','avg_nav_wall_time_ms')}, indent=2, ensure_ascii=False))"
 ```
 
-**对表（同 manifest、`probe_budget=2`、`visit_a030` 栈）**：**`rule`** 历史 **`end_to_end_p0_real_corpus_370m_qwen7b_rule_frozen_nav_probe_budget2_20260418_060702Z`**（**EM≈`0.188`**，见上 **§6.6** 表）— 若数据或代码与当时不一致，请以 **同机当场重跑** **`p0_rule_frozen_nav_probe_budget2.example.json`** 的 **`batch_summary`** 为准。
+**对表（同 manifest、`probe_budget=2`、`visit_a030` 栈）**：**`rule`** 历史 **`end_to_end_p0_real_corpus_370m_qwen7b_rule_frozen_nav_probe_budget2_20260418_060702Z`**（见上 **§6.6** 表）— 若数据或代码与当时不一致，请以 **同机当场重跑** **`p0_rule_frozen_nav_probe_budget2.example.json`** 的 **`batch_summary`** 为准。
+
+**`④′-e2e` 终点（`batch_summary`，500，`eval_mode=generation`）**：
+
+| 臂 | `batch_id`（后缀） | `exact_match_rate` | `avg_answer_f1` | `avg_nav_wall_time_ms` |
+|:---|:---|---:|---:|---:|
+| **`cosine_probe`** | **`…cosine_probe…_20260419_094151Z`** | **`0.236`** | **`≈0.263`** | **`≈2295`** |
+| **`rule`**（历史对表） | **`…rule_frozen_nav_probe_budget2_20260418_060702Z`** | **`0.188`** | **`≈0.208`** | **`≈1197`** |
+
+**Δ（cosine − rule）**：**EM `+0.048`（约 `+4.8pp`）**，**F1 约 `+0.055`**；**`avg_nav_wall_time_ms` 约 `+1100ms/条`**（量级与 **§9.12** cosine 略慢于 rule 同向，此处差更大，**并列报告时写清同机负载/是否同 CUDA 图**）。**读法**：在 **`visit_a030` + `entity_match` 栈** 下，**导航侧 proxy 的优势已传导到 7B 生成 EM**（与 **`081150Z`/`122155Z` 过程对表**同向）；**是否升格默认臂**仍建议结合 **e2e `accept_gate_audit`** 与 **成本**再定。
 
 **可选 `accept_gate_audit`（e2e 批）**：
 
