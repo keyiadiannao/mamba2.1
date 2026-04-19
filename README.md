@@ -16,6 +16,8 @@
 - `docs/research/Navigation_Experiment_Record_CN.md`
 - `docs/notes/Environment_Setup_CN.md`
 
+**可选依赖（句向量导航器 / Mamba 对照诊断）**：`pip install sentence-transformers`；配置项见 **`configs/experiment/navigation_batch_real_corpus_p0_visit_rule_entity_boost_a030_sentence_minilm.example.json`** 与 **`Navigation_Experiment_Record_CN.md`**「句向量诊断」。
+
 ## 推荐目录结构
 
 ```text

@@ -420,6 +420,14 @@ python scripts/diagnostics/summarize_audit_failure_buckets.py \
   "outputs/reports/accept_gate_audit_end_to_end_p0_real_corpus_370m_qwen7b_cosine_probe_nav_probe_budget2_visit_a030_20260419_094151Z.json"
 ```
 
+**句向量诊断（Mamba vs MiniLM，同 `a030` 栈、同融合）**：默认句向量 **`sentence-transformers/all-MiniLM-L6-v2`**（384 维，英文子集上常用；多语料可改键 **`sentence_transformer_model_name`** 为 **`sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`**）。依赖 **`pip install sentence-transformers`**。模版 **`configs/experiment/navigation_batch_real_corpus_p0_visit_rule_entity_boost_a030_sentence_minilm.example.json`** 与 **`…p0_visit_rule_entity_boost_a030.example.json`** 除 **`navigator_type`** 与 **Mamba 专用键**外对齐；**`merge_path_summaries` 与 Mamba HF 路径一致**。烟测：
+
+```bash
+python scripts/run_nav/run_navigation_batch.py \
+  --config configs/experiment/navigation_batch_real_corpus_p0_visit_rule_entity_boost_a030_sentence_minilm.example.json \
+  --max-samples 50
+```
+
 **`branch_cap` 机制（与 P0-A′ 一致）**：**`evidence_max_per_root_child=0`** 时，**`reject_leaf_branch_cap`** 的 **`cap` 常来自** **`explore_root_probe_budget_per_child`**（`cap_source=top_m_budget`，见 **`src/controller/ssgs_controller.py`**）。
 
 **`probe_budget=3`：满 500 导航 + 可选 e2e**（**导航满 500 已产出 `162118Z`**；下列命令供 **复现 / 二次跑 / 换机**）

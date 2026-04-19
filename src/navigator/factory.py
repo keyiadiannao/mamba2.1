@@ -4,6 +4,10 @@ from typing import Any
 
 from .base import BaseNavigator, MockMambaNavigator
 from .mamba2_adapter import Mamba2Navigator, Mamba2RuntimeConfig
+from .sentence_transformer_navigator import (
+    SentenceTransformerNavigator,
+    SentenceTransformerNavigatorConfig,
+)
 
 
 def build_navigator(config: dict[str, Any]) -> BaseNavigator:
@@ -11,6 +15,22 @@ def build_navigator(config: dict[str, Any]) -> BaseNavigator:
 
     if navigator_type == "mock":
         return MockMambaNavigator()
+
+    if navigator_type in {"sentence_transformer", "st_minilm", "sentence_minilm"}:
+        return SentenceTransformerNavigator(
+            SentenceTransformerNavigatorConfig(
+                model_name=str(
+                    config.get(
+                        "sentence_transformer_model_name",
+                        "sentence-transformers/all-MiniLM-L6-v2",
+                    )
+                ),
+                device=str(config.get("navigator_device", "cuda")),
+                dtype=str(config.get("navigator_dtype", "float32")),
+                max_chars_per_node=int(config.get("navigator_max_chars_per_node", 16000)),
+                query_cache_max_size=int(config.get("navigator_query_cache_max_size", 2048)),
+            )
+        )
 
     if navigator_type in {"mamba2", "mamba2_native", "mamba_ssm"}:
         default_dependency_module = "mamba_ssm" if navigator_type == "mamba_ssm" else navigator_type

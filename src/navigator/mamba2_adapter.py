@@ -7,7 +7,7 @@ from typing import Any
 
 from src.tree_builder import TreeNode
 
-from .base import BaseNavigator, NavigatorState
+from .base import BaseNavigator, NavigatorState, merge_path_summaries
 
 
 def _extract_last_hidden(outputs: Any) -> Any:
@@ -242,14 +242,7 @@ class Mamba2Navigator(BaseNavigator):
         return [float(value) for value in summary]
 
     def _merge_summaries(self, previous_summary: list[float], current_summary: list[float]) -> list[float]:
-        target_dim = min(len(previous_summary), len(current_summary))
-        merged = [
-            float((previous_summary[index] + current_summary[index]) / 2.0)
-            for index in range(target_dim)
-        ]
-        if len(current_summary) > target_dim:
-            merged.extend(float(value) for value in current_summary[target_dim:])
-        return merged
+        return merge_path_summaries(previous_summary, current_summary)
 
     def _resolve_dtype(self, dtype_name: str) -> Any:
         torch = self._torch
