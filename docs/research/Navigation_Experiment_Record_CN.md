@@ -428,7 +428,22 @@ python scripts/run_nav/run_navigation_batch.py \
   --max-samples 50
 ```
 
-**已跑满 500（`sentence_transformer` / MiniLM，`a030`+`rule`，2026-04-19）**：**`batch_id`**：**`nav_p0_visit_rule_entity_boost_a030_sentence_minilm_20260419_150150Z`**；**`batch_summary`**：**`outputs/reports/batches/nav_p0_visit_rule_entity_boost_a030_sentence_minilm_20260419_150150Z/batch_summary.json`**。与 **`122155Z`（Mamba+`rule`）**、**`081150Z`（Mamba+`cosine_probe`）** 同 manifest，用于 **RQ：编码器是否带来过程/检索 proxy 差异**。
+**已跑（`sentence_transformer` / MiniLM，`a030`+`rule`，2026-04-19）**：**`batch_id`**：**`nav_p0_visit_rule_entity_boost_a030_sentence_minilm_20260419_150150Z`**；**`batch_summary`**：**`outputs/reports/batches/nav_p0_visit_rule_entity_boost_a030_sentence_minilm_20260419_150150Z/batch_summary.json`**。**本批 `sample_count=200`**（`--max-samples 200` 或未跑满 manifest），与 **`122155Z`（满 500）** 的 **绝对数值不可直接横比**；结论仅作 **同协议、同前 200 条切片内** 的**方向性**参考，**定稿须** **`n=500` 无 `--max-samples` 重跑** 或 **对 `122155Z` 取同一切片** 再对表。
+
+| 指标（导航批） | **`150150Z`（MiniLM，`n=200`）** | **`122155Z`（Mamba，`n=500`）** | 读法（注意 **`n` 不同**） |
+|:---|---:|---:|:---|
+| **`exact_match_rate`**（retrieval proxy） | **0.135** | **0.14**（见上文对表） | 同量级略低；**非**同切片严格对照。 |
+| **`avg_answer_f1`** | **≈0.146** | — | 与 **EM** 同口径。 |
+| **`avg_nav_wall_time_ms`** | **≈545** | **≈2367**（`122155Z` 满 500） | MiniLM 侧**显著更快**（编码器体量与路径不同；并列报告时写清 **硬件/批大小**）。 |
+| **`nav_success_rate`** | **1.0** | **1.0** | 与 **§6.7** 其它臂一致。 |
+| **`never_visit`**（`accept_gate_audit`） | **0.395** | **0.378** | 切片内 **略差**于 Mamba 满量锚点。 |
+| **`visit_miss`** | **0.165** | **~0.11** | **更高**（到金叶后 accept 压力更大）。 |
+| **`frac_samples_with_any_gold_in_context`** | **0.605** | **0.622**（`122155Z` 摘要） | 接近。 |
+| **`mean_frac_gold_leaves_in_context`** | **≈0.254** | **≈0.258** | 接近。 |
+| **`sum_accepted_gold_not_in_context`** | **16**（`n=200`） | **63**（`n=500`） | **不可按条数比**；可看 **每样本均值** 或 **满量同 `n` 再比**。 |
+| **叶次 `cap` / `minrel`** | **21 / 21** | **70 / 10**（`122155Z`） | 量级随 **`n`** 与路径变；**满 500** 后再看 **cap 占比**。 |
+
+**审计落盘**：**`outputs/reports/accept_gate_audit_nav_p0_visit_rule_entity_boost_a030_sentence_minilm_20260419_150150Z.json`**（`summarize_audit_failure_buckets` 桶与 JSON 摘要一致）。
 
 **打印导航批摘要键**：
 
