@@ -477,6 +477,28 @@ python scripts/diagnostics/audit_accept_gate.py \
   --out-json "outputs/reports/accept_gate_audit_nav_p1_path_recursive_visit_rule_entity_boost_a030_20260419_161956Z.json"
 ```
 
+**`n=200` 切片（P1，同模版 `--max-samples 200`，2026-04-19）**：**`batch_id`**：**`nav_p1_path_recursive_visit_rule_entity_boost_a030_20260419_162419Z`** → **`outputs/reports/batches/…162419Z/batch_summary.json`**。**仍属 P1 分列台账**，满 **500** 前**不**与 **`122155Z`** 主表同级。
+
+| 字段 | 值 |
+|:---|:---|
+| **`sample_count`** | **200** |
+| **`nav_success_count` / `nav_success_rate`** | **200** / **1.0** |
+| **`exact_match_count` / `exact_match_rate`** | **27** / **0.135**（retrieval proxy） |
+| **`avg_answer_f1` / `avg_rouge_l_f1`** | **≈0.146** / **≈0.146** |
+| **`avg_nav_wall_time_ms`** | **≈1745** |
+
+**读法**：**`nav_success_rate` 仍为 1** → 批级链路稳定；**EM/F1** 较 **`n=20`** 略抬属 **200 条尺度** 下更稳的 proxy，**过程门**须以 **`accept_gate_audit`** 为准再与 P0 对读。**`avg_nav_wall_time_ms`** 与 **`n=20`** 不可简单按条均摊对比（调度/缓存/负载不同），满量时再报告区间。
+
+```bash
+python3 -c "import json; p='outputs/reports/batches/nav_p1_path_recursive_visit_rule_entity_boost_a030_20260419_162419Z/batch_summary.json'; d=json.load(open(p,encoding='utf-8')); print(json.dumps({k:d.get(k) for k in ('batch_id','sample_count','exact_match_rate','avg_answer_f1','avg_nav_wall_time_ms','nav_success_rate')}, indent=2, ensure_ascii=False))"
+python scripts/diagnostics/audit_accept_gate.py \
+  --registry-jsonl outputs/reports/run_registry.jsonl \
+  --batch-id "nav_p1_path_recursive_visit_rule_entity_boost_a030_20260419_162419Z" \
+  --out-json "outputs/reports/accept_gate_audit_nav_p1_path_recursive_visit_rule_entity_boost_a030_20260419_162419Z.json"
+python scripts/diagnostics/summarize_audit_failure_buckets.py \
+  "outputs/reports/accept_gate_audit_nav_p1_path_recursive_visit_rule_entity_boost_a030_20260419_162419Z.json"
+```
+
 核对 **`batch_summary.json`** 内 **`config.navigator_path_recursive_prompt`** 为 **`true`**。**句向量 P1 烟测**：同一 JSON 将 **`navigator_type`** 改为 **`sentence_transformer`** 并保留 **`navigator_path_recursive_prompt`** 即可（依赖 **`sentence-transformers`**）。
 
 **烟测 `n=200`（`150150Z`）**：保留作 **熔断/对齐切片**；**勿与上表混为最终结论**。
