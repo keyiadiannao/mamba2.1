@@ -29,6 +29,13 @@ def build_navigator(config: dict[str, Any]) -> BaseNavigator:
                 dtype=str(config.get("navigator_dtype", "float32")),
                 max_chars_per_node=int(config.get("navigator_max_chars_per_node", 16000)),
                 query_cache_max_size=int(config.get("navigator_query_cache_max_size", 2048)),
+                path_recursive_prompt=bool(config.get("navigator_path_recursive_prompt", False)),
+                path_prompt_max_chars_per_segment=int(
+                    config.get("navigator_path_prompt_max_chars_per_segment", 240)
+                ),
+                path_prompt_max_question_chars=int(
+                    config.get("navigator_path_prompt_max_question_chars", 512)
+                ),
             )
         )
 
@@ -64,6 +71,13 @@ def build_navigator(config: dict[str, Any]) -> BaseNavigator:
                 ),
                 use_ssm_continuity=bool(config.get("navigator_use_ssm_continuity", False)),
                 query_cache_max_size=int(config.get("navigator_query_cache_max_size", 2048)),
+                path_recursive_prompt=bool(config.get("navigator_path_recursive_prompt", False)),
+                path_prompt_max_chars_per_segment=int(
+                    config.get("navigator_path_prompt_max_chars_per_segment", 240)
+                ),
+                path_prompt_max_question_chars=int(
+                    config.get("navigator_path_prompt_max_question_chars", 512)
+                ),
             )
         )
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Sequence
 
 from src.tree_builder import TreeNode
 
@@ -25,6 +25,29 @@ class NavigatorState:
         )
 
 
+def build_path_recursive_prompt_text(
+    question: str,
+    ancestors: Sequence[TreeNode],
+    current: TreeNode,
+    *,
+    max_chars_segment: int = 240,
+    max_chars_question: int = 512,
+) -> str:
+    """P1 path-recursive protocol: single structured string for one navigator forward pass."""
+
+    def _clip(text: str, max_chars: int) -> str:
+        t = (text or "").strip().replace("\n", " ")
+        if max_chars > 0 and len(t) > max_chars:
+            return t[:max_chars] + "…"
+        return t
+
+    q = _clip(question, max_chars_question)
+    segs = [_clip(a.text, max_chars_segment) for a in ancestors]
+    cur = _clip(current.text, max_chars_segment)
+    path_line = " -> ".join(segs) if segs else ""
+    return f"[Q] {q}\n[PATH] {path_line}\n[NODE] {cur}"
+
+
 def merge_path_summaries(previous_summary: list[float], current_summary: list[float]) -> list[float]:
     """Element-wise mean merge for path-sized summaries (shared by Mamba / sentence encoders)."""
     target_dim = min(len(previous_summary), len(current_summary))
@@ -43,7 +66,14 @@ class BaseNavigator(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def step(self, question: str, node: TreeNode, state: NavigatorState) -> NavigatorState:
+    def step(
+        self,
+        question: str,
+        node: TreeNode,
+        state: NavigatorState,
+        *,
+        path_ancestor_nodes: Sequence[TreeNode] | None = None,
+    ) -> NavigatorState:
         raise NotImplementedError
 
 
@@ -53,7 +83,14 @@ class MockMambaNavigator(BaseNavigator):
     def init_state(self) -> NavigatorState:
         return NavigatorState()
 
-    def step(self, question: str, node: TreeNode, state: NavigatorState) -> NavigatorState:
+    def step(
+        self,
+        question: str,
+        node: TreeNode,
+        state: NavigatorState,
+        *,
+        path_ancestor_nodes: Sequence[TreeNode] | None = None,
+    ) -> NavigatorState:
         next_state = state.clone()
         next_state.path.append(node.node_id)
         next_state.text_bytes_seen += len(node.text.encode("utf-8"))

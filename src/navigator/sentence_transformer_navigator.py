@@ -10,11 +10,11 @@ from __future__ import annotations
 
 from collections import OrderedDict
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Sequence
 
 from src.tree_builder import TreeNode
 
-from .base import BaseNavigator, NavigatorState, merge_path_summaries
+from .base import BaseNavigator, NavigatorState, build_path_recursive_prompt_text, merge_path_summaries
 
 
 def _lexical_overlap(question: str, text: str) -> float:
@@ -43,10 +43,17 @@ class SentenceTransformerNavigatorConfig:
     dtype: str = "float32"
     max_chars_per_node: int = 16000
     query_cache_max_size: int = 2048
+    path_recursive_prompt: bool = False
+    path_prompt_max_chars_per_segment: int = 240
+    path_prompt_max_question_chars: int = 512
 
 
 class SentenceTransformerNavigator(BaseNavigator):
     """Per-node sentence embedding + same path-vector fusion as Mamba (HF + merge)."""
+
+    @property
+    def uses_path_recursive_prompt(self) -> bool:
+        return bool(self.config.path_recursive_prompt)
 
     def __init__(self, config: SentenceTransformerNavigatorConfig | None = None) -> None:
         self.config = config or SentenceTransformerNavigatorConfig()
@@ -97,24 +104,39 @@ class SentenceTransformerNavigator(BaseNavigator):
             },
         )
 
-    def step(self, question: str, node: TreeNode, state: NavigatorState) -> NavigatorState:
+    def step(
+        self,
+        question: str,
+        node: TreeNode,
+        state: NavigatorState,
+        *,
+        path_ancestor_nodes: Sequence[TreeNode] | None = None,
+    ) -> NavigatorState:
         self._ensure_runtime_ready()
         next_state = state.clone()
         next_state.path.append(node.node_id)
         next_state.text_bytes_seen += len(node.text.encode("utf-8"))
 
-        text = node.text or ""
-        if self.config.max_chars_per_node > 0 and len(text) > self.config.max_chars_per_node:
-            text = text[: self.config.max_chars_per_node]
-
-        node_summary = self._encode_node_text(text, state.hidden_summary)
+        if self.config.path_recursive_prompt:
+            structured = build_path_recursive_prompt_text(
+                question,
+                tuple(path_ancestor_nodes or ()),
+                node,
+                max_chars_segment=int(self.config.path_prompt_max_chars_per_segment),
+                max_chars_question=int(self.config.path_prompt_max_question_chars),
+            )
+            node_summary = self._encode_node_text(structured, None, skip_merge=True)
+        else:
+            text = node.text or ""
+            if self.config.max_chars_per_node > 0 and len(text) > self.config.max_chars_per_node:
+                text = text[: self.config.max_chars_per_node]
+            node_summary = self._encode_node_text(text, state.hidden_summary)
         query_summary = self._encode_query(question)
         lexical_overlap = _lexical_overlap(question, node.text)
         semantic_bonus = max(_cosine_similarity(query_summary, node_summary), 0.0)
 
         next_state.hidden_summary = node_summary
-        next_state.relevance_score = lexical_overlap + semantic_bonus
-        next_state.backend_metadata = {
+        meta = {
             "backend": "sentence_transformer",
             "model_name": self.config.model_name,
             "embedding_dim": self._embedding_dim,
@@ -122,6 +144,10 @@ class SentenceTransformerNavigator(BaseNavigator):
             "semantic_bonus": float(semantic_bonus),
             "lexical_overlap": float(lexical_overlap),
         }
+        if self.config.path_recursive_prompt:
+            meta["path_recursive_prompt"] = True
+            meta["path_depth"] = len(path_ancestor_nodes or ())
+        next_state.backend_metadata = meta
         return next_state
 
     def _encode_query(self, question: str) -> list[float]:
@@ -136,7 +162,13 @@ class SentenceTransformerNavigator(BaseNavigator):
             self._query_cache.popitem(last=False)
         return list(encoded)
 
-    def _encode_node_text(self, text: str, previous_summary: list[float] | None) -> list[float]:
+    def _encode_node_text(
+        self,
+        text: str,
+        previous_summary: list[float] | None,
+        *,
+        skip_merge: bool = False,
+    ) -> list[float]:
         self._ensure_runtime_ready()
 
         t = (text or "").strip()
@@ -151,7 +183,7 @@ class SentenceTransformerNavigator(BaseNavigator):
             )
             current = self._embedding_to_float_list(emb)
 
-        if previous_summary is not None:
+        if not skip_merge and previous_summary is not None:
             current = merge_path_summaries(previous_summary, current)
         return current
 

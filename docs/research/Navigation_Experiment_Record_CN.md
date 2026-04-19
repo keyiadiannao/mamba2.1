@@ -446,6 +446,19 @@ python scripts/run_nav/run_navigation_batch.py \
 
 **诊断结论（压缩）**：在 **「同融合 + 同 SSGS/`rule`/读侧」** 下，**未出现「Mamba 在检索 proxy 上碾压 MiniLM」**；**MiniLM 更快、部分过程指标略好**，但 **`visit_miss` 明显更差**。论文叙事应 **诚实写成交替优势 + 代价轴**，而非预设 **Mamba 不可替代**；若需 **「Mamba 专属增益」**，须再设计 **更贴 SSM 的路径输入/探针**（见 **§5.3** 与 **`④′`** 讨论）。
 
+**P1 路径递归协议（路线 B）— 烟雾与满量**：与 **`SSGS_Research_Framework_CN.md` §5.0** 一致，**禁止与 P0 主表混读**。实现要点：**`navigator_path_recursive_prompt: true`** 时，每步将 **`[Q]` / `[PATH]`（祖先节点文本截断链）/ `[NODE]`（当前节点）** 拼成 **单次 HF 前向**（**`navigator_load_strategy` 须为 `hf_pretrained`**）；**不再**对该步做 **`merge_path_summaries` 与上一步 hidden 的向量融合**（路径信息进 **token 串**）。控制器经 **`DocumentTree.build_node_index`** 解析 **`state.path`** 传入 **`path_ancestor_nodes`**。键名：**`navigator_path_prompt_max_chars_per_segment`**、**`navigator_path_prompt_max_question_chars`**；长提示建议 **`navigator_max_tokens_per_node`** **≥768**（模版默认 **896**）。
+
+模版：**`configs/experiment/navigation_batch_real_corpus_p1_path_recursive_visit_rule_entity_boost_a030.example.json`**（与 P0 **`…p0_visit_rule_entity_boost_a030.example.json`** 同 **`a030`+`rule`+visit**，仅 **`batch_id_prefix`/`run_id_prefix`** 与 **`navigator_*` 路径递归键** 不同）。**烟雾（GPU，建议先 20～50 条）**：
+
+```bash
+cd ~/autodl-tmp/mamba2.1
+python3 scripts/run_nav/run_navigation_batch.py \
+  --config configs/experiment/navigation_batch_real_corpus_p1_path_recursive_visit_rule_entity_boost_a030.example.json \
+  --max-samples 20
+```
+
+跑通后核对 **`batch_summary.json`** 内 **`config.navigator_path_recursive_prompt`** 与 **`nav_success_rate`**；再 **`audit_accept_gate.py`** 与 P0 同 **`122155Z`** 旋钮对表（**分列叙事**，勿宣称「同 batch 续跑」）。**句向量 P1 烟测**：同一 JSON 将 **`navigator_type`** 改为 **`sentence_transformer`** 并保留 **`navigator_path_recursive_prompt`** 即可（依赖 **`sentence-transformers`**）。
+
 **烟测 `n=200`（`150150Z`）**：保留作 **熔断/对齐切片**；**勿与上表混为最终结论**。
 
 **打印 `151107Z` `batch_summary`**：

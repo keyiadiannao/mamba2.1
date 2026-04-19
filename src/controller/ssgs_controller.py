@@ -63,6 +63,7 @@ class SSGSController:
             entity_boost_alpha=float(self.config.entity_boost_alpha),
             question_entity_count=len(question_entities),
         )
+        node_index = tree.build_node_index()
         try:
             self._explore_node(
                 question,
@@ -72,6 +73,7 @@ class SSGSController:
                 depth=0,
                 question_entities=question_entities,
                 root_branch_anchor=None,
+                node_index=node_index,
             )
         except Exception as exc:
             trace.context_build_error = str(exc)
@@ -92,6 +94,7 @@ class SSGSController:
         question_entities: list[str],
         root_branch_anchor: str | None = None,
         root_branch_budget: int | None = None,
+        node_index: dict[str, TreeNode] | None = None,
     ) -> None:
         if len(trace.evidence_texts) >= self.config.max_evidence:
             return
@@ -102,7 +105,15 @@ class SSGSController:
             trace.event_log.append({"event": "max_depth_reached", "node_id": node.node_id, "depth": depth})
             return
 
-        next_state = self.navigator.step(question, node, state)
+        ancestors: list[TreeNode] = []
+        if node_index is not None and getattr(self.navigator, "uses_path_recursive_prompt", False):
+            for nid in state.path:
+                anc = node_index.get(nid)
+                if anc is not None:
+                    ancestors.append(anc)
+            next_state = self.navigator.step(question, node, state, path_ancestor_nodes=ancestors)
+        else:
+            next_state = self.navigator.step(question, node, state)
         trace.visited_node_ids.append(node.node_id)
         trace.node_scores[node.node_id] = float(next_state.relevance_score)
         trace.event_log.append(
@@ -249,6 +260,7 @@ class SSGSController:
                 question_entities=question_entities,
                 root_branch_anchor=child_anchor,
                 root_branch_budget=child_budget,
+                node_index=node_index,
             )
             if len(trace.evidence_texts) == before_evidence:
                 trace.rollback_count += 1

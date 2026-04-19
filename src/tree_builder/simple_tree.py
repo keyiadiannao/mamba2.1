@@ -20,6 +20,10 @@ class TreeNode:
 class DocumentTree:
     root: TreeNode
 
+    def build_node_index(self) -> dict[str, TreeNode]:
+        """Map node_id → TreeNode for O(1) lookup when building path-conditioned prompts."""
+        return {node.node_id: node for node in self.walk_depth_first()}
+
     def walk_depth_first(self) -> Iterable[TreeNode]:
         stack = [self.root]
         while stack:

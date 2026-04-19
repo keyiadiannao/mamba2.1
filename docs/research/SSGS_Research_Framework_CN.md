@@ -178,6 +178,8 @@ Mamba/SSM 的关键特征是：
 
 **协议变体（若采用须单独命名）**：若某实验改为「先对候选兄弟**批量编码**再决策」等，使排序结果**直接进入** Mamba 的拼接输入，则 Router 与编码器在**单步内紧耦合**；与默认协议**不可混表**，须在配置与文中各写一条。
 
+**P1 路径递归协议（路线 B，与 §5.0 一致）**：配置 **`navigator_path_recursive_prompt: true`**（及 **`navigator_path_prompt_max_chars_per_segment`** / **`navigator_path_prompt_max_question_chars`**）时，**每一步**对 **`[Q]` + 祖先文本链 `[PATH]` + 当前 `[NODE]`** 做 **单次 `hf_pretrained` 前向**，**不再**对该步输出与上一步 **`hidden_summary` 做 `merge_path_summaries`**。须 **`navigator_load_strategy: hf_pretrained`**；**`batch_id_prefix`** 建议含 **`p1_path_recursive`**，与 P0 **分列台账**。
+
 ### 6.3 Router + SSGS Controller
 
 这部分是控制核心：

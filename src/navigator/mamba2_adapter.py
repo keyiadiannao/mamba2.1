@@ -3,11 +3,11 @@ from __future__ import annotations
 import importlib
 from collections import OrderedDict
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Sequence
 
 from src.tree_builder import TreeNode
 
-from .base import BaseNavigator, NavigatorState, merge_path_summaries
+from .base import BaseNavigator, NavigatorState, build_path_recursive_prompt_text, merge_path_summaries
 
 
 def _extract_last_hidden(outputs: Any) -> Any:
@@ -51,6 +51,10 @@ class Mamba2RuntimeConfig:
     # Phase 1: keep each encode forward isolated from cross-call SSM caches (snapshot-safe).
     use_ssm_continuity: bool = False
     query_cache_max_size: int = 2048
+    # P1 path-recursive protocol (see docs §5.0): one HF forward on [Q]/[PATH]/[NODE] text per step.
+    path_recursive_prompt: bool = False
+    path_prompt_max_chars_per_segment: int = 240
+    path_prompt_max_question_chars: int = 512
 
 
 class Mamba2Navigator(BaseNavigator):
@@ -59,6 +63,10 @@ class Mamba2Navigator(BaseNavigator):
     ``NavigatorState.relevance_score`` is the navigator's own prior (lexical + semantic
     bonus here); router scores in ``RouteDecision`` are computed separately in the controller.
     """
+
+    @property
+    def uses_path_recursive_prompt(self) -> bool:
+        return bool(self.config.path_recursive_prompt)
 
     def __init__(self, config: Mamba2RuntimeConfig | None = None) -> None:
         self.config = config or Mamba2RuntimeConfig()
@@ -97,20 +105,42 @@ class Mamba2Navigator(BaseNavigator):
             },
         )
 
-    def step(self, question: str, node: TreeNode, state: NavigatorState) -> NavigatorState:
+    def step(
+        self,
+        question: str,
+        node: TreeNode,
+        state: NavigatorState,
+        *,
+        path_ancestor_nodes: Sequence[TreeNode] | None = None,
+    ) -> NavigatorState:
         torch = self._ensure_runtime_ready()
         next_state = state.clone()
         next_state.path.append(node.node_id)
         next_state.text_bytes_seen += len(node.text.encode("utf-8"))
 
-        node_summary = self._encode_text(node.text, state.hidden_summary)
+        if self.config.path_recursive_prompt:
+            if self.config.load_strategy != "hf_pretrained":
+                raise RuntimeError(
+                    "path_recursive_prompt requires navigator_load_strategy=hf_pretrained "
+                    "(single structured forward per step)."
+                )
+            structured = build_path_recursive_prompt_text(
+                question,
+                tuple(path_ancestor_nodes or ()),
+                node,
+                max_chars_segment=int(self.config.path_prompt_max_chars_per_segment),
+                max_chars_question=int(self.config.path_prompt_max_question_chars),
+            )
+            node_summary = self._encode_text_with_hf_model(structured, None, skip_merge=True)
+        else:
+            node_summary = self._encode_text(node.text, state.hidden_summary)
         query_summary = self._encode_query(question)
         lexical_overlap = self._lexical_overlap(question, node.text)
         semantic_bonus = max(self._cosine_similarity(query_summary, node_summary), 0.0)
 
         next_state.hidden_summary = node_summary
         next_state.relevance_score = lexical_overlap + semantic_bonus
-        next_state.backend_metadata = {
+        meta = {
             "backend": self.config.backend,
             "model_name": self.config.model_name,
             "load_strategy": self.config.load_strategy,
@@ -119,6 +149,10 @@ class Mamba2Navigator(BaseNavigator):
             "semantic_bonus": float(semantic_bonus),
             "lexical_overlap": float(lexical_overlap),
         }
+        if self.config.path_recursive_prompt:
+            meta["path_recursive_prompt"] = True
+            meta["path_depth"] = len(path_ancestor_nodes or ())
+        next_state.backend_metadata = meta
         return next_state
 
     def _ensure_runtime_ready(self) -> Any:
@@ -222,7 +256,13 @@ class Mamba2Navigator(BaseNavigator):
 
         return [float(value) for value in summary]
 
-    def _encode_text_with_hf_model(self, text: str, previous_summary: list[float] | None) -> list[float]:
+    def _encode_text_with_hf_model(
+        self,
+        text: str,
+        previous_summary: list[float] | None,
+        *,
+        skip_merge: bool = False,
+    ) -> list[float]:
         torch = self._ensure_runtime_ready()
         encoded = self._tokenizer(
             text,
@@ -237,7 +277,7 @@ class Mamba2Navigator(BaseNavigator):
             outputs = self._model(**encoded, return_dict=True)
             summary = _extract_last_hidden(outputs).detach().float().cpu().squeeze(0).tolist()
 
-        if previous_summary is not None:
+        if not skip_merge and previous_summary is not None:
             summary = self._merge_summaries(previous_summary, summary)
         return [float(value) for value in summary]
 
