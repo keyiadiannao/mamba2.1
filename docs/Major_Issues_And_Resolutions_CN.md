@@ -195,7 +195,7 @@ git pull origin main
   1. 先冻结启发式最优基线：`cos0.7 + probe1 + e8 + pool20`（用于后续 A/B 与回归基线）。  
   2. 停止继续扩启发式大网格；把主线转入**学习式 root 路由**（目标直接打 `root-miss`）。  
   3. 评估门槛固定为：`never_visit_gold` 下降 + `in_context` 上升，且 `B3->B1 <= B1->B3`。
-- **补充（2026-04，已验证）**：在真实语料 **全 fan-out** 下，**仅线性 root 头**（`learned_root_classifier` 且 **`learned_root_blend_alpha=1`**）会出现金叶访问近零；**必须与 `RuleRouter` 同特征下的规则分数混合**：配置键 **`learned_root_blend_alpha`**。**`500` 上 `α=0.5` 与 `0.25` 金叶指标同量级、`nav_ms` 显著更优**，工程默认 **`0.5`**（约 50% rule + 50% learned）；显式 **`0.25`** 仍可复现旧默认。训练数据仍用 **`--root-only` + `--max-root-children 128`** 导出与 **listwise** checkpoint；**扫 `α` 或做 rule 对照时勿换训练 jsonl/checkpoint**，除非单独开「训练数据消融」。详见 **`docs/research/Navigation_Experiment_Record_CN.md` §6.5**。
+- **补充（2026-04，已验证）**：在真实语料 **全 fan-out** 下，**仅线性 root 头**（`learned_root_classifier` 且 **`learned_root_blend_alpha=1`**）会出现金叶访问近零；**必须与 `RuleRouter` 同特征下的规则分数混合**：配置键 **`learned_root_blend_alpha`**。**`500` 上 `α=0.5` 与 `0.25` 金叶指标同量级、`nav_ms` 显著更优**，工程默认 **`0.5`**（约 50% rule + 50% learned）；显式 **`0.25`** 仍可复现旧默认。训练数据仍用 **`--root-only` + `--max-root-children 128`** 导出与 **listwise** checkpoint；**扫 `α` 或做 rule 对照时勿换训练 jsonl/checkpoint**，除非单独开「训练数据消融」。详见 **`docs/research/Navigation_Experiment_Record_CN.md` §6.5**；**`rule` + visit-rule 实体偏置（如 `122155Z`）** 与 **§6.7 单变量** 见同档 **§6.6～§6.7**（勿与 **`never_visit_gold`** pilot 口径混读）。
 - **验证**：
   - 导航批固定 `pilot200` 对比表：`never_visit_gold / outside_pool / in_pool_not_context / in_context` + `nav_ms`。  
   - 若学习式 root 路由在相同预算下稳定降低 `root-miss`，再进入端到端批验证 EM/F1 传导。
@@ -248,3 +248,4 @@ git pull origin main
 | 2026-04-18 | **P0-B 纪律增补**：§6.6 合 **上 e2e 三条件**、**熔断不补跑**、**同口径重锚**、**主表 A/A′**、**`<45%` 前非 root/learned 深调与 accept 盲扫后置**；批判接收外部建议后精简写入。 |
 | 2026-04-18 | **P0-A′** 文档勘误：**`probe_budget2` 台账为导航满 manifest（500）**；严对照缺 **`probe_budget=1` 导航满量**两条，`n=200` 的 P0-2 **不可替代**；见 `Navigation_Experiment_Record_CN.md` §6.6。 |
 | 2026-04-18 | **`run_navigation_batch` / `run_end_to_end_batch`** 增加可解析行 **`__SSGS_BATCH_ID__=`**（便于终端 `sed` 取 `batch_id`）；**不**为烟测维护额外 shell，用法见 `Navigation_Experiment_Record_CN.md` §6.6。 |
+| 2026-04-18 | 实验记录增 **§6.0、§6.7**（满 500 主表与 **`n=200` 烟测分工**、单变量总表）；**`SSGS_Research_Framework_CN.md` §16** 压缩重复「下一步」，改交叉引用 **§6.6～§6.7**；**§9 起** 为归档，冲突以 §6 为准。 |

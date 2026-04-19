@@ -351,8 +351,8 @@ Navigator-Generator 解耦后，是否可以形成完整、可复现、可审计
 - 保证不同 arm 的输入口径一致
 
 3. 跑一轮端到端对比
-- 先用 `100` 到 `200` 条真实子集做干净评测
-- 不必一开始就全量扩大
+- 先用 **`100`～`200` 条**同 manifest 切片做**对齐与熔断**（见 [`Navigation_Experiment_Record_CN.md`](Navigation_Experiment_Record_CN.md) **§6.0**：**主结论仍须满 manifest，当前 500**）
+- 阳性再上满量；不必无协议扩规模
 
 4. 根据端到端结果决定 learned head 是否升级为主线
 - 若端到端差异明显，再继续优化 learned head
@@ -588,7 +588,8 @@ mamba2.1/
 ├─ .gitignore
 ├─ docs/
 │  ├─ research/
-│  │  └─ SSGS_Research_Framework_CN.md
+│  │  ├─ SSGS_Research_Framework_CN.md
+│  │  └─ Navigation_Experiment_Record_CN.md
 │  ├─ meetings/
 │  ├─ papers/
 │  └─ notes/
@@ -701,11 +702,13 @@ mamba2.1/
 - 这意味着 evidence 数量仍然受预算上限约束
 - 因此，现阶段**不要把 evidence 数量差异写成主结论**
 
-补充（2026-04，`pilot200` 导航诊断）：
+补充（2026-04，`pilot200` 导航诊断，**启发式栈叙事锚**）：
 
-1. `never_visit_gold` 仍是第一瓶颈（约 `57%~61%`）。  
+1. `never_visit_gold` 仍是第一瓶颈（约 **`57%`～`61%`**）。  
 2. 对 `never_visit_gold` 做 root 归因后，`root-miss` 约占 **98.4%**，`in-root-miss` 约 **1.6%**。  
 3. 启发式改动（`cos/probe/pool`）可带来局部改善，但离 Oracle 仍有明显差距；启发式阶段应收口并切换学习式 root 决策主线。
+
+**与 P0-B′ 对齐（勿混口径）**：上列为 **`pilot200` + 旧启发式字段**；**`rule` + visit-rule 实体偏置（`α=0.3`，批次 `122155Z`）** 在 **满 500、`accept_gate_audit`** 下已将 **`never_visit`（桶占比）** 压至 **约 0.38** 量级，见实验记录 **§6.6 表** 与 **§6.0**。并列对比时须写清 **指标名、`batch_id`、是否同 manifest**。
 
 ### 15.3 当前阶段对 learned head 的定位
 
@@ -740,30 +743,17 @@ mamba2.1/
 - measured result
 - 当前阶段的可说结论与不可说结论
 
+**读法（避免与 §9 历史表打架）**：**当前默认旋钮、满 500 主表、`n=200` 烟测与单变量台账** 以 [`Navigation_Experiment_Record_CN.md`](Navigation_Experiment_Record_CN.md) **§6.0、§6.5～§6.7** 为准；该文件 **§9 起** 多为归档，**冲突时以 §6 为准**。
+
 ### 16.2 后续计划
 
-当前最合理的后续计划不是继续无节制扩展模块，而是按下面顺序推进：
+框架层顺序不变：**固定生成器 → 固定上下文协议 → 端到端验证传导 → 再决定 learned / Router 是否深扫**。具体 **批次、`batch_id`、P0/P1 台账与 bash** 不在此重复，一律见 [`Navigation_Experiment_Record_CN.md`](Navigation_Experiment_Record_CN.md) **§6.6～§6.7** 与文内 **「导航侧下一阶段」**。
 
-1. 冻结当前 `500` 条主线结果
-- 主表先固定为 `370M + rule` 与 `370M + cosine_probe`
-
-2. 固定 `small50` 端到端 2x2 消融结论
-- `postprocess` 在当前设置下收益为 `0`
-- `anti_collapse` 带来可复现提升（`EM/F1` 同步提高）
-- 因此下一轮默认采用 `rule + anti_collapse`，`postprocess` 仅保留为可审计开关
-
-3. 整理结果表和实验叙事
-- 把成功率、耗时、回溯行为差异，以及 2x2 消融结论写成阶段性结论
-
-4. learned head 从“补充实验”升级为下一主线（限定 root 层）
-- 先做学习式 root 路由（直接打 `root-miss`），停止继续扩启发式大网格
-
-5. 后续扩展再分层推进
-- 如有需要，再讨论 `1.4B`
-- 再讨论更严格的预算实验或 OOM 边界实验
-- 最后再讨论结构化图应用扩展
+仍有效的**历史锚**（不写进新导航主表亦可保留作对照）：`small50` 端到端 2x2 中 **`postprocess` 收益为 `0`**、**`anti_collapse` 可复现抬 EM/F1** → 叙事上 **`rule + anti_collapse`** 仍为读侧/后处理侧常用默认叙述；**与 visit-rule 实体偏置默认 `122155Z`** 并列时须 **分列协议**（见 **MI-004/005** 与实验记录 **§6.6**）。
 
 ### 16.4 2026-04 阶段收口与下一阶段入口
+
+**（定位）**：**visit-rule / P0-B′ 默认旋钮、单变量表与「下一刀」** 以 [`Navigation_Experiment_Record_CN.md`](Navigation_Experiment_Record_CN.md) **§6.0、§6.6～§6.7** 为准；本节保留 **`pilot200` → 启发式冻结 → 学习式 root** 的**历史收口**，避免与框架 §16.2 重复写两套执行顺序。
 
 基于 `pilot200` 对照，当前启发式阶段收口为：
 
@@ -780,7 +770,7 @@ mamba2.1/
 
 **工程结论（2026-04）**：在 **全 fan-out** 下 **纯线性 root 头**不可用；**`learned_root_blend_alpha`**（与 rule 混合）为当前可行形态；**`500` 复验后默认 `α=0.5`**（相对 `0.25` 金叶同量级、**`nav_ms` 更优**）。小样本扫参时用 **`run_navigation_batch.py --max-samples N`** 保持 **同一 manifest 与同一 checkpoint**，只调 **`α`** 与 **`batch_id_prefix`**（见 **`Navigation_Experiment_Record_CN.md` §6.5**）。
 
-**P0 端到端 + P0-2 导航回归（2026-04-17～18，见 `Navigation_Experiment_Record_CN.md` §6.6）**：同 manifest 上 **`rule` frozen** 与 **`learned_root` + `blend=0.5`** 的 **`500` 端到端**已闭合（**终点 EM/F1 略有利于混合臂**；**`nav_ms` 混合臂略增**）；**前 `200` 条**导航批回归与 **`500` 金叶叙事同向**（visited / accepted、`gold_missing`、检索 EM）。**下一阶段默认入口**：在 **冻结混合 root（`α=0.5`）** 前提下，按 **`Navigation_Experiment_Record_CN.md` §6.6 P1** 做小步 **读侧** 实验（首刀 **`context_select_pool_max_items`**）；**可选**对已固定的端到端 **`batch_id`** 补跑 **`analyze_evidence_saturation.py --with-context-gold-metrics`**，核对 **ctx-gold 与 EM** 是否一致。
+**P0 端到端 + 导航回归（压缩索引）**：**`500` 端到端**（**`rule` frozen** vs **`learned_root` + `blend=0.5`**、`probe2`）与 **`n=200` 对齐回归** 的表与判读见 **`Navigation_Experiment_Record_CN.md` §6.6**。**P0-B′** 已收口：**`rule` 实体偏置默认 `122155Z`（`α=0.3`）**；**单变量 ①b～④**、**`probe_budget=3` 满 500（`162118Z`）** 见 **§6.7**；**满 500 / `n=200` 分工** 见 **§6.0**。**下一阶段**：优先 **e2e** 在 **`122155Z` 同旋钮**上复验 **过程 + EM**；读侧 **P1**（`pool` / `k` / `entity_match` 等）与 **visit-rule** 的先后顺序 **以实验记录 §6.6「导航侧下一阶段」与 §6.7 表为准**，此处不另写一套「下一步」。
 
 ### 16.3 工程与运维增量（2026-04，与论文叙事并行）
 
