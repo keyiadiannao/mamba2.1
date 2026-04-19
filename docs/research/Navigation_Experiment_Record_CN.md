@@ -766,6 +766,8 @@ done
 
 同一 **`sample_count=500`**、**`370m` + 本机 `Qwen2.5-7B`**、**`nav_success=1.0`**；**rule / cosine** 为 **`t1_visited_leaves_ordered` + `question_overlap_topk` + `k=4`**，**Oracle** 为 **`oracle_item_leaves` + `context_select off`**（与 `end_to_end_batch_real_corpus_server_mamba_370m_qwen7b_*.example.json` 一致）。
 
+**与 §6.7「`visit_a030` / `entity_match` 栈」导航批的 `exact_match_rate` 不得混读**：本节表内 **EM** 来自 **端到端**：**`run_generator=True`**，`trace` 按 **`eval_mode=generation`** 用 **生成答案** 与 **参考答案** 打分（见 **`run_navigation_sample`**）。**§6.7** 中 **`run_navigation_batch`、配置未开生成器** 时，默认 **`eval_mode=retrieval`**：用 **`context_select` 之后的第一条上下文文本**（若无则回退首条 **accepted evidence**）与 **参考答案** 做 **exact_match / F1 / ROUGE-L**——这是仓库内约定的 **粗「检索式」proxy**，**数值尺度与含义均不同于本节 7B 生成 EM**。此外 **路由与读侧也不同**：本节 **`rule` = `overlap_k4`（`question_overlap_topk`）**；**`122155Z` / `081150Z`** 为 **`visit_rule` + `entity_boost_alpha` + `question_entity_match_topk`** 等 **P0-B′ 协议**。因此 **§9.12 中 `cosine_probe` 弱于 `overlap_k4`** 与 **§6.7 中 `081150Z` 优于 `122155Z`（在检索 proxy 上）** 可以同时成立；写作时应用 **小节名 + `batch_id` + `eval_mode` + 路由键** 四元组标明口径。
+
 | 臂 | `batch_id` | EM | F1 / ROUGE-L | `nav_success` | EM 占 Oracle |
 |---|---|---:|---:|---:|---:|
 | `rule`（`overlap_k4` 主表） | `end_to_end_real_corpus_370m_qwen7b_rule_ctxsel_overlap_k4_20260416_140204Z` | `0.212` | `0.2337` | `1.0` | **≈33.1%** |
