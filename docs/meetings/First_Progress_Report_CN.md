@@ -1,101 +1,164 @@
-# 阶段进展汇报（第一次）
+# 树状 RAG 导航系统 — 阶段进展汇报（呈阅稿）
 
-**课题方向**：树状 RAG 导航（Mamba 状态 + 回溯控制）与生成器解耦的**可运行、可审计、可复现**闭环。  
-**汇报目的**：对齐问题定义、展示已交付工程与关键数据、说明瓶颈与**下一刀**（不夸大终点收益）。  
-**建议时长**：口头 **12～18 分钟**（可按听众删减「附录」与部分表格）。
+**文档性质**：可直接打印或导出 PDF 供导师阅读；亦可作为组会讲稿提纲。  
+**建议汇报时长**：口头 **12～18 分钟**（图表与 §4 为主干，其余可附录化）。
 
----
-
-## 1. 一句话与边界
-
-- **一句话**：在真实长文档树上，用固定规模导航器与显式控制逻辑完成**多步探索与回溯**，输出可追溯证据链，再由**固定生成器**完成读证据答题；本阶段优先证明**系统与协议成立**，再讨论导航改动向 **EM/F1** 的稳定传导。  
-- **明确不主张**：尚未充分证明「导航单项改动即可带来大规模榜单提升」；不把 **Oracle 作弊上界** 与真实导航臂混谈。  
-- **叙事原则**：**过程指标与终点指标并列**；过程升、终点降时**不写入主结论**（与仓库 **MI-004 / MI-005** 一致）。
+**说明**：下图表需在支持 **Mermaid** 的查看器中渲染（如 GitHub、VS Code 预览、Typora 等）；若导师环境不支持，可将图中代码块复制至 [https://mermaid.live](https://mermaid.live) 导出 PNG 插入 Word。
 
 ---
 
-## 2. 系统结构（汇报用「四块」）
+## 摘要
 
-| 模块 | 职责 | 备注 |
-|:---|:---|:---|
-| 数据与 manifest | 真实子集、树 payload、样本级 `positive_leaf_indices` | 批量实验统一 manifest，便于对齐 |
-| Navigator + Router + Controller | 读节点、打分排序、DFS/回溯、预算与接受门 | 与 **Generator** 解耦 |
-| 落盘与 registry | `run_registry.jsonl`、`run_payload`、批次 summary | 支持复现与事后审计 |
-| 诊断与审计 | 证据饱和、**`audit_accept_gate`**、分桶摘要等 | 区分 **从未 visit 金叶** vs **visit 后未进 accept** |
+本阶段工作围绕 **树状结构上的多步导航与回溯**：以 **Mamba** 作为导航侧状态更新器，以 **Router + SSGS Controller** 完成子节点排序与 DFS/回溯控制，与 **Transformer 生成器** 解耦；在真实子集与统一 manifest 上建立 **可复现批跑、落盘 trace、接受门审计** 的闭环。导航侧已将 **`never_visit`（从未触达任一金叶）** 从 **`probe2` 纯 `rule` 约 0.58** 量级压至 **实体偏置默认工作点 `122155Z` 约 0.38**（满 500），并保持 **`visit_miss`（visit 金叶但未过 accept）≤0.12** 的过程硬门。下一步优先 **满 500 复核 `max_evidence=14`** 与 **`122155Z` 同旋钮端到端**，验证过程指标与 **EM/F1** 是否同向传导。
 
 ---
 
-## 3. 阶段内已交付（可验收）
+## 1. 课题定位与边界（导师第一眼）
 
-1. **端到端链路**：真实 manifest 上可跑导航批与（按需）端到端批；关键配置在 `configs/experiment/`。  
-2. **过程审计**：`scripts/diagnostics/audit_accept_gate.py` 等，可对 **`never_visit` / `visit_miss`（visit 金叶但未满足 accept）** 等做样本级统计。  
-3. **导航侧主进展（满 500 主表口径）**：在 **`rule` + visit-rule + 实体偏置** 扫参后，将默认工作点收敛至 **`122155Z`（`entity_boost_alpha=0.3`，`max_nodes=80`，`probe_budget=2`）**；相对早期 **`probe2` 纯 `rule` 满 500（`041200Z`）**，**`never_visit`（从未 visit 任一金叶）由约 0.58 降至约 0.38**，且 **`visit_miss` 仍满足 ≤0.12 的过程门**。  
-4. **单变量纪律**：同一旋钮上 **`max_nodes` / `max_depth` / `probe_top_m`** 等烟测结论已收口（硬顶非主因、`probe_top_m=2` 过门等），详见 **`docs/research/Navigation_Experiment_Record_CN.md` §6.7**。  
-5. **文档与专档**：实验事实以 **`Navigation_Experiment_Record_CN.md`** 为准；判停与工程归因以 **`docs/Major_Issues_And_Resolutions_CN.md`** 为准；研究框架以 **`docs/research/SSGS_Research_Framework_CN.md`** 为准。
+| 项目 | 内容 |
+|:---|:---|
+| **研究对象** | 树状知识上的 **导航状态管理与搜索控制**（非「用 Mamba 取代 Transformer 做答案生成」） |
+| **阶段目标** | **可运行、可审计、可复现** 的检索—证据闭环；**再**讨论导航改动向最终答案质量的稳定传导 |
+| **不主张（现阶段）** | Mamba 全面优于 Transformer；无充分归因即宣称榜单大幅领先；将 **Oracle 作弊上界** 与真实导航臂混谈 |
+| **叙事纪律** | **过程指标与终点指标并列**；过程升、终点降时 **不写入主结论**（工程专档 MI-004 / MI-005） |
 
 ---
 
-## 4. 关键数字表（汇报主表）
+## 2. 整体框架结构图
 
-### 4.1 导航主锚（满 manifest，当前 500）
+下图概括 **数据 → 导航控制 → 证据输出 → 生成 / 评测** 的模块边界（与 `SSGS_Research_Framework_CN.md` 一致）。
 
-| 对比项 | 代表 `batch_id`（后缀） | `never_visit`（audit） | `visit_miss`（约） | 备注 |
+```mermaid
+flowchart TB
+  subgraph DATA["① 数据层"]
+    TB["Tree Builder 产物\n树 JSON · 叶子索引"]
+    MF["Batch Manifest\n问题 · 金标叶 · 路径"]
+  end
+
+  subgraph NAV["② 导航层（本课题核心）"]
+    NAVMOD["Navigator — Mamba\n顺序读节点 · 更新隐状态 · 快照"]
+    RT["Router\nrule / cosine_probe /\nlearned_root 等臂"]
+    CTRL["SSGS Controller\nDFS 探索 · 回溯 ·\n预算与接受门"]
+    NAVMOD <--> CTRL
+    RT --> CTRL
+    CTRL --> RT
+  end
+
+  subgraph OUT["③ 落盘与审计"]
+    REG["run_registry.jsonl\nrun_payload · batch_summary"]
+    AUD["诊断 / accept 门审计\nnever_visit · visit_miss · ctx-gold"]
+  end
+
+  subgraph GEN["④ 生成层（解耦）"]
+    G["Generator — 如 Qwen\n仅输入：证据文本 · 问题 · 可选 trace 摘要"]
+  end
+
+  TB --> CTRL
+  MF --> CTRL
+  CTRL --> REG
+  REG --> AUD
+  CTRL -->|"最终 evidence 列表"| G
+```
+
+**读图要点（可对着图讲 1 分钟）**
+
+- **Mamba 不负责「选哪条边」**：决策在 **Router + Controller**；Navigator 提供 **随路径更新的表示与快照恢复能力**。  
+- **Generator 不读 Mamba 隐状态**：只读 **文本证据**，因此可以把「导航好坏」与「读证据写答案」拆开归因。  
+- **Registry / Audit** 把「系统到底访问了哪里、为何被拒、金叶在不在上下文」变成 **可表格化的实验事实**。
+
+---
+
+## 3. 工作流程（从实验到结论）
+
+```mermaid
+flowchart TD
+  A["选定配置 JSON\n单变量 diff 自检"] --> B["run_navigation_batch.py\n或 run_end_to_end_batch.py"]
+  B --> C["落盘：registry · payload · summary"]
+  C --> D["诊断：证据饱和 · saturation 等"]
+  C --> E["audit_accept_gate\n样本级 never / visit_miss"]
+  E --> F{"过程硬门\nvisit_miss ≤ 0.12\nnever_visit 劣化 < 2pp ?"}
+  F -->|"通过 / 可解释"| G["可选：上满 manifest\n当前 500 条"]
+  F -->|"否"| H["熔断：记阴性或 trade-off\n不升主叙事"]
+  G --> I{"端到端 EM/F1\n与过程同向 ?"}
+  I -->|"是"| J["写入主表 / 汇报主结论"]
+  I -->|"否"| K["停止改默认叙事\n查 readout / accept / 噪声"]
+```
+
+**口头可压缩为三句**
+
+1. **先协议、再跑批**：同一 manifest、同一训练 checkpoint（learned 臂），避免「假单变量」。  
+2. **先过程、再终点**：`never_visit` / `visit_miss` / ctx-gold 与 **EM/F1** 一起看。  
+3. **不过门不硬推**：例如 **`visit_miss` > 0.12** 的臂，只可作 **trade-off** 备忘，不替换当前默认 **`122155Z`**。
+
+---
+
+## 4. 创新点与贡献表述（建议口径）
+
+以下表述与 **`SSGS_Research_Framework_CN.md`** 中 RQ1–RQ3 对齐，**适合写在开题/阶段汇报的「创新点」栏**，避免过度承诺。
+
+| 类型 | 内容 |
+|:---|:---|
+| **体系结构** | **Navigator–Generator 解耦** + **冻结 trace 字段**：导航过程可记录、可审计、可与生成结果对照归因。 |
+| **机制切入点** | 以 **Mamba 固定大小隐状态 + 节点级快照恢复** 支撑树导航中的 **多步试探与回溯**；讨论焦点在 **状态管理是否利于深层探索下的工程代价**，而非「单步算子碾压 Transformer」。 |
+| **控制与评测** | **SSGS Controller** 将 DFS、预算、接受门与 Router 策略 **显式化**，并与 **accept 门审计** 联动，使「金叶从未被 visit」与「visit 后未进 accept」**可分桶统计**——这是当前阶段改进导航的主要抓手。 |
+| **实验方法** | **单变量 + 满 manifest 主表 + `n=200` 熔断对齐** 的分工（见 `Navigation_Experiment_Record_CN.md` §6.0），减少「扫参叙事」与主结论混写。 |
+
+**建议一句收束**：本阶段 **工程与创新并重** 的交付是 **「可证伪的导航—证据协议」**；数值上已展示 **在严格过程门下显著压低 `never_visit`**，**传导到最终 EM 的提升仍在端到端验证队列中**。
+
+---
+
+## 5. 阶段主要结果（数据表）
+
+### 5.1 导航主锚（满 manifest，500 条）
+
+| 对比项 | 代表 `batch_id`（后缀） | `never_visit` | `visit_miss`（约） | 汇报一句话 |
 |:---|:---|---:|---:|:---|
-| **`probe2` 纯 `rule`（实体偏置前）** | `…041200Z` | **~0.58** | ~0.12 | 旧主矛盾锚点 |
-| **实体偏置默认工作点** | `…122155Z` | **~0.38** | **~0.11** | **当前 `rule` 侧默认候选**（保守对照 `105756Z`） |
+| **`probe2` 纯 `rule`（实体偏置前）** | `…041200Z` | **~0.58** | ~0.12 | 旧主矛盾：**过半样本从未 visit 金叶** |
+| **实体偏置默认工作点** | `…122155Z` | **~0.38** | **~0.11** | **在过程门内显著压低 `never_visit`**，当前 **`rule` 侧默认候选** |
 
-*口径说明：`never_visit` / `visit_miss` 以 **`accept_gate_audit_*.json`** 顶层字段为准；与早期 **`pilot200` / `never_visit_gold`** 等字段**勿混读**（不同协议与命名）。*
+*指标来源：`accept_gate_audit_*.json` 顶层字段；与早期 **`pilot200` / `never_visit_gold`** 等**不同字段名/协议**勿混读。*
 
-### 4.2 「④ 逼近 Oracle」单变量烟测（`n=200`，与 `122155Z` 同栈，2026-04-19）
+### 5.2「④ 逼近 Oracle」单变量烟测（`n=200`，与 `122155Z` 同栈，2026-04-19）
 
-**目的**：在**非作弊**（不设 `oracle_item_leaves`、不注入 `leaf_indices_required`）前提下，观察「真实导航」下单旋钮对 **金叶可达性** 与 **accept 门** 的影响；**硬门**：**`visit_miss` ≤ 0.12**。
+**设定**：真实导航（**非** `oracle_item_leaves`、**非**注入 `leaf_indices_required`）；**硬门**：**`visit_miss` ≤ 0.12**。
 
-| 单变量臂 | `batch_id` | `never_visit` | `visit_miss` | 叶级 disposition（摘要） | 结论（汇报用语） |
+| 单变量臂 | `batch_id` | `never_visit` | `visit_miss` | 叶级 disposition（摘要） | 结论 |
 |:---|:---|---:|---:|:---|:---|
-| **`max_evidence`: 12→14** | `nav_p0_visit_rule_entity_boost_a030_abl_maxev_14_20260419_042514Z` | **0.39** | **0.10** | `branch_cap` 25 / `minrel` 4 | 与 **`122155Z` 烟测档 ~0.40 / ~0.10** 同量级，**过过程门** → **建议满 500 复核** |
-| **`routing_mode`: `cosine_probe`** | `nav_p0_visit_rule_entity_boost_a030_cosine_probe_20260419_044414Z` | **0.20** | **0.19** | `branch_cap` 41 / `minrel` 9 | **`never_visit` 大赢**，但 **`visit_miss` 顶穿 0.12** → **不替换默认**；属 **trade-off** 备忘 |
-| **`learned_root` + `α=0.5`** | `nav_p0_visit_rule_entity_boost_a030_learned_root_blend05_20260419_044815Z` | **0.41** | **0.11** | `branch_cap` 25 / `minrel` 5 | **未优于**烟测锚；**过门但边际弱** → **满 500 优先度低于 `max_evidence` 臂** |
+| **`max_evidence` 12→14** | `nav_p0_visit_rule_entity_boost_a030_abl_maxev_14_20260419_042514Z` | 0.39 | 0.10 | cap 25 / minrel 4 | 与烟测锚同档，**过门** → **建议满 500 复核** |
+| **`cosine_probe`** | `nav_p0_visit_rule_entity_boost_a030_cosine_probe_20260419_044414Z` | **0.20** | **0.19** | cap 41 / minrel 9 | **`never_visit` 大赢** 但 **visit 不过门** → **trade-off**，不替换默认 |
+| **`learned_root` α=0.5** | `nav_p0_visit_rule_entity_boost_a030_learned_root_blend05_20260419_044815Z` | 0.41 | 0.11 | cap 25 / minrel 5 | 相对锚 **无优势** → **满 500 优先度低于 max_ev** |
 
-**ctx-gold（辅助，口头一带）**：`cosine_probe` 臂 **`frac_samples_with_any_gold_in_context` 达 0.795**，与 **`never_visit` 大降** 同向，但 **accept 侧变差**，印证 **「看见 ≠ 进上下文/被接受」** 需分列讨论。
-
----
-
-## 5. 瓶颈与解释（导师常问）
-
-1. **Oracle 上界与真实导航仍有 gap**：说明系统瓶颈仍在 **导航与证据消费链路**（发现、排序、预算、接受），而非单靠「换更大生成器」一句话可解。  
-2. **`never_visit` 压下来之后，剩余矛盾常落在 `visit_miss` / `gold_miss_evi`**：即 **「visit 过金叶仍未进 accept / context」**；与 **「从未 visit 金叶」** 不应混成一条叙事。  
-3. **单变量必须同 manifest、同训练 checkpoint（learned 臂）**：否则 Δ 不可比；**`learned_root` checkpoint 为训练产物**，仓库不强制附带，运行前须存在 **`router_checkpoint_path`** 指向的文件（见 **`Navigation_Experiment_Record_CN.md` §6.5**）。
+**辅助观察**：`cosine_probe` 臂 **`frac_samples_with_any_gold_in_context` 达 0.795**，与 **`never_visit` 大降** 同向，但 **accept 变差**，说明 **「探索变强」不等于「证据链可稳定交付给生成器」**。
 
 ---
 
-## 6. 下一步计划（可写成「下周交付物」）
+## 6. 瓶颈与下一步（可验收）
 
-| 优先级 | 动作 | 验收物 |
-|:---:|:---|:---|
-| P0 | **`max_evidence=14` 导航满 500**（无 `--max-samples`） | 新 `batch_id` + `accept_gate_audit` 摘要；与 **`122155Z`** 对照 **`never_visit` / `visit_miss` / ctx-gold**；劣化 ≥2pp 则熔断 |
-| P1 | **`122155Z` 同旋钮端到端（e2e）** 复验 | 过程指标与 **EM/F1** 是否**同向**（避免仅凭导航表改主叙事） |
-| P2 | **`cosine_probe` / `learned_root`** | **仅在**过程门满足或另有 **e2e** 动机时升格；当前 **`cosine`** 以 **trade-off** 归档 |
-
----
-
-## 7. 口头汇报建议顺序（约 15 分钟）
-
-1. **30 s**：一句话课题 + 「本阶段先闭环、再传导」。  
-2. **2 min**：四模块结构（上一节表格）。  
-3. **4 min**：**§4.1** 主锚（`041200Z` → `122155Z`），强调 **可审计、满量口径**。  
-4. **3 min**：**§4.2** 三条 `n=200` ④，强调 **硬门判停**（`cosine` 不过门）。  
-5. **2 min**：瓶颈（§5）+ 下一步（§6）。  
-6. **1 min**：风险与诚实边界（不夸大、Oracle 不混用）。  
-7. 留 **2～3 min** Q&A。
+| 瓶颈 | 解释 |
+|:---|:---|
+| Oracle gap | 上界仍远高于真实导航 → 瓶颈在 **导航 + 证据消费**，非单靠换大生成模型 |
+| 指标分列 | **`never_visit`**（从未触达）与 **`visit_miss` / gold-in-context**（触达但未接受）需分开讲 |
+| 下一步 P0 | **`max_evidence=14` 导航满 500** + 与 **`122155Z`** 对照；劣化 ≥2pp 则熔断 |
+| 下一步 P1 | **`122155Z` 同旋钮 e2e**：过程与 **EM/F1** 是否同向 |
 
 ---
 
-## 8. 附录（备查，口头可不说）
+## 7. 口头汇报顺序建议（约 15 分钟）
 
-- **主要实验记录**：`docs/research/Navigation_Experiment_Record_CN.md`（**§6.0、§6.6、§6.7**）。  
-- **审计 JSON 路径示例**：`outputs/reports/accept_gate_audit_<batch_id>.json`。  
-- **仓库同步**：以当时服务器 **`git rev-parse HEAD`** 为准（例如与 **`origin/main`** 对齐的提交）。
+1. **摘要 + §1**（2 min）  
+2. **§2 结构图 + §3 流程图**（4 min）  
+3. **§4 创新点**（2 min，强调可审计与解耦）  
+4. **§5 数据表**（4 min）  
+5. **§6 + Q&A**（3 min）
 
 ---
 
-*本文档由仓库内事实与既有记录整理而成，用于组会/导师汇报；若与 **`Navigation_Experiment_Record_CN.md`** 冲突，**以实验记录专档为准**。*
+## 8. 附录：文档与仓库索引
+
+| 文档 | 用途 |
+|:---|:---|
+| `docs/research/Navigation_Experiment_Record_CN.md` | **实验事实与 `batch_id`**（§6.0、§6.6、§6.7） |
+| `docs/research/SSGS_Research_Framework_CN.md` | **研究问题 RQ、主张边界** |
+| `docs/Major_Issues_And_Resolutions_CN.md` | **判停与工程归因（MI-004 等）** |
+
+*若本文与 `Navigation_Experiment_Record_CN.md` 冲突，**以实验记录专档为准**。*
