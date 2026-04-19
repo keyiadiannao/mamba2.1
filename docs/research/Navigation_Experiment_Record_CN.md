@@ -98,7 +98,9 @@
 **训练数据口径（与扫参对照无关，须固定）**：
 
 - 导出：`scripts/run_nav/export_router_training_data.py` 的 **`--root-only`** + **`--max-root-children 128`**（示例输出 `router_training_data_root_v2.jsonl`）。
-- 训练：`scripts/run_nav/train_learned_router.py`，**`--loss listwise_softmax`**（默认），写出 **`configs/router/learned_root_router_real_corpus.json`**。
+- 训练：`scripts/run_nav/train_learned_router.py`，**`--loss listwise_softmax`**（默认）。**约定输出路径**：**`configs/router/learned_root_router_real_corpus.json`** — 与各 **`learned_root`** 实验 JSON 里的 **`router_checkpoint_path`** 一致，便于换机不报路径错。  
+  - **仓库里通常没有该文件**：Git 里只跟踪轻量示例 **`configs/router/learned_router_demo.json`**（脚本 **`--output` 默认值**也是它）；**真实语料 checkpoint 须本机训练生成**（例如对导出好的 jsonl 执行 **`train_learned_router.py --input <你的jsonl> --output configs/router/learned_root_router_real_corpus.json`**），或把已有权重 JSON **复制/改名**到上述路径，或**直接改**配置里的 **`router_checkpoint_path`** 指向你机器上的文件。  
+  - 若某处写「需仓库里存在」**应理解为**：跑 **`learned_root`** 相关批前，**运行环境中**须能 `open` 到 **`router_checkpoint_path`** 指向的文件；**不是**要求该权重已提交到 Git。
 - **扫 `α` 或换 rule 对照臂时，不要改上述 jsonl / checkpoint**，除非明确在做「新训练数据消融」；否则只改导航配置里的 **`learned_root_blend_alpha`** 与 **`batch_id_prefix`**。
 
 **主结果批（`N=500`，`real_corpus_navigation_batch.json`）**：
