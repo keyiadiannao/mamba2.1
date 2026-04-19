@@ -370,7 +370,7 @@ done
 | ③ | `probe_budget 2→3` | 200 | `…160226Z` | 0.415 | 0.065 | **trade-off**；**满 500 见下行** |
 | ③ | 同上 | 500 | `…162118Z` | **0.384** vs `122155Z` **0.378** | **0.066** vs **~0.110** | **`branch_cap` 叶次 42**；**不替换默认 `probe_budget=2`**，可选 **B′** |
 | ④ | `learned_root` α=0.5 / `cosine_probe` / `max_evidence=14` | 200 | 模版 **`…a030_learned_root_blend05`** / **`…a030_cosine_probe`** / **`…abl_maxev_14`** | 待定 | ≤0.12 硬门 | **逼近 Oracle** = 真实导航抬金叶过程指标；**禁** `oracle_item_leaves` 与注入 **`leaf_indices_required`**（§6.6「勿混三件事」） |
-| ④′ | **`cosine_probe`**（**`a030` 实体偏置栈**，与 **`…a030_cosine_probe.example.json`** 一致） | **500** | **`nav_p0_visit_rule_entity_boost_a030_cosine_probe_20260419_081150Z`** | **`never_visit=0.214`** | **`visit_miss=0.19`** | **与 `122155Z` 同 manifest 对表（2026-04-19，导航 `batch_summary` + `accept_gate_audit`）**：**检索 `exact_match_rate`** **0.204** vs **0.14**；**`avg_nav_wall_time_ms`** **≈2428** vs **≈2367**。审计摘要：**`never_visit` 0.214 vs 0.378**，**`visit_miss` 0.19 vs 0.11**；**`frac_samples_with_any_gold_in_context`** **0.784 vs 0.622**，**`mean_frac_gold_leaves_in_context`** **≈0.360 vs 0.258**，**`sum_accepted_gold_not_in_context`** **84 vs 63**；叶次 **cap/minrel** **116/18 vs 70/10**。**读法**：**cosine 在检索 rubric 与 ctx-gold 上优于当前 `rule` 默认臂**，**accept/cap 压力更高**（与 **`visit_miss`↑** 一致）。**`122155Z` 审计**：**`accept_gate_audit_nav_p0_visit_rule_entity_boost_a030_20260418_122155Z.json`**；换机无该文件时用 **`audit_accept_gate.py --batch-id-substring 122155Z`** 再生（如 **`…_rule_122155Z_regen.json`**，摘要应一致）。**`--out-json` 须含 `.json` 后缀**。**e2e 满 500**：见下 **`④′-e2e`**。**勿**与 §9.12 旧 **`context_select` 三连**混表。 |
+| ④′ | **`cosine_probe`**（**`a030` 实体偏置栈**，与 **`…a030_cosine_probe.example.json`** 一致） | **500** | **`nav_p0_visit_rule_entity_boost_a030_cosine_probe_20260419_081150Z`** | **`never_visit=0.214`** | **`visit_miss=0.19`** | **与 `122155Z` 同 manifest 对表（2026-04-19，导航 `batch_summary` + `accept_gate_audit`）**：**检索 `exact_match_rate`** **0.204** vs **0.14**；**`avg_nav_wall_time_ms`** **≈2428** vs **≈2367**。审计摘要：**`never_visit` 0.214 vs 0.378**，**`visit_miss` 0.19 vs 0.11**；**`frac_samples_with_any_gold_in_context`** **0.784 vs 0.622**，**`mean_frac_gold_leaves_in_context`** **≈0.360 vs 0.258**，**`sum_accepted_gold_not_in_context`** **84 vs 63**；叶次 **cap/minrel** **116/18 vs 70/10**。**读法**：**cosine 在检索 rubric 与 ctx-gold 上优于当前 `rule` 默认臂**，**accept/cap 压力更高**（与 **`visit_miss`↑** 一致）。**`122155Z` 审计**：**`accept_gate_audit_nav_p0_visit_rule_entity_boost_a030_20260418_122155Z.json`**；换机无该文件时用 **`audit_accept_gate.py --batch-id-substring 122155Z`** 再生（如 **`…_rule_122155Z_regen.json`**，摘要应一致）。**`--out-json` 须含 `.json` 后缀**。**e2e 满 500**：见下 **`④′-e2e`**（**已跑**：**`…cosine_probe…_20260419_094151Z`**）。**勿**与 §9.12 旧 **`context_select` 三连**混表。 |
 
 **④′-e2e（与 `081150Z` / `122155Z` 同旋钮、`probe_budget=2`、满 manifest）**：模版 **`configs/experiment/end_to_end_batch_real_corpus_server_mamba_370m_qwen7b_p0_cosine_probe_nav_probe_budget2_visit_a030.example.json`** — 与 **`end_to_end_batch_real_corpus_server_mamba_370m_qwen7b_p0_rule_frozen_nav_probe_budget2.example.json`**（`run_id_prefix` 已含 **`visit_a030`**）除 **`routing_mode`：`cosine_probe` vs `rule`** 外一致；**7B 生成 EM/F1** 与 §6.7 导航批 **retrieval proxy** 分列写结论。
 
@@ -387,6 +387,28 @@ python scripts/run_eval/run_end_to_end_batch.py \
 #   --registry-jsonl outputs/reports/run_registry.jsonl \
 #   --batch-id "<上一步 batch_id>" \
 #   --out-json "outputs/reports/accept_gate_audit_<上一步 batch_id>.json"
+```
+
+**`④′-e2e` 已跑满 500（2026-04-19，`370m` + 7B）**：**`batch_id`**：**`end_to_end_p0_real_corpus_370m_qwen7b_cosine_probe_nav_probe_budget2_visit_a030_20260419_094151Z`**；**`batch_summary`**：**`outputs/reports/end_to_end_batches/end_to_end_p0_real_corpus_370m_qwen7b_cosine_probe_nav_probe_budget2_visit_a030_20260419_094151Z/batch_summary.json`**。
+
+**打印终点（与 §6.6 表同一键）**：
+
+```bash
+cd ~/autodl-tmp/mamba2.1
+python3 -c "import json; p='outputs/reports/end_to_end_batches/end_to_end_p0_real_corpus_370m_qwen7b_cosine_probe_nav_probe_budget2_visit_a030_20260419_094151Z/batch_summary.json'; d=json.load(open(p,encoding='utf-8')); print(json.dumps({k:d.get(k) for k in ('batch_id','sample_count','exact_match_rate','avg_answer_f1','avg_nav_wall_time_ms')}, indent=2, ensure_ascii=False))"
+```
+
+**对表（同 manifest、`probe_budget=2`、`visit_a030` 栈）**：**`rule`** 历史 **`end_to_end_p0_real_corpus_370m_qwen7b_rule_frozen_nav_probe_budget2_20260418_060702Z`**（**EM≈`0.188`**，见上 **§6.6** 表）— 若数据或代码与当时不一致，请以 **同机当场重跑** **`p0_rule_frozen_nav_probe_budget2.example.json`** 的 **`batch_summary`** 为准。
+
+**可选 `accept_gate_audit`（e2e 批）**：
+
+```bash
+python scripts/diagnostics/audit_accept_gate.py \
+  --registry-jsonl outputs/reports/run_registry.jsonl \
+  --batch-id "end_to_end_p0_real_corpus_370m_qwen7b_cosine_probe_nav_probe_budget2_visit_a030_20260419_094151Z" \
+  --out-json "outputs/reports/accept_gate_audit_end_to_end_p0_real_corpus_370m_qwen7b_cosine_probe_nav_probe_budget2_visit_a030_20260419_094151Z.json"
+python scripts/diagnostics/summarize_audit_failure_buckets.py \
+  "outputs/reports/accept_gate_audit_end_to_end_p0_real_corpus_370m_qwen7b_cosine_probe_nav_probe_budget2_visit_a030_20260419_094151Z.json"
 ```
 
 **`branch_cap` 机制（与 P0-A′ 一致）**：**`evidence_max_per_root_child=0`** 时，**`reject_leaf_branch_cap`** 的 **`cap` 常来自** **`explore_root_probe_budget_per_child`**（`cap_source=top_m_budget`，见 **`src/controller/ssgs_controller.py`**）。
