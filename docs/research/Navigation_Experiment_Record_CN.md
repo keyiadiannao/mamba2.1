@@ -428,6 +428,26 @@ python scripts/run_nav/run_navigation_batch.py \
   --max-samples 50
 ```
 
+**已跑满 500（`sentence_transformer` / MiniLM，`a030`+`rule`，2026-04-19）**：**`batch_id`**：**`nav_p0_visit_rule_entity_boost_a030_sentence_minilm_20260419_150150Z`**；**`batch_summary`**：**`outputs/reports/batches/nav_p0_visit_rule_entity_boost_a030_sentence_minilm_20260419_150150Z/batch_summary.json`**。与 **`122155Z`（Mamba+`rule`）**、**`081150Z`（Mamba+`cosine_probe`）** 同 manifest，用于 **RQ：编码器是否带来过程/检索 proxy 差异**。
+
+**打印导航批摘要键**：
+
+```bash
+cd ~/autodl-tmp/mamba2.1
+python3 -c "import json; p='outputs/reports/batches/nav_p0_visit_rule_entity_boost_a030_sentence_minilm_20260419_150150Z/batch_summary.json'; d=json.load(open(p,encoding='utf-8')); print(json.dumps({k:d.get(k) for k in ('batch_id','sample_count','exact_match_rate','avg_answer_f1','avg_nav_wall_time_ms','nav_success_rate')}, indent=2, ensure_ascii=False))"
+```
+
+**`accept_gate_audit`（勿漏 `.json`）**：
+
+```bash
+python scripts/diagnostics/audit_accept_gate.py \
+  --registry-jsonl outputs/reports/run_registry.jsonl \
+  --batch-id "nav_p0_visit_rule_entity_boost_a030_sentence_minilm_20260419_150150Z" \
+  --out-json "outputs/reports/accept_gate_audit_nav_p0_visit_rule_entity_boost_a030_sentence_minilm_20260419_150150Z.json"
+python scripts/diagnostics/summarize_audit_failure_buckets.py \
+  "outputs/reports/accept_gate_audit_nav_p0_visit_rule_entity_boost_a030_sentence_minilm_20260419_150150Z.json"
+```
+
 **`branch_cap` 机制（与 P0-A′ 一致）**：**`evidence_max_per_root_child=0`** 时，**`reject_leaf_branch_cap`** 的 **`cap` 常来自** **`explore_root_probe_budget_per_child`**（`cap_source=top_m_budget`，见 **`src/controller/ssgs_controller.py`**）。
 
 **`probe_budget=3`：满 500 导航 + 可选 e2e**（**导航满 500 已产出 `162118Z`**；下列命令供 **复现 / 二次跑 / 换机**）
