@@ -457,7 +457,17 @@ python3 scripts/run_nav/run_navigation_batch.py \
   --max-samples 20
 ```
 
-**首批链路跑通（服务器，2026-04-19）**：**`batch_id`**：**`nav_p1_path_recursive_visit_rule_entity_boost_a030_20260419_161956Z`** → **`outputs/reports/batches/nav_p1_path_recursive_visit_rule_entity_boost_a030_20260419_161956Z/batch_summary.json`**。**`sample_count` / 指标以该 JSON 为准**（是否加 **`--max-samples`** 由你本地命令决定）；**`accept_gate_audit`** 用同 **`batch_id`** 生成后，再与 P0 **`122155Z`** **分列**对读。
+**首批链路跑通（服务器，2026-04-19，`n=20` 烟雾）**：**`batch_id`**：**`nav_p1_path_recursive_visit_rule_entity_boost_a030_20260419_161956Z`** → **`outputs/reports/batches/…161956Z/batch_summary.json`**。**勿与满 manifest 主表混读**。
+
+| 字段 | 值 |
+|:---|:---|
+| **`sample_count`** | **20** |
+| **`nav_success_count` / `nav_success_rate`** | **20** / **1.0** |
+| **`exact_match_count` / `exact_match_rate`** | **2** / **0.1**（retrieval proxy） |
+| **`avg_answer_f1` / `avg_rouge_l_f1`** | **≈0.106** / **≈0.106** |
+| **`avg_nav_wall_time_ms`** | **≈2184** |
+
+**读法**：**路线 B 工程链路成立**（**`nav_success_rate=1`**，无批级导航失败）；EM/F1 仅为 **`n=20`** 下粗 proxy，**不**外推为 P1 相对 P0 的最终胜负。下一步：**`accept_gate_audit`** 同 **`batch_id`**，再与 P0 **`122155Z`** **分列**对 **`never_visit` / `visit_miss`** 等过程门。
 
 ```bash
 python3 -c "import json; p='outputs/reports/batches/nav_p1_path_recursive_visit_rule_entity_boost_a030_20260419_161956Z/batch_summary.json'; d=json.load(open(p,encoding='utf-8')); print(json.dumps({k:d.get(k) for k in ('batch_id','sample_count','exact_match_rate','avg_answer_f1','avg_nav_wall_time_ms','nav_success_rate')}, indent=2, ensure_ascii=False))"
@@ -467,7 +477,7 @@ python scripts/diagnostics/audit_accept_gate.py \
   --out-json "outputs/reports/accept_gate_audit_nav_p1_path_recursive_visit_rule_entity_boost_a030_20260419_161956Z.json"
 ```
 
-跑通后核对 **`batch_summary.json`** 内 **`config.navigator_path_recursive_prompt`** 与 **`nav_success_rate`**；再 **`audit_accept_gate.py`** 与 P0 同 **`122155Z`** 旋钮对表（**分列叙事**，勿宣称「同 batch 续跑」）。**句向量 P1 烟测**：同一 JSON 将 **`navigator_type`** 改为 **`sentence_transformer`** 并保留 **`navigator_path_recursive_prompt`** 即可（依赖 **`sentence-transformers`**）。
+核对 **`batch_summary.json`** 内 **`config.navigator_path_recursive_prompt`** 为 **`true`**。**句向量 P1 烟测**：同一 JSON 将 **`navigator_type`** 改为 **`sentence_transformer`** 并保留 **`navigator_path_recursive_prompt`** 即可（依赖 **`sentence-transformers`**）。
 
 **烟测 `n=200`（`150150Z`）**：保留作 **熔断/对齐切片**；**勿与上表混为最终结论**。
 
