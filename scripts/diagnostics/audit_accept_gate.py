@@ -12,6 +12,8 @@ Usage (from repo root):
     --registry-jsonl outputs/reports/run_registry.jsonl \\
     --batch-id 'end_to_end_p0_real_corpus_370m_qwen7b_rule_frozen_nav_20260417_154358Z' \\
     --out-json outputs/reports/accept_gate_audit_rule_p0.json
+
+  # ``--out-json`` 应包含 ``.json`` 文件名；若省略扩展名，将生成无扩展名文件（易与目录混淆）。
 """
 
 from __future__ import annotations
