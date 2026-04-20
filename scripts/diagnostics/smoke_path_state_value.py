@@ -19,7 +19,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
             "Smoke test for path representation usefulness: compare mamba_seq / mean / "
-            "last / attn on touched-gold discrimination."
+            "last / attn across audit-style labels (touched/never_visit/visit_miss/etc.)."
         )
     )
     parser.add_argument(
@@ -178,6 +178,47 @@ def _prepare_config(config: dict[str, Any], force_native: bool) -> dict[str, Any
     return out
 
 
+def _leaf_indices_from_node_ids(node_ids: list[str], node_index: dict[str, Any]) -> set[int]:
+    leaves: set[int] = set()
+    for node_id in node_ids:
+        node = node_index.get(node_id)
+        if node is None:
+            continue
+        leaf_idx = node.metadata.get("leaf_index")
+        if isinstance(leaf_idx, int):
+            leaves.add(int(leaf_idx))
+    return leaves
+
+
+def _derive_labels(sample: dict[str, Any], trace: Any, node_index: dict[str, Any]) -> dict[str, int] | None:
+    gold = set(int(x) for x in sample.get("positive_leaf_indices", []) if isinstance(x, int))
+    if not gold:
+        return None
+    visited = set(int(x) for x in (trace.visited_leaf_indices_deduped or []) if isinstance(x, int))
+    visited_gold = visited.intersection(gold)
+
+    accepted_node_ids = [str(x) for x in (trace.evidence_node_ids or [])]
+    accepted_leafs = _leaf_indices_from_node_ids(accepted_node_ids, node_index)
+    accepted_gold = accepted_leafs.intersection(gold)
+
+    context_node_ids = [str(x) for x in (trace.context_node_ids or [])]
+    context_leafs = _leaf_indices_from_node_ids(context_node_ids, node_index)
+    context_gold = context_leafs.intersection(gold)
+
+    never_visit = 1 if not visited_gold else 0
+    visit_miss = 1 if (visited_gold and not visited_gold.issubset(accepted_gold)) else 0
+    visit_clean = 1 if (visited_gold and visited_gold.issubset(accepted_gold)) else 0
+    any_gold_in_context = 1 if context_gold else 0
+    touched_gold = 1 if visited_gold else 0
+    return {
+        "touched_gold": touched_gold,
+        "never_visit": never_visit,
+        "visit_miss": visit_miss,
+        "visit_clean": visit_clean,
+        "any_gold_in_context": any_gold_in_context,
+    }
+
+
 def main() -> None:
     args = parse_args()
     config = _prepare_config(load_json(ROOT / args.config), bool(args.force_native))
@@ -192,7 +233,14 @@ def main() -> None:
     controller = build_controller(config)
     navigator = controller.navigator
 
-    labels: list[int] = []
+    label_keys = [
+        "touched_gold",
+        "never_visit",
+        "visit_miss",
+        "visit_clean",
+        "any_gold_in_context",
+    ]
+    labels_by_target: dict[str, list[int]] = {k: [] for k in label_keys}
     score_map: dict[str, list[float]] = {"mamba_seq": [], "mean": [], "last": [], "attn": []}
     dropped = 0
     dropped_reasons: dict[str, int] = {}
@@ -215,11 +263,14 @@ def main() -> None:
         node_vecs = [_embed_node_independent(navigator, txt) for txt in node_texts]
         method_score = _method_scores(question_vec, node_vecs, navigator, node_texts)
 
-        gold = set(int(x) for x in sample.get("positive_leaf_indices", []) if isinstance(x, int))
-        visited_leaves = set(int(x) for x in (trace.visited_leaf_indices_deduped or []) if isinstance(x, int))
-        y = 1 if gold and (gold.intersection(visited_leaves)) else 0
+        labels = _derive_labels(sample, trace, node_index)
+        if labels is None:
+            dropped += 1
+            dropped_reasons["no_gold_annotation"] = dropped_reasons.get("no_gold_annotation", 0) + 1
+            continue
 
-        labels.append(y)
+        for k in label_keys:
+            labels_by_target[k].append(int(labels[k]))
         for k, v in method_score.items():
             score_map[k].append(float(v))
 
@@ -227,12 +278,10 @@ def main() -> None:
             print(f"[path-smoke] processed {idx}/{len(samples)} samples", flush=True)
 
     result: dict[str, Any] = {
-        "sample_count": len(labels),
+        "sample_count": len(labels_by_target["touched_gold"]),
         "dropped_samples": dropped,
         "dropped_reasons": dropped_reasons,
-        "positive_count": int(sum(labels)),
-        "negative_count": int(len(labels) - sum(labels)),
-        "metrics": {},
+        "targets": {},
         "config_snapshot": {
             "navigator_type": config.get("navigator_type"),
             "navigator_model_name": config.get("navigator_model_name"),
@@ -243,19 +292,35 @@ def main() -> None:
         },
     }
 
-    for method, scores in score_map.items():
-        pos_scores = [s for s, y in zip(scores, labels) if y == 1]
-        neg_scores = [s for s, y in zip(scores, labels) if y == 0]
-        result["metrics"][method] = {
-            "mean_score_pos": (sum(pos_scores) / len(pos_scores)) if pos_scores else None,
-            "mean_score_neg": (sum(neg_scores) / len(neg_scores)) if neg_scores else None,
-            "delta_pos_neg": (
-                (sum(pos_scores) / len(pos_scores)) - (sum(neg_scores) / len(neg_scores))
-                if pos_scores and neg_scores
-                else None
-            ),
-            "roc_auc": _roc_auc(scores, labels),
+    for target, labels in labels_by_target.items():
+        target_payload: dict[str, Any] = {
+            "positive_count": int(sum(labels)),
+            "negative_count": int(len(labels) - sum(labels)),
+            "metrics": {},
         }
+        for method, scores in score_map.items():
+            pos_scores = [s for s, y in zip(scores, labels) if y == 1]
+            neg_scores = [s for s, y in zip(scores, labels) if y == 0]
+            auc = _roc_auc(scores, labels)
+            auc_inv = (1.0 - auc) if auc is not None else None
+            best_auc = None if auc is None else max(auc, 1.0 - auc)
+            direction = None
+            if auc is not None:
+                direction = "higher_score=>label1" if auc >= 0.5 else "lower_score=>label1"
+            target_payload["metrics"][method] = {
+                "mean_score_pos": (sum(pos_scores) / len(pos_scores)) if pos_scores else None,
+                "mean_score_neg": (sum(neg_scores) / len(neg_scores)) if neg_scores else None,
+                "delta_pos_neg": (
+                    (sum(pos_scores) / len(pos_scores)) - (sum(neg_scores) / len(neg_scores))
+                    if pos_scores and neg_scores
+                    else None
+                ),
+                "roc_auc": auc,
+                "roc_auc_inverted": auc_inv,
+                "best_roc_auc_any_direction": best_auc,
+                "preferred_direction": direction,
+            }
+        result["targets"][target] = target_payload
 
     out_path = (
         ROOT / args.out_json
